@@ -374,11 +374,15 @@ def create_curve_segment(ifc_file, parent_curve, placement,
         This entity is what gets collected into IfcCompositeCurve.
         Without this, you only have business logic, not geometry!
     """
+    # Wrap numeric values in IfcParameterValue entities (required by IFC 4X3)
+    segment_start_param = ifc_file.create_entity("IfcParameterValue", float(segment_start))
+    segment_length_param = ifc_file.create_entity("IfcParameterValue", float(segment_length))
+
     return ifc_file.create_entity("IfcCurveSegment",
         Transition=transition,
         Placement=placement,
-        SegmentStart=float(segment_start),
-        SegmentLength=float(segment_length),
+        SegmentStart=segment_start_param,
+        SegmentLength=segment_length_param,
         ParentCurve=parent_curve)
 
 

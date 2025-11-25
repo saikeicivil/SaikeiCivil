@@ -65,13 +65,15 @@ class SimpleVector:
 
 class NativeIfcAlignment:
     """Native IFC alignment with PI-driven design - PIs are pure intersection points"""
-    
+
     def __init__(self, ifc_file, name="New Alignment", alignment_entity=None):
         self.ifc = ifc_file
         self.alignment = None
         self.horizontal = None
         self.pis = []  # PIs have NO radius property!
-        self.segments = []
+        self.segments = []  # IfcAlignmentSegment entities (business logic)
+        self.curve_segments = []  # IfcCurveSegment entities (geometric representation)
+        self.referents = []  # Stationing referents (IfcReferent with Pset_Stationing)
 
         if alignment_entity:
             # Load from existing IFC alignment
@@ -79,6 +81,8 @@ class NativeIfcAlignment:
         else:
             # Create new alignment structure
             self.create_alignment_structure(name)
+            # Set default starting station at 10+000 (10000.0 meters)
+            self.set_starting_station(10000.0)
 
         # Register for updates
         self.auto_update = True
@@ -150,6 +154,9 @@ class NativeIfcAlignment:
 
         # Reconstruct PIs from segments
         self._reconstruct_pis_from_segments()
+
+        # Load stationing referents
+        self._load_referents_from_ifc()
 
         print(f"[Alignment] Loaded '{alignment_entity.Name}': {len(self.pis)} PIs, {len(self.segments)} segments")
 
@@ -323,30 +330,65 @@ class NativeIfcAlignment:
                 next_pi['position']
             )
             self.segments.append(tangent_seg)
-        
+
         self._update_ifc_nesting()
-        
+        self._build_composite_curve_representation()
+
         print(f"[Alignment] Regenerated {len(self.segments)} tangent segments from {len(self.pis)} PIs")
     
     def _create_tangent_segment(self, start_pos, end_pos):
-        """Create IFC tangent segment"""
+        """Create IFC tangent segment with both business logic and geometric representation"""
+        from .ifc_geometry_builders import (
+            create_line_parent_curve,
+            create_curve_segment as create_ifc_curve_segment
+        )
+
         direction = end_pos - start_pos
         length = direction.length
         angle = math.atan2(direction.y, direction.x)
-        
+
+        # Business logic layer (design parameters)
+        design_params = self.ifc.create_entity(
+            "IfcAlignmentHorizontalSegment",
+            StartPoint=self.ifc.create_entity("IfcCartesianPoint",
+                Coordinates=[float(start_pos.x), float(start_pos.y)]),
+            StartDirection=float(angle),
+            StartRadiusOfCurvature=0.0,
+            EndRadiusOfCurvature=0.0,
+            SegmentLength=float(length),
+            PredefinedType="LINE"
+        )
+
+        # Geometric representation layer
+        # Create parent line curve
+        parent_curve = create_line_parent_curve(
+            self.ifc,
+            float(start_pos.x), float(start_pos.y),
+            float(end_pos.x), float(end_pos.y)
+        )
+
+        # Create curve segment wrapper
+        # Placement is at origin (0,0) since line defines its own endpoints
+        placement = self.ifc.create_entity("IfcAxis2Placement2D",
+            Location=self.ifc.create_entity("IfcCartesianPoint", Coordinates=[0.0, 0.0])
+        )
+
+        curve_geometry = create_ifc_curve_segment(
+            self.ifc,
+            parent_curve,
+            placement,
+            0.0,  # SegmentStart
+            float(length)  # SegmentLength
+        )
+
+        # Store curve geometry separately (not in IfcAlignmentSegment)
+        self.curve_segments.append(curve_geometry)
+
+        # Create alignment segment with only business logic (no CurveGeometry attribute in IFC4X3_ADD2)
         segment = self.ifc.create_entity("IfcAlignmentSegment",
             GlobalId=ifcopenshell.guid.new(),
             Name=f"Tangent_{len(self.segments)}",
-            DesignParameters=self.ifc.create_entity(
-                "IfcAlignmentHorizontalSegment",
-                StartPoint=self.ifc.create_entity("IfcCartesianPoint",
-                    Coordinates=[float(start_pos.x), float(start_pos.y)]),
-                StartDirection=float(angle),
-                StartRadiusOfCurvature=0.0,
-                EndRadiusOfCurvature=0.0,
-                SegmentLength=float(length),
-                PredefinedType="LINE"
-            )
+            DesignParameters=design_params
         )
         return segment
     
@@ -462,32 +504,188 @@ class NativeIfcAlignment:
                 self.segments.append(curve)
 
         self._update_ifc_nesting()
+        self._build_composite_curve_representation()
 
         print(f"[Alignment] Regenerated {len(self.segments)} segments with curves")
     
     def _create_curve_segment(self, curve_data, pi_id=None):
-        """Create IFC curve segment with SIGNED radius for turn direction"""
+        """Create IFC curve segment with SIGNED radius for turn direction and geometric representation"""
+        from .ifc_geometry_builders import (
+            create_circle_parent_curve,
+            create_curve_segment as create_ifc_curve_segment,
+            create_axis2placement_2d
+        )
+
         name = f"Curve_{pi_id}" if pi_id is not None else f"Curve_{len(self.segments)}"
-        
+
         # Use signed radius based on deflection angle
         signed_radius = curve_data['radius'] if curve_data['deflection'] > 0 else -curve_data['radius']
-        
+
+        # Business logic layer (design parameters)
+        design_params = self.ifc.create_entity(
+            "IfcAlignmentHorizontalSegment",
+            StartPoint=self.ifc.create_entity("IfcCartesianPoint",
+                Coordinates=[float(curve_data['bc'].x), float(curve_data['bc'].y)]),
+            StartDirection=float(curve_data['start_direction']),
+            StartRadiusOfCurvature=float(signed_radius),
+            EndRadiusOfCurvature=float(signed_radius),
+            SegmentLength=float(curve_data['arc_length']),
+            PredefinedType="CIRCULARARC"
+        )
+
+        # Geometric representation layer
+        # Calculate circle center from BC point and start direction
+        radius = curve_data['radius']
+        bc = curve_data['bc']
+        start_dir = curve_data['start_direction']
+        turn_dir = curve_data['turn_direction']
+
+        # Center is perpendicular to start direction
+        # LEFT turn: center is 90° CCW from start direction
+        # RIGHT turn: center is 90° CW from start direction
+        if turn_dir == 'LEFT':
+            center_angle = start_dir + math.pi / 2
+        else:
+            center_angle = start_dir - math.pi / 2
+
+        center_x = bc.x + radius * math.cos(center_angle)
+        center_y = bc.y + radius * math.sin(center_angle)
+
+        # Create parent circle curve
+        parent_curve = create_circle_parent_curve(
+            self.ifc,
+            center_x,
+            center_y,
+            radius,
+            start_dir  # Circle orientation
+        )
+
+        # Create placement at BC (start of curve)
+        placement = create_axis2placement_2d(
+            self.ifc,
+            float(bc.x),
+            float(bc.y),
+            float(start_dir)
+        )
+
+        # Create curve segment
+        # For a circle, SegmentStart is the starting angle relative to circle's X-axis
+        # We'll use 0.0 and let the placement handle positioning
+        curve_geometry = create_ifc_curve_segment(
+            self.ifc,
+            parent_curve,
+            placement,
+            0.0,  # SegmentStart (angle on circle)
+            float(curve_data['arc_length']),  # SegmentLength
+            "CONTSAMEGRADIENT"  # G1 continuity for smooth curves
+        )
+
+        # Store curve geometry separately (not in IfcAlignmentSegment)
+        self.curve_segments.append(curve_geometry)
+
+        # Create alignment segment with only business logic (no CurveGeometry attribute in IFC4X3_ADD2)
         segment = self.ifc.create_entity("IfcAlignmentSegment",
             GlobalId=ifcopenshell.guid.new(),
             Name=name,
-            DesignParameters=self.ifc.create_entity(
-                "IfcAlignmentHorizontalSegment",
-                StartPoint=self.ifc.create_entity("IfcCartesianPoint",
-                    Coordinates=[float(curve_data['bc'].x), float(curve_data['bc'].y)]),
-                StartDirection=float(curve_data['start_direction']),
-                StartRadiusOfCurvature=float(signed_radius),
-                EndRadiusOfCurvature=float(signed_radius),
-                SegmentLength=float(curve_data['arc_length']),
-                PredefinedType="CIRCULARARC"
-            )
+            DesignParameters=design_params
         )
         return segment
     
+    def _build_composite_curve_representation(self):
+        """Build IfcCompositeCurve and shape representation from all segments
+
+        This creates the geometric representation layer:
+        - Collects CurveGeometry (IfcCurveSegment) from all segments
+        - Wraps them in IfcCompositeCurve
+        - Creates IfcAlignmentCurve wrapper
+        - Creates IfcShapeRepresentation
+        - Attaches to IfcAlignment via IfcProductDefinitionShape
+
+        CRITICAL: Removes old representation first to avoid duplicates!
+        """
+        from .ifc_geometry_builders import (
+            create_composite_curve,
+            create_alignment_curve,
+            create_shape_representation,
+            create_product_definition_shape
+        )
+        from .native_ifc_manager import NativeIfcManager
+
+        if not self.segments:
+            print("[Alignment] No segments to build composite curve from")
+            return None
+
+        # STEP 1: Remove old representation to avoid duplicates
+        if hasattr(self.alignment, 'Representation') and self.alignment.Representation:
+            old_rep = self.alignment.Representation
+            if old_rep.is_a("IfcProductDefinitionShape"):
+                # Remove all shape representations
+                for shape_rep in old_rep.Representations:
+                    if shape_rep.is_a("IfcShapeRepresentation"):
+                        # Remove the items (IfcAlignmentCurve, etc.)
+                        for item in shape_rep.Items:
+                            if item.is_a("IfcAlignmentCurve"):
+                                # Remove the curve (IfcCompositeCurve)
+                                if hasattr(item, 'Curve') and item.Curve:
+                                    # Don't remove the segments - they're owned by IfcAlignmentSegment
+                                    self.ifc.remove(item.Curve)
+                                self.ifc.remove(item)
+                        self.ifc.remove(shape_rep)
+                self.ifc.remove(old_rep)
+            # Clear the reference
+            self.alignment.Representation = None
+
+        # STEP 2: Use the stored curve segments (IfcCurveSegment entities)
+        # These are stored separately because IfcAlignmentSegment doesn't have CurveGeometry in IFC4X3_ADD2
+        if not self.curve_segments:
+            print("[Alignment] No curve segments with geometry found")
+            return None
+
+        curve_segments = self.curve_segments
+
+        # Create IfcCompositeCurve from all curve segments
+        composite_curve = create_composite_curve(self.ifc, curve_segments, self_intersect=False)
+        print(f"[Alignment] Created IfcCompositeCurve with {len(curve_segments)} segments")
+
+        # Wrap in IfcAlignmentCurve
+        alignment_curve = create_alignment_curve(self.ifc, composite_curve, "Axis")
+
+        # Get geometric representation context
+        # This is required for shape representation
+        context = NativeIfcManager.get_geometric_context()
+        if not context:
+            print("[Alignment] Warning: No geometric representation context found")
+            # Try to get from project
+            project = self.ifc.by_type("IfcProject")
+            if project:
+                reps = project[0].RepresentationContexts
+                if reps:
+                    context = reps[0]
+
+        if not context:
+            print("[Alignment] Cannot create shape representation without context")
+            return composite_curve
+
+        # Create shape representation
+        shape_rep = create_shape_representation(
+            self.ifc,
+            context,
+            [alignment_curve],
+            representation_type="Curve3D",
+            representation_identifier="Axis"
+        )
+
+        # Create product definition shape
+        product_shape = create_product_definition_shape(self.ifc, [shape_rep])
+
+        # Attach to alignment
+        # NOTE: IfcAlignment can have Representation according to IFC 4.3
+        self.alignment.Representation = product_shape
+
+        print(f"[Alignment] Attached geometric representation to {self.alignment.Name}")
+
+        return composite_curve
+
     def _calculate_curve(self, prev_pi, curr_pi, next_pi, radius):
         """Calculate curve geometry from PIs with SIGNED deflection angle"""
         t1 = (curr_pi - prev_pi).normalized()
@@ -526,16 +724,473 @@ class NativeIfcAlignment:
         }
     
     def _update_ifc_nesting(self):
-        """Update IFC nesting relationships"""
-        if self.segments:
-            # Remove old nesting
-            for rel in self.horizontal.IsNestedBy or []:
+        """Update IFC nesting relationships
+
+        CRITICAL: This method removes old segments AND their geometry before nesting new ones.
+        This prevents duplicate entities and maintains clean IFC structure.
+        """
+        # STEP 1: Clean up old curve geometry entities (stored separately)
+        for curve_seg in self.curve_segments:
+            try:
+                # Remove ParentCurve (IfcLine or IfcCircle)
+                if hasattr(curve_seg, 'ParentCurve') and curve_seg.ParentCurve:
+                    parent = curve_seg.ParentCurve
+                    # Remove position placement if it exists
+                    if hasattr(parent, 'Position') and parent.Position:
+                        pos = parent.Position
+                        if hasattr(pos, 'Location') and pos.Location:
+                            self.ifc.remove(pos.Location)
+                        if hasattr(pos, 'RefDirection') and pos.RefDirection:
+                            self.ifc.remove(pos.RefDirection)
+                        self.ifc.remove(pos)
+                    self.ifc.remove(parent)
+
+                # Remove placement if it exists
+                if hasattr(curve_seg, 'Placement') and curve_seg.Placement:
+                    place = curve_seg.Placement
+                    if hasattr(place, 'Location') and place.Location:
+                        self.ifc.remove(place.Location)
+                    if hasattr(place, 'RefDirection') and place.RefDirection:
+                        self.ifc.remove(place.RefDirection)
+                    self.ifc.remove(place)
+
+                # Remove the curve segment itself
+                # Note: IfcParameterValue (SegmentStart/Length) are simple types, not entities
+                # They are automatically cleaned up when the parent is removed
+                self.ifc.remove(curve_seg)
+            except RuntimeError as e:
+                # Entity might have already been removed - ignore
+                print(f"[Alignment] Warning: Could not remove curve segment: {e}")
+
+        # Clear the curve segments list
+        if self.curve_segments:
+            print(f"[Alignment] Removed {len(self.curve_segments)} old curve geometry entities")
+        self.curve_segments = []
+
+        # STEP 2: Remove old segment entities and nesting relationships
+        old_segments = []
+        for rel in self.horizontal.IsNestedBy or []:
+            if rel.is_a("IfcRelNests"):
+                # Collect old segments
+                for obj in rel.RelatedObjects:
+                    if obj.is_a("IfcAlignmentSegment"):
+                        old_segments.append(obj)
+                # Remove the nesting relationship
                 self.ifc.remove(rel)
-            
-            # Create new nesting
+
+        # STEP 3: Remove old segment entities (business logic only)
+        for segment in old_segments:
+            try:
+                # Remove DesignParameters
+                if hasattr(segment, 'DesignParameters') and segment.DesignParameters:
+                    params = segment.DesignParameters
+                    if hasattr(params, 'StartPoint') and params.StartPoint:
+                        self.ifc.remove(params.StartPoint)
+                    self.ifc.remove(params)
+
+                # Finally, remove the segment itself
+                self.ifc.remove(segment)
+            except RuntimeError as e:
+                # Entity might have already been removed - ignore
+                print(f"[Alignment] Warning: Could not remove segment: {e}")
+
+        if old_segments:
+            print(f"[Alignment] Removed {len(old_segments)} old segments")
+
+        # STEP 4: Create new nesting with current segments
+        if self.segments:
             self.ifc.create_entity("IfcRelNests",
                 GlobalId=ifcopenshell.guid.new(),
                 Name="HorizontalToSegments",
                 RelatingObject=self.horizontal,
                 RelatedObjects=self.segments
             )
+
+    # ============================================================================
+    # STATIONING METHODS (IFC Referents with Pset_Stationing)
+    # ============================================================================
+
+    def set_starting_station(self, station_value):
+        """
+        Set the starting station of the alignment.
+
+        Creates an IfcReferent at distance_along = 0.0 with the specified station value.
+        Per IFC 4.3 spec, the first referent in the ordered list defines the starting station.
+
+        Args:
+            station_value: Station value at the start of the alignment (e.g., 0.0 for 0+00)
+        """
+        # Remove existing starting station referent if it exists
+        self.referents = [r for r in self.referents if r['distance_along'] != 0.0]
+
+        # Add new starting station at distance 0
+        referent_data = {
+            'distance_along': 0.0,
+            'station': float(station_value),
+            'incoming_station': None,  # No incoming station for start
+            'description': 'Starting Station',
+            'ifc_referent': None  # Will be created when saving to IFC
+        }
+
+        self.referents.insert(0, referent_data)  # Insert at beginning (ordered list)
+        self._sort_referents()
+        self._update_referent_entities()
+
+        print(f"[Alignment] Set starting station to {station_value:.2f}")
+
+    def add_station_equation(self, distance_along, incoming_station, outgoing_station, description="Station Equation"):
+        """
+        Add a station equation (chainage break).
+
+        Station equations are used when station values need to jump (e.g., for route continuity).
+
+        Args:
+            distance_along: Distance along alignment where equation occurs (meters)
+            incoming_station: Station value approaching this point
+            outgoing_station: Station value leaving this point
+            description: Optional description of the equation
+
+        Example:
+            # At 500m along alignment, station jumps from 5+00 to 10+00
+            alignment.add_station_equation(500.0, 500.0, 1000.0, "Route Continuation")
+        """
+        referent_data = {
+            'distance_along': float(distance_along),
+            'station': float(outgoing_station),
+            'incoming_station': float(incoming_station),
+            'description': description,
+            'ifc_referent': None
+        }
+
+        # Remove any existing equation at this distance
+        self.referents = [r for r in self.referents if r['distance_along'] != distance_along]
+
+        self.referents.append(referent_data)
+        self._sort_referents()
+        self._update_referent_entities()
+
+        print(f"[Alignment] Added station equation at {distance_along:.2f}m: {incoming_station:.2f} → {outgoing_station:.2f}")
+
+    def remove_station_equation(self, distance_along):
+        """
+        Remove a station equation at the specified distance.
+
+        Args:
+            distance_along: Distance where the equation exists
+
+        Returns:
+            True if equation was removed, False if not found
+        """
+        initial_count = len(self.referents)
+
+        # Don't remove starting station
+        self.referents = [r for r in self.referents if
+                         r['distance_along'] != distance_along or r['distance_along'] == 0.0]
+
+        removed = len(self.referents) < initial_count
+
+        if removed:
+            self._update_referent_entities()
+            print(f"[Alignment] Removed station equation at {distance_along:.2f}m")
+
+        return removed
+
+    def get_station_at_distance(self, distance_along):
+        """
+        Calculate station value at a given distance along the alignment.
+
+        Accounts for station equations.
+
+        Args:
+            distance_along: Distance along alignment (meters)
+
+        Returns:
+            Station value at that distance
+        """
+        if not self.referents:
+            # No stationing defined, return distance as station
+            return distance_along
+
+        # Find the applicable referent (last one before or at this distance)
+        applicable_referent = None
+        for ref in reversed(self.referents):
+            if ref['distance_along'] <= distance_along:
+                applicable_referent = ref
+                break
+
+        if not applicable_referent:
+            # Before first referent, extrapolate backwards
+            first_ref = self.referents[0]
+            delta_distance = distance_along - first_ref['distance_along']
+            return first_ref['station'] + delta_distance
+
+        # Calculate station from applicable referent
+        delta_distance = distance_along - applicable_referent['distance_along']
+        station = applicable_referent['station'] + delta_distance
+
+        return station
+
+    def get_distance_at_station(self, station_value):
+        """
+        Calculate distance along alignment at a given station value.
+
+        Accounts for station equations (inverse of get_station_at_distance).
+
+        Args:
+            station_value: Station value to find
+
+        Returns:
+            Distance along alignment (meters), or None if station not in range
+        """
+        if not self.referents:
+            # No stationing defined, station equals distance
+            return station_value
+
+        # Find which segment this station falls in
+        for i in range(len(self.referents)):
+            current_ref = self.referents[i]
+
+            # Check if this is the last referent
+            if i == len(self.referents) - 1:
+                # Beyond last referent, extrapolate
+                if station_value >= current_ref['station']:
+                    delta_station = station_value - current_ref['station']
+                    return current_ref['distance_along'] + delta_station
+            else:
+                next_ref = self.referents[i + 1]
+                next_station = next_ref.get('incoming_station', next_ref['station'])
+
+                # Check if station is in this segment
+                if current_ref['station'] <= station_value < next_station:
+                    delta_station = station_value - current_ref['station']
+                    return current_ref['distance_along'] + delta_station
+
+        # Station before first referent
+        first_ref = self.referents[0]
+        if station_value < first_ref['station']:
+            delta_station = station_value - first_ref['station']
+            return first_ref['distance_along'] + delta_station
+
+        return None
+
+    def _sort_referents(self):
+        """Sort referents by distance_along (required by IFC spec)"""
+        self.referents.sort(key=lambda r: r['distance_along'])
+
+    def _update_referent_entities(self):
+        """
+        Create/update IFC IfcReferent entities with Pset_Stationing.
+
+        Per IFC 4.3 spec:
+        - Referents are nested to IfcAlignment via IfcRelNests
+        - Use separate IfcRelNests from alignment layout
+        - PredefinedType = STATION
+        - Station values stored in Pset_Stationing
+        """
+        if not self.alignment:
+            return
+
+        # Remove old referent entities and their relationships
+        old_referents = []
+        for rel in self.alignment.IsNestedBy or []:
+            if rel.Name == "AlignmentToReferents":
+                old_referents.extend(rel.RelatedObjects)
+                self.ifc.remove(rel)
+
+        for ref in old_referents:
+            if ref.is_a("IfcReferent"):
+                # Remove property sets
+                for rel_def in ref.IsDefinedBy or []:
+                    if rel_def.is_a("IfcRelDefinesByProperties"):
+                        self.ifc.remove(rel_def.RelatingPropertyDefinition)
+                        self.ifc.remove(rel_def)
+                self.ifc.remove(ref)
+
+        # Get the basis curve (IfcCompositeCurve) from alignment representation
+        basis_curve = self._get_basis_curve()
+
+        # Create new referent entities
+        referent_entities = []
+        for ref_data in self.referents:
+            # Create IfcReferent
+            referent = self.ifc.create_entity("IfcReferent",
+                GlobalId=ifcopenshell.guid.new(),
+                Name=ref_data['description'],
+                PredefinedType="STATION"
+            )
+
+            # Create IfcLinearPlacement if we have a basis curve
+            if basis_curve:
+                # Create IfcPointByDistanceExpression
+                point_by_distance = self.ifc.create_entity("IfcPointByDistanceExpression",
+                    DistanceAlong=float(ref_data['distance_along']),
+                    OffsetLateral=0.0,
+                    OffsetVertical=0.0,
+                    OffsetLongitudinal=0.0,
+                    BasisCurve=basis_curve
+                )
+
+                # Create IfcAxis2PlacementLinear
+                axis_placement_linear = self.ifc.create_entity("IfcAxis2PlacementLinear",
+                    Location=point_by_distance,
+                    Axis=None,  # Default perpendicular to curve
+                    RefDirection=None  # Default tangent to curve
+                )
+
+                # Create IfcLinearPlacement
+                linear_placement = self.ifc.create_entity("IfcLinearPlacement",
+                    PlacementRelTo=None,  # Relative to alignment start
+                    RelativePlacement=axis_placement_linear
+                )
+
+                # Assign placement to referent
+                referent.ObjectPlacement = linear_placement
+
+            # Create Pset_Stationing
+            station_props = []
+
+            # Station property (required)
+            station_props.append(
+                self.ifc.create_entity("IfcPropertySingleValue",
+                    Name="Station",
+                    NominalValue=self.ifc.create_entity("IfcLengthMeasure", ref_data['station'])
+                )
+            )
+
+            # IncomingStation property (for station equations only)
+            if ref_data['incoming_station'] is not None:
+                station_props.append(
+                    self.ifc.create_entity("IfcPropertySingleValue",
+                        Name="IncomingStation",
+                        NominalValue=self.ifc.create_entity("IfcLengthMeasure", ref_data['incoming_station'])
+                    )
+                )
+
+            # DistanceAlong property (for reference)
+            station_props.append(
+                self.ifc.create_entity("IfcPropertySingleValue",
+                    Name="DistanceAlong",
+                    NominalValue=self.ifc.create_entity("IfcLengthMeasure", ref_data['distance_along'])
+                )
+            )
+
+            # IncrementOrder property (True = increasing stations along alignment)
+            station_props.append(
+                self.ifc.create_entity("IfcPropertySingleValue",
+                    Name="IncrementOrder",
+                    NominalValue=self.ifc.create_entity("IfcBoolean", True)
+                )
+            )
+
+            # Create property set
+            pset = self.ifc.create_entity("IfcPropertySet",
+                GlobalId=ifcopenshell.guid.new(),
+                Name="Pset_Stationing",
+                HasProperties=station_props
+            )
+
+            # Link property set to referent
+            self.ifc.create_entity("IfcRelDefinesByProperties",
+                GlobalId=ifcopenshell.guid.new(),
+                RelatedObjects=[referent],
+                RelatingPropertyDefinition=pset
+            )
+
+            referent_entities.append(referent)
+            ref_data['ifc_referent'] = referent
+
+        # Create IfcRelNests for referents (separate from layout nesting)
+        if referent_entities:
+            self.ifc.create_entity("IfcRelNests",
+                GlobalId=ifcopenshell.guid.new(),
+                Name="AlignmentToReferents",
+                RelatingObject=self.alignment,
+                RelatedObjects=referent_entities
+            )
+
+            print(f"[Alignment] Created {len(referent_entities)} IFC referents with stationing")
+
+    def _get_basis_curve(self):
+        """
+        Get the basis curve (IfcCompositeCurve) from alignment representation.
+
+        Returns:
+            IfcCompositeCurve if found, None otherwise
+        """
+        if not self.alignment:
+            return None
+
+        # Check if alignment has a representation
+        if not hasattr(self.alignment, 'Representation') or not self.alignment.Representation:
+            return None
+
+        # Navigate: IfcProductDefinitionShape → IfcShapeRepresentation → Items → IfcAlignmentCurve → Curve
+        product_shape = self.alignment.Representation
+        if not product_shape.is_a("IfcProductDefinitionShape"):
+            return None
+
+        for representation in product_shape.Representations:
+            if representation.is_a("IfcShapeRepresentation"):
+                for item in representation.Items:
+                    if item.is_a("IfcAlignmentCurve"):
+                        curve = item.Curve
+                        # Could be IfcCompositeCurve or IfcGradientCurve
+                        if curve.is_a("IfcCompositeCurve"):
+                            return curve
+                        elif curve.is_a("IfcGradientCurve"):
+                            # For gradient curves, get the base curve (horizontal)
+                            return curve.BaseCurve
+
+        return None
+
+    def _load_referents_from_ifc(self):
+        """
+        Load stationing referents from existing IFC alignment.
+
+        Called during load_from_ifc() to reconstruct stationing from saved IFC.
+        """
+        if not self.alignment:
+            return
+
+        self.referents = []
+
+        # Find referents nested to this alignment
+        for rel in self.alignment.IsNestedBy or []:
+            if rel.Name == "AlignmentToReferents":
+                for obj in rel.RelatedObjects:
+                    if obj.is_a("IfcReferent") and obj.PredefinedType == "STATION":
+                        # Extract stationing data from Pset_Stationing
+                        station_value = None
+                        incoming_station = None
+                        distance_along = 0.0
+
+                        for rel_def in obj.IsDefinedBy or []:
+                            if rel_def.is_a("IfcRelDefinesByProperties"):
+                                pset = rel_def.RelatingPropertyDefinition
+                                if pset.is_a("IfcPropertySet") and pset.Name == "Pset_Stationing":
+                                    for prop in pset.HasProperties:
+                                        if prop.Name == "Station":
+                                            station_value = float(prop.NominalValue.wrappedValue)
+                                        elif prop.Name == "IncomingStation":
+                                            incoming_station = float(prop.NominalValue.wrappedValue)
+                                        elif prop.Name == "DistanceAlong":
+                                            distance_along = float(prop.NominalValue.wrappedValue)
+
+                        if station_value is not None:
+                            referent_data = {
+                                'distance_along': distance_along,
+                                'station': station_value,
+                                'incoming_station': incoming_station,
+                                'description': obj.Name or "Station Referent",
+                                'ifc_referent': obj
+                            }
+                            self.referents.append(referent_data)
+
+        self._sort_referents()
+
+        if self.referents:
+            print(f"[Alignment] Loaded {len(self.referents)} stationing referents from IFC")
+        else:
+            # No referents found, set default starting station
+            print(f"[Alignment] No stationing referents found, setting default 10+000")
+            self.set_starting_station(10000.0)
