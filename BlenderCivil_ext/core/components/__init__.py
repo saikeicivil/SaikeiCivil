@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,10 +29,30 @@ from .shoulder_component import ShoulderComponent
 from .curb_component import CurbComponent
 from .ditch_component import DitchComponent
 
+# Templates package
+from .templates import (
+    TemplateMetadata,
+    get_all_templates,
+    get_templates_by_category,
+    list_templates,
+    get_template_summary,
+)
+
+# Backwards compatibility
+from .template_library_expanded import TemplateLibraryExpanded
+
 __all__ = [
+    # Core components
     'AssemblyComponent',
     'LaneComponent',
     'ShoulderComponent',
     'CurbComponent',
     'DitchComponent',
+    # Templates
+    'TemplateMetadata',
+    'TemplateLibraryExpanded',
+    'get_all_templates',
+    'get_templates_by_category',
+    'list_templates',
+    'get_template_summary',
 ]

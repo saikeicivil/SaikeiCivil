@@ -259,7 +259,7 @@ Generated with assistance from **Claude Code** (Anthropic)
 
 ## 📄 License
 
-**Copyright © 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC**
+**Copyright © 2025 Michael Yoder / Desert Springs Civil Engineering PLLC**
 
 BlenderCivil is licensed under the **Apache License 2.0**.
 

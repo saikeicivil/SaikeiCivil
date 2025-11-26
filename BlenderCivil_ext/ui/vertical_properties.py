@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,6 +33,10 @@ from bpy.props import (
     CollectionProperty,
     EnumProperty,
 )
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class PVIProperties(PropertyGroup):
@@ -373,27 +377,27 @@ def register():
     """Register property classes and add to Scene"""
     for cls in classes:
         bpy.utils.register_class(cls)
-    
+
     # Add vertical alignment properties to Scene
     bpy.types.Scene.bc_vertical = bpy.props.PointerProperty(
         type=VerticalAlignmentProperties,
         name="Vertical Alignment",
         description="Vertical alignment properties",
     )
-    
-    print("  [+] Vertical alignment properties registered")
+
+    logger.debug("Vertical alignment properties registered")
 
 
 def unregister():
     """Unregister property classes"""
     # Remove from Scene
     del bpy.types.Scene.bc_vertical
-    
+
     # Unregister classes
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    print("  [-] Vertical alignment properties unregistered")
+
+    logger.debug("Vertical alignment properties unregistered")
 
 
 if __name__ == "__main__":

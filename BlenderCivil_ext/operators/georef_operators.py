@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,25 @@
 # ==============================================================================
 
 """
-BlenderCivil - Georeferencing Operators
+Georeferencing Operators
+=========================
 
-Blender operators for georeferencing operations. These operators connect
-the UI to the backend georeferencing modules.
+Provides operators for georeferencing civil engineering projects using
+coordinate reference systems (CRS).
+
+This module connects the UI to backend georeferencing functionality, enabling
+users to search for coordinate systems, configure false origins, and apply
+georeferencing to IFC files. Supports EPSG codes and MapTiler API integration
+for CRS lookups.
+
+Operators:
+    BC_OT_search_crs: Search for coordinate reference systems by name or EPSG code
+    BC_OT_select_crs: Select a CRS from search results
+    BC_OT_setup_georeferencing: Configure georeferencing with selected CRS
+    BC_OT_preview_transform: Preview coordinate transformation calculations
+    BC_OT_pick_false_origin: Set false origin from 3D cursor position
+    BC_OT_validate_georeferencing: Check georeferencing configuration
+    BC_OT_load_georeferencing: Load existing georeferencing from IFC file
 
 Author: BlenderCivil Team
 Date: November 2025
@@ -32,6 +47,9 @@ Sprint: 2 Day 3 - UI Integration
 import bpy
 from bpy.types import Operator
 from bpy.props import StringProperty, IntProperty, FloatProperty
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Import backend modules (these will be from Sprint 2 Day 2)
 try:
@@ -40,11 +58,30 @@ try:
     HAS_BACKEND = True
 except ImportError:
     HAS_BACKEND = False
-    print("Warning: Backend georeferencing modules not found")
+    logger.warning("Backend georeferencing modules not found")
 
 
 class BC_OT_search_crs(Operator):
-    """Search for Coordinate Reference Systems"""
+    """Search for Coordinate Reference Systems.
+
+    Performs a search for coordinate reference systems using the MapTiler API.
+    Users can search by name (e.g., "NAD83 California") or EPSG code.
+    Results are stored in the scene's bc_georef.search_results collection.
+
+    Properties:
+        Uses scene.bc_georef.crs_search_query for the search term
+
+    Requirements:
+        - MapTiler API key must be configured in addon preferences
+        - Backend georeferencing modules must be available
+
+    Usage:
+        Called when user enters a search term and clicks the search button.
+        Results are displayed in the UI list for selection.
+
+    Returns:
+        {'FINISHED'} on successful search, {'CANCELLED'} on error or empty query
+    """
     bl_idname = "bc.search_crs"
     bl_label = "Search CRS"
     bl_description = "Search for coordinate reference systems by name or EPSG code"
@@ -75,10 +112,10 @@ class BC_OT_search_crs(Operator):
                 # Blender 4.5+ extension ID from blender_manifest.toml
                 extension_id = "blendercivil_ext"
 
-                # DEBUG: Print all available addon keys
-                print("\n[DEBUG] All registered addons:")
+                # DEBUG: Log all available addon keys
+                logger.debug("All registered addons:")
                 for k in sorted(context.preferences.addons.keys()):
-                    print(f"  - {k}")
+                    logger.debug("  - %s", k)
 
                 # Try the standard Blender 4.5+ user extension naming first
                 addon_keys_to_try = [
@@ -87,46 +124,44 @@ class BC_OT_search_crs(Operator):
                     extension_id,  # Direct ID
                 ]
 
-                print(f"\n[DEBUG] Trying addon keys:")
+                logger.debug("Trying addon keys:")
                 addon_key = None
                 for key in addon_keys_to_try:
-                    print(f"  - Checking: {key}")
+                    logger.debug("  - Checking: %s", key)
                     if key in context.preferences.addons:
                         addon_key = key
-                        print(f"    ✓ FOUND!")
+                        logger.debug("    FOUND!")
                         break
 
                 # If not found, search for it
                 if not addon_key:
-                    print(f"\n[DEBUG] Not found in standard locations, searching...")
+                    logger.debug("Not found in standard locations, searching...")
                     for key in context.preferences.addons.keys():
                         if extension_id in key.lower():
                             addon_key = key
-                            print(f"  ✓ Found via search: {key}")
+                            logger.debug("  Found via search: %s", key)
                             break
 
                 if addon_key:
-                    print(f"\n[DEBUG] Using addon key: {addon_key}")
+                    logger.debug("Using addon key: %s", addon_key)
                     preferences = context.preferences.addons[addon_key].preferences
-                    print(f"[DEBUG] Preferences type: {type(preferences).__name__}")
+                    logger.debug("Preferences type: %s", type(preferences).__name__)
 
                     if hasattr(preferences, 'maptiler_api_key'):
                         api_key = preferences.maptiler_api_key
-                        print(f"[DEBUG] API key retrieved: {'Yes' if api_key else 'No (empty)'}")
+                        logger.debug("API key retrieved: %s", 'Yes' if api_key else 'No (empty)')
                     else:
-                        print(f"[DEBUG] ERROR: maptiler_api_key attribute not found")
-                        print(f"[DEBUG] Available attributes: {[a for a in dir(preferences) if not a.startswith('_')]}")
+                        logger.error("maptiler_api_key attribute not found")
+                        logger.error("Available attributes: %s", [a for a in dir(preferences) if not a.startswith('_')])
                         self.report({'ERROR'}, f"Preferences missing maptiler_api_key")
                         return {'CANCELLED'}
                 else:
-                    print(f"\n[DEBUG] ERROR: Could not find extension '{extension_id}'")
+                    logger.error("Could not find extension '%s'", extension_id)
                     self.report({'ERROR'}, f"Could not find BlenderCivil extension")
                     return {'CANCELLED'}
 
             except Exception as e:
-                print(f"\n[DEBUG] EXCEPTION: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.error("EXCEPTION: %s", e, exc_info=True)
                 self.report({'ERROR'}, f"Error accessing API key: {str(e)}")
                 return {'CANCELLED'}
 
@@ -158,7 +193,22 @@ class BC_OT_search_crs(Operator):
 
 
 class BC_OT_select_crs(Operator):
-    """Select a CRS from search results"""
+    """Select a CRS from search results.
+
+    Selects a coordinate reference system from the search results and loads
+    its detailed information. The selected CRS is stored in the scene's
+    bc_georef properties for later use in georeferencing setup.
+
+    Properties:
+        epsg_code: Optional EPSG code to select directly (default: 0 = use UI selection)
+
+    Usage:
+        Called when user clicks on a CRS in the search results list or when
+        programmatically selecting a CRS by EPSG code.
+
+    Returns:
+        {'FINISHED'} on success, {'CANCELLED'} if no results or invalid selection
+    """
     bl_idname = "bc.select_crs"
     bl_label = "Select CRS"
     bl_description = "Select this coordinate reference system for georeferencing"
@@ -241,7 +291,30 @@ class BC_OT_select_crs(Operator):
 
 
 class BC_OT_setup_georeferencing(Operator):
-    """Setup georeferencing for the project"""
+    """Setup georeferencing for the project.
+
+    Applies georeferencing configuration to the IFC file using the selected
+    coordinate reference system and false origin. Creates IfcMapConversion and
+    IfcProjectedCRS entities in the IFC file.
+
+    Properties:
+        Uses scene.bc_georef properties:
+            - selected_epsg_code: The chosen coordinate system
+            - false_origin_easting/northing/elevation: Local origin offset
+            - grid_rotation: Optional grid rotation angle
+            - map_scale: Optional map scale factor
+
+    Requirements:
+        - CRS must be selected first
+        - Backend georeferencing modules must be available
+
+    Usage:
+        Called after user has selected a CRS and configured the false origin.
+        Creates or updates georeferencing in the IFC file.
+
+    Returns:
+        {'FINISHED'} on success, {'CANCELLED'} if validation fails or error
+    """
     bl_idname = "bc.setup_georeferencing"
     bl_label = "Setup Georeferencing"
     bl_description = "Configure georeferencing with selected CRS and false origin"
@@ -310,13 +383,33 @@ class BC_OT_setup_georeferencing(Operator):
             
         except Exception as e:
             self.report({'ERROR'}, f"Setup failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Setup georeferencing failed: %s", e, exc_info=True)
             return {'CANCELLED'}
 
 
 class BC_OT_preview_transform(Operator):
-    """Preview coordinate transformation"""
+    """Preview coordinate transformation.
+
+    Transforms local Blender coordinates to real-world map coordinates using
+    the configured georeferencing. Useful for verifying the georeferencing
+    setup before applying it to actual geometry.
+
+    Properties:
+        Uses scene.bc_georef properties:
+            - preview_local_x/y/z: Input local coordinates
+            - preview_map_easting/northing/elevation: Output map coordinates
+
+    Requirements:
+        - Project must be georeferenced
+        - Backend georeferencing modules must be available
+
+    Usage:
+        Called when user wants to test the coordinate transformation.
+        Enter local coordinates and see the corresponding map coordinates.
+
+    Returns:
+        {'FINISHED'} on success, {'CANCELLED'} if not georeferenced or error
+    """
     bl_idname = "bc.preview_transform"
     bl_label = "Preview Transform"
     bl_description = "Preview coordinate transformation at a point"
@@ -362,7 +455,23 @@ class BC_OT_preview_transform(Operator):
 
 
 class BC_OT_pick_false_origin(Operator):
-    """Pick false origin from 3D cursor"""
+    """Pick false origin from 3D cursor.
+
+    Sets the georeferencing false origin based on the current 3D cursor location.
+    The coordinates are automatically rounded to the nearest specified value
+    for cleaner numbers.
+
+    Properties:
+        round_to_meters: Round false origin to nearest N meters (default: 100)
+
+    Usage:
+        Position the 3D cursor at the desired false origin location and call
+        this operator. The cursor coordinates will be rounded and set as the
+        false origin for georeferencing.
+
+    Returns:
+        {'FINISHED'} always
+    """
     bl_idname = "bc.pick_false_origin"
     bl_label = "Pick from 3D Cursor"
     bl_description = "Set false origin from current 3D cursor location"
@@ -397,7 +506,25 @@ class BC_OT_pick_false_origin(Operator):
 
 
 class BC_OT_validate_georeferencing(Operator):
-    """Validate georeferencing setup"""
+    """Validate georeferencing setup.
+
+    Performs validation checks on the georeferencing configuration to ensure
+    all required elements are present and properly configured. Reports any
+    issues found.
+
+    Validation checks:
+        - CRS has been selected
+        - False origin is configured
+        - IFC file path is set
+        - Georeferencing has been applied to IFC
+
+    Usage:
+        Called to verify georeferencing setup before proceeding with
+        coordinate-dependent operations.
+
+    Returns:
+        {'FINISHED'} always (reports validation results via messages)
+    """
     bl_idname = "bc.validate_georeferencing"
     bl_label = "Validate Georeferencing"
     bl_description = "Check if georeferencing is correctly configured"
@@ -441,7 +568,26 @@ class BC_OT_validate_georeferencing(Operator):
 
 
 class BC_OT_load_georeferencing(Operator):
-    """Load georeferencing from IFC file"""
+    """Load georeferencing from IFC file.
+
+    Loads existing georeferencing data from an IFC file that already contains
+    IfcMapConversion and IfcProjectedCRS entities. Populates the scene's
+    georeferencing properties with the loaded values.
+
+    Properties:
+        filepath: Optional path to IFC file (uses scene.bc_georef.ifc_file_path if not set)
+
+    Requirements:
+        - IFC file must exist and contain georeferencing data
+        - Backend georeferencing modules must be available
+
+    Usage:
+        Called when user wants to load georeferencing from an existing IFC file.
+        Opens file browser if no filepath is set.
+
+    Returns:
+        {'FINISHED'} on success, {'CANCELLED'} if no georeferencing found or error
+    """
     bl_idname = "bc.load_georeferencing"
     bl_label = "Load from IFC"
     bl_description = "Load existing georeferencing from IFC file"
@@ -494,8 +640,7 @@ class BC_OT_load_georeferencing(Operator):
             
         except Exception as e:
             self.report({'ERROR'}, f"Failed to load: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Failed to load georeferencing: %s", e, exc_info=True)
             return {'CANCELLED'}
     
     def invoke(self, context, event):

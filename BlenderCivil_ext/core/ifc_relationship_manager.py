@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ making it easy to navigate and modify the IFC spatial/logical structure.
 
 import ifcopenshell
 import ifcopenshell.guid
+
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class IfcRelationshipManager:
@@ -374,60 +378,60 @@ class IfcRelationshipManager:
     def visualize_relationships(cls, ifc_entity, indent=0):
         """
         Print relationship tree for an entity (for debugging).
-        
+
         Args:
             ifc_entity: Entity to visualize relationships for
             indent: Indentation level (used for recursion)
-            
+
         Example:
             >>> project = ifc.by_type("IfcProject")[0]
             >>> IfcRelationshipManager.visualize_relationships(project)
         """
         prefix = "  " * indent
-        print(f"{prefix}┌─ {ifc_entity.is_a()} '{ifc_entity.Name}'")
-        
+        logger.debug("%s┌─ %s '%s'", prefix, ifc_entity.is_a(), ifc_entity.Name)
+
         # Show parent relationships
         parent_agg = cls.get_parent(ifc_entity, "IfcRelAggregates")
         if parent_agg and indent == 0:
-            print(f"{prefix}│  ↑ Aggregated by: {parent_agg.is_a()} '{parent_agg.Name}'")
-        
+            logger.debug("%s│  ↑ Aggregated by: %s '%s'", prefix, parent_agg.is_a(), parent_agg.Name)
+
         parent_nest = cls.get_parent(ifc_entity, "IfcRelNests")
         if parent_nest and indent == 0:
-            print(f"{prefix}│  ↑ Nested in: {parent_nest.is_a()} '{parent_nest.Name}'")
-        
+            logger.debug("%s│  ↑ Nested in: %s '%s'", prefix, parent_nest.is_a(), parent_nest.Name)
+
         # Show spatial container
         container = cls.get_spatial_container(ifc_entity)
         if container and indent == 0:
-            print(f"{prefix}│  📍 Contained in: {container.is_a()} '{container.Name}'")
-        
+            logger.debug("%s│  📍 Contained in: %s '%s'", prefix, container.is_a(), container.Name)
+
         # Show children (Aggregates)
         children_agg = cls.get_children(ifc_entity, "IfcRelAggregates")
         if children_agg:
-            print(f"{prefix}│")
-            print(f"{prefix}├─ Aggregates:")
+            logger.debug("%s│", prefix)
+            logger.debug("%s├─ Aggregates:", prefix)
             for child in children_agg:
                 cls.visualize_relationships(child, indent + 1)
-        
+
         # Show children (Nests)
         children_nest = cls.get_children(ifc_entity, "IfcRelNests")
         if children_nest:
-            print(f"{prefix}│")
-            print(f"{prefix}├─ Nests:")
+            logger.debug("%s│", prefix)
+            logger.debug("%s├─ Nests:", prefix)
             for i, child in enumerate(children_nest):
-                print(f"{prefix}│  [{i}] {child.is_a()} '{getattr(child, 'Name', 'N/A')}'")
-        
+                logger.debug("%s│  [%s] %s '%s'", prefix, i, child.is_a(), getattr(child, 'Name', 'N/A'))
+
         if indent == 0:
-            print(f"{prefix}└─" + "─"*50)
+            logger.debug("%s└─%s", prefix, "─"*50)
     
     @classmethod
     def validate_spatial_structure(cls):
         """
         Validate the spatial structure of the IFC file.
         Checks for common issues and prints report.
-        
+
         Returns:
             dict with validation results
-            
+
         Example:
             >>> results = IfcRelationshipManager.validate_spatial_structure()
             >>> if not results['valid']:
@@ -435,17 +439,17 @@ class IfcRelationshipManager:
         """
         from .native_ifc_manager import NativeIfcManager
         ifc = NativeIfcManager.get_file()
-        
+
         if not ifc:
             return {'valid': False, 'errors': ['No IFC file loaded']}
-        
+
         errors = []
         warnings = []
-        
-        print("\n" + "="*60)
-        print("VALIDATING IFC SPATIAL STRUCTURE")
-        print("="*60)
-        
+
+        logger.info("\n%s", "="*60)
+        logger.info("VALIDATING IFC SPATIAL STRUCTURE")
+        logger.info("%s", "="*60)
+
         # Check for IfcProject
         projects = ifc.by_type("IfcProject")
         if not projects:
@@ -454,64 +458,64 @@ class IfcRelationshipManager:
             warnings.append(f"Multiple IfcProject entities found ({len(projects)})")
         else:
             project = projects[0]
-            print(f"✓ Project: {project.Name}")
-            
+            logger.info("✓ Project: %s", project.Name)
+
             # Check Project → Site
             sites = cls.get_children(project, "IfcRelAggregates")
             if not sites:
                 errors.append("Project has no Sites")
             else:
-                print(f"✓ Sites: {len(sites)}")
-                
+                logger.info("✓ Sites: %s", len(sites))
+
                 for site in sites:
                     # Check Site → Facilities
                     facilities = cls.get_children(site, "IfcRelAggregates")
-                    print(f"  ✓ Site '{site.Name}' has {len(facilities)} facilities")
-                    
+                    logger.info("  ✓ Site '%s' has %s facilities", site.Name, len(facilities))
+
                     # Check for alignments in site
                     alignments = ifc.by_type("IfcAlignment")
-                    site_alignments = [a for a in alignments 
+                    site_alignments = [a for a in alignments
                                       if cls.get_spatial_container(a) == site]
-                    print(f"    ✓ {len(site_alignments)} alignments in site")
-        
+                    logger.info("    ✓ %s alignments in site", len(site_alignments))
+
         # Check for orphaned entities
         all_entities = ifc.by_type("IfcRoot")
         orphans = []
         for entity in all_entities:
             if entity.is_a() in ["IfcProject"]:
                 continue  # Project is root
-            
+
             # Check if entity has parent or container
             has_parent = (cls.get_parent(entity, "IfcRelAggregates") is not None or
                          cls.get_parent(entity, "IfcRelNests") is not None or
                          cls.get_spatial_container(entity) is not None)
-            
+
             if not has_parent:
                 orphans.append(entity)
-        
+
         if orphans:
             warnings.append(f"{len(orphans)} orphaned entities found")
-            print(f"\n⚠ Orphaned entities:")
+            logger.warning("\n⚠ Orphaned entities:")
             for orphan in orphans[:5]:  # Show first 5
-                print(f"    - {orphan.is_a()} '{getattr(orphan, 'Name', 'N/A')}'")
+                logger.warning("    - %s '%s'", orphan.is_a(), getattr(orphan, 'Name', 'N/A'))
             if len(orphans) > 5:
-                print(f"    ... and {len(orphans) - 5} more")
-        
-        print("\n" + "="*60)
+                logger.warning("    ... and %s more", len(orphans) - 5)
+
+        logger.info("\n%s", "="*60)
         if errors:
-            print("❌ VALIDATION FAILED")
+            logger.error("❌ VALIDATION FAILED")
             for error in errors:
-                print(f"  ❌ {error}")
+                logger.error("  ❌ %s", error)
         else:
-            print("✅ VALIDATION PASSED")
-        
+            logger.info("✅ VALIDATION PASSED")
+
         if warnings:
-            print("\nWarnings:")
+            logger.warning("\nWarnings:")
             for warning in warnings:
-                print(f"  ⚠ {warning}")
-        
-        print("="*60 + "\n")
-        
+                logger.warning("  ⚠ %s", warning)
+
+        logger.info("%s\n", "="*60)
+
         return {
             'valid': len(errors) == 0,
             'errors': errors,
@@ -548,30 +552,30 @@ def get_alignment_segments(alignment):
 def print_alignment_structure(alignment):
     """
     Print the complete structure of an alignment for debugging.
-    
+
     Args:
         alignment: IfcAlignment entity
     """
-    print(f"\n{'='*60}")
-    print(f"ALIGNMENT STRUCTURE: {alignment.Name}")
-    print(f"{'='*60}")
-    
+    logger.debug("\n%s", "="*60)
+    logger.debug("ALIGNMENT STRUCTURE: %s", alignment.Name)
+    logger.debug("%s", "="*60)
+
     segments = get_alignment_segments(alignment)
-    
-    print(f"Total Segments: {len(segments)}")
-    print(f"\nSegments:")
-    
+
+    logger.debug("Total Segments: %s", len(segments))
+    logger.debug("\nSegments:")
+
     station = 0.0
     for i, seg in enumerate(segments):
         params = seg.DesignParameters
         length = params.SegmentLength
         seg_type = params.PredefinedType
-        
-        print(f"  [{i}] Station {station:8.2f}: {seg_type:15s} {length:8.2f}m")
+
+        logger.debug("  [%s] Station %8.2f: %s %8.2fm", i, station, seg_type, length)
         station += length
-    
-    print(f"\nTotal Length: {station:.2f}m")
-    print(f"{'='*60}\n")
+
+    logger.debug("\nTotal Length: %.2fm", station)
+    logger.debug("%s\n", "="*60)
 
 
 # =============================================================================

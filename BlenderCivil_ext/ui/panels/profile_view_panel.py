@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

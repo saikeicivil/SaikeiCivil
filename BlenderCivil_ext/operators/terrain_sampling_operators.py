@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,27 @@
 
 """
 Terrain Sampling Operators
-Operators for sampling elevation data from terrain meshes
+===========================
+
+Operators for extracting elevation data from terrain meshes and integrating
+it with alignment profiles. These operators enable visualization of existing
+ground conditions alongside proposed designs.
+
+Operators:
+    BC_OT_sample_terrain_from_mesh: Extract terrain elevation along alignment
+    BC_OT_clear_terrain_data: Clear sampled terrain data from profile view
+
+Workflow:
+    1. Import or create a terrain mesh representing existing ground
+    2. Define a horizontal alignment
+    3. Use sample_terrain_from_mesh to extract elevation profile
+    4. View terrain in profile overlay alongside vertical alignment
+    5. Design vertical alignment to optimize cut/fill
+
+Technical Approach:
+    Uses Blender's raycasting system to sample mesh elevation at regular
+    intervals along the horizontal alignment. Supports complex terrain
+    geometry with proper handling of overhangs and discontinuities.
 """
 
 import bpy
@@ -28,10 +48,40 @@ from bpy.props import FloatProperty, StringProperty
 from mathutils import Vector
 from ..core import alignment_registry
 from ..ui.alignment_properties import get_active_alignment_ifc
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BC_OT_sample_terrain_from_mesh(bpy.types.Operator):
-    """Sample terrain elevation data from a mesh object along active horizontal alignment"""
+    """
+    Sample terrain elevation data from a mesh object along the active alignment.
+
+    Extracts elevation points by raycasting from above the terrain mesh at
+    regular intervals along the horizontal alignment. The sampled data is
+    stored in the profile view overlay for visualization and analysis.
+
+    Properties:
+        terrain_mesh: Name of the Blender mesh object to sample from
+        sample_interval: Distance between sample points (meters)
+        raycast_offset: Height above alignment to start raycast (meters)
+
+    Process:
+        1. Gets active horizontal alignment from scene
+        2. Walks along alignment at specified intervals
+        3. Casts ray downward from offset height at each station
+        4. Records elevation where ray intersects mesh
+        5. Stores (station, elevation) pairs in profile overlay
+
+    Requirements:
+        - Valid terrain mesh object
+        - Active horizontal alignment with segments
+        - Terrain mesh must be within raycast range
+
+    Usage:
+        Called from terrain tools panel after creating or importing a
+        terrain mesh. Results appear in profile view overlay if enabled.
+    """
     bl_idname = "bc.sample_terrain_from_mesh"
     bl_label = "Sample Terrain from Mesh"
     bl_options = {'REGISTER', 'UNDO'}
@@ -198,7 +248,7 @@ class BC_OT_sample_terrain_from_mesh(bpy.types.Operator):
                 station = alignment_obj.get_station_at_distance(distance)
                 terrain_points.append((station, elevation))
 
-                print(f"[TerrainSampling] Distance {distance:.1f}m → Station {station:.1f}m, Elevation {elevation:.2f}m")
+                logger.debug("Distance %.1fm -> Station %.1fm, Elevation %.2fm", distance, station, elevation)
 
             distance += interval
 
@@ -310,7 +360,22 @@ class BC_OT_sample_terrain_from_mesh(bpy.types.Operator):
 
 
 class BC_OT_clear_terrain_data(bpy.types.Operator):
-    """Clear terrain elevation data from profile view"""
+    """
+    Clear all terrain elevation data from the profile view.
+
+    Removes all sampled terrain points from the profile view overlay,
+    cleaning up the display and allowing for re-sampling with different
+    parameters or from a different mesh.
+
+    Effects:
+        - Removes all terrain points from profile overlay data
+        - Updates view extents to reflect remaining geometry
+        - Refreshes overlay display if currently enabled
+
+    Usage:
+        Called when terrain data needs to be cleared before sampling
+        a different mesh or when terrain visualization is no longer needed.
+    """
     bl_idname = "bc.clear_terrain_data"
     bl_label = "Clear Terrain Data"
     bl_options = {'REGISTER', 'UNDO'}

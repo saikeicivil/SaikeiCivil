@@ -1,13 +1,13 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
-# 
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,6 +27,11 @@ This will contain IFC utilities, geometry helpers, and core algorithms.
 
 import bpy
 
+# Import logging configuration first (no dependencies)
+from .logging_config import get_logger, setup_logging
+
+logger = get_logger(__name__)
+
 # Always import dependency_manager (no ifcopenshell dependency)
 from . import dependency_manager
 
@@ -38,10 +43,13 @@ try:
     import ifcopenshell
 
     # Import IFC-dependent modules
-    from . import native_ifc_manager
+    from . import ifc_manager  # Refactored package
+    from . import native_ifc_manager  # Backwards compatibility shim
     from . import ifc_relationship_manager
-    from . import native_ifc_alignment
-    from . import native_ifc_vertical_alignment
+    from . import horizontal_alignment  # Refactored package
+    from . import native_ifc_alignment  # Backwards compatibility shim
+    from . import vertical_alignment  # Refactored package
+    from . import native_ifc_vertical_alignment  # Backwards compatibility shim
     from . import native_ifc_cross_section
     from . import alignment_3d
     from . import alignment_visualizer
@@ -54,10 +62,10 @@ try:
     from . import profile_view_overlay
 
     _ifc_modules = [
-        native_ifc_manager,
+        ifc_manager,
         ifc_relationship_manager,
-        native_ifc_alignment,
-        native_ifc_vertical_alignment,
+        horizontal_alignment,
+        vertical_alignment,
         native_ifc_cross_section,
         alignment_3d,
         alignment_visualizer,
@@ -72,18 +80,18 @@ try:
     _ifc_modules_loaded = True
 
 except ImportError as e:
-    print(f"  [!] IFC modules not available: {e}")
-    print(f"  [i] Install ifcopenshell to enable IFC features")
+    logger.warning("IFC modules not available: %s", e)
+    logger.info("Install ifcopenshell to enable IFC features")
 
 
 def register():
     """Register core module"""
-    print("  [+] Core module loaded")
+    logger.info("Core module loaded")
 
     if _ifc_modules_loaded:
-        print("  [+] IFC features enabled")
+        logger.info("IFC features enabled")
     else:
-        print("  [!] IFC features disabled (ifcopenshell not found)")
+        logger.warning("IFC features disabled (ifcopenshell not found)")
 
 
 def unregister():

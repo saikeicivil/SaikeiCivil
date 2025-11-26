@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ import math
 import ifcopenshell
 import ifcopenshell.guid
 from mathutils import Vector
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class AlignmentVisualizer:
@@ -66,7 +69,7 @@ class AlignmentVisualizer:
                 _ = alignments_parent.name
             except ReferenceError:
                 # Object was deleted, recreate the hierarchy
-                print(f"[Visualizer] Alignments parent was deleted, recreating hierarchy")
+                logger.info("Alignments parent was deleted, recreating hierarchy")
                 NativeIfcManager._create_blender_hierarchy()
                 alignments_parent = NativeIfcManager.get_alignments_collection()
 
@@ -98,9 +101,9 @@ class AlignmentVisualizer:
 
                 # Add to project collection
                 self.collection.objects.link(self.alignment_empty)
-                print(f"[Visualizer] Created alignment empty: {alignment_empty_name}")
+                logger.info("Created alignment empty: %s", alignment_empty_name)
         else:
-            print(f"[Visualizer] Warning: No Alignments parent found")
+            logger.warning("No Alignments parent found")
 
     def _ensure_valid_collection(self):
         """
@@ -125,7 +128,7 @@ class AlignmentVisualizer:
 
         # Collection is invalid - use scene collection (always valid)
         # Don't try to recreate hierarchy during visualization - that can cause issues
-        print("[Visualizer] Collection was deleted (undo?), using scene collection")
+        logger.warning("Collection was deleted (undo?), using scene collection")
         self.collection = bpy.context.scene.collection
 
         # Also clear alignment empty reference since hierarchy is gone
@@ -138,7 +141,7 @@ class AlignmentVisualizer:
 
         # CRITICAL: Ensure valid collection before creating objects!
         if not self._ensure_valid_collection():
-            print("[Visualizer] ERROR: No valid collection available!")
+            logger.error("No valid collection available!")
             return None
 
         obj = bpy.data.objects.new(f"PI_{pi_data['id']:03d}", None)
@@ -177,7 +180,7 @@ class AlignmentVisualizer:
 
         self.pi_objects.append(obj)
 
-        print(f"[Visualizer] Created PI marker: PI_{pi_data['id']:03d}")
+        logger.debug("Created PI marker: PI_%03d", pi_data['id'])
 
         return obj
     
@@ -187,7 +190,7 @@ class AlignmentVisualizer:
 
         # CRITICAL: Ensure valid collection before creating objects!
         if not self._ensure_valid_collection():
-            print("[Visualizer] ERROR: No valid collection available!")
+            logger.error("No valid collection available!")
             return None
 
         params = ifc_segment.DesignParameters
@@ -231,7 +234,8 @@ class AlignmentVisualizer:
 
             # Debug output
             turn_type = "RIGHT" if is_right_turn else "LEFT"
-            print(f"[Visualizer] Curve {ifc_segment.Name}: {turn_type} turn, R={params.StartRadiusOfCurvature:.2f}, start=({start[0]:.2f},{start[1]:.2f})")
+            logger.debug("Curve %s: %s turn, R=%.2f, start=(%.2f,%.2f)",
+                        ifc_segment.Name, turn_type, params.StartRadiusOfCurvature, start[0], start[1])
 
             if is_right_turn:
                 # Right turn (clockwise)
@@ -291,7 +295,7 @@ class AlignmentVisualizer:
 
         self.segment_objects.append(obj)
 
-        print(f"[Visualizer] Created segment: {ifc_segment.Name} ({params.PredefinedType})")
+        logger.debug("Created segment: %s (%s)", ifc_segment.Name, params.PredefinedType)
 
         return obj
     
@@ -323,7 +327,7 @@ class AlignmentVisualizer:
             except (ReferenceError, AttributeError):
                 pass
 
-        print(f"[Visualizer] Cleared visualizations")
+        logger.debug("Cleared visualizations")
     
     def update_visualizations(self):
         """Update all visualizations from current alignment state"""
@@ -335,16 +339,16 @@ class AlignmentVisualizer:
             try:
                 self.create_pi_object(pi_data)
             except Exception as e:
-                print(f"[Visualizer] Error creating PI {pi_data.get('id', '?')}: {e}")
+                logger.error("Error creating PI %s: %s", pi_data.get('id', '?'), e)
 
         # Recreate all segments
         for segment in self.alignment.segments:
             try:
                 self.create_segment_curve(segment)
             except Exception as e:
-                print(f"[Visualizer] Error creating segment: {e}")
+                logger.error("Error creating segment: %s", e)
 
-        print(f"[Visualizer] Updated: {len(self.pi_objects)} PIs, {len(self.segment_objects)} segments")
+        logger.info("Updated: %d PIs, %d segments", len(self.pi_objects), len(self.segment_objects))
 
     def update_segments_in_place(self):
         """
@@ -361,7 +365,7 @@ class AlignmentVisualizer:
                 try:
                     self.create_segment_curve(segment)
                 except Exception as e:
-                    print(f"[Visualizer] Error creating new segment: {e}")
+                    logger.error("Error creating new segment: %s", e)
                 continue
 
             # Get existing segment object
@@ -394,9 +398,9 @@ class AlignmentVisualizer:
                             # If list isn't long enough, append is correct
                             self.segment_objects.append(new_obj)
 
-                        print(f"[Visualizer] Recreated segment {i} (was deleted)")
+                        logger.info("Recreated segment %d (was deleted)", i)
                 except Exception as e:
-                    print(f"[Visualizer] Error recreating segment {i}: {e}")
+                    logger.error("Error recreating segment %d: %s", i, e)
                 continue
 
             # Update curve geometry data in-place
@@ -465,7 +469,7 @@ class AlignmentVisualizer:
                         spline.points[j].co = (x, y, 0, 1)
 
             except Exception as e:
-                print(f"[Visualizer] Error updating segment {i} geometry: {e}")
+                logger.error("Error updating segment %d geometry: %s", i, e)
 
         # Remove extra segment objects if alignment has fewer segments now
         while len(self.segment_objects) > len(self.alignment.segments):
@@ -476,7 +480,7 @@ class AlignmentVisualizer:
             except:
                 pass
 
-        print(f"[Visualizer] Updated {len(self.segment_objects)} segments in-place")
+        logger.debug("Updated %d segments in-place", len(self.segment_objects))
 
     def update_all(self):
         """Update entire visualization - Required by complete_update_system"""
@@ -504,30 +508,30 @@ class AlignmentVisualizer:
                 # Recreate PI object
                 try:
                     self.create_pi_object(pi_data)
-                    print(f"[Visualizer] Recreated PI {pi_data['id']} (was deleted)")
+                    logger.info("Recreated PI %d (was deleted)", pi_data['id'])
                 except Exception as e:
-                    print(f"[Visualizer] Error recreating PI {pi_data['id']}: {e}")
+                    logger.error("Error recreating PI %d: %s", pi_data['id'], e)
 
         # Use in-place updates to avoid conflicts with modal operators
         self.update_segments_in_place()
 
     def visualize_all(self):
         """Create complete visualization - Legacy method for compatibility"""
-        print(f"\n[*] Creating {len(self.alignment.pis)} PI markers...")
+        logger.info("Creating %d PI markers...", len(self.alignment.pis))
         for pi_data in self.alignment.pis:
             self.create_pi_object(pi_data)
-            print(f"  PI {pi_data['id']}: ({pi_data['position'].x:.2f}, {pi_data['position'].y:.2f})")
+            logger.debug("  PI %d: (%.2f, %.2f)", pi_data['id'], pi_data['position'].x, pi_data['position'].y)
 
-        print(f"\n[*] Creating {len(self.alignment.segments)} segment curves...")
+        logger.info("Creating %d segment curves...", len(self.alignment.segments))
         for segment in self.alignment.segments:
             self.create_segment_curve(segment)
             params = segment.DesignParameters
-            print(f"  {segment.Name}: {params.PredefinedType:15s} {params.SegmentLength:7.2f}m")
+            logger.debug("  %s: %s %.2fm", segment.Name, params.PredefinedType, params.SegmentLength)
 
-        print(f"\n[+] Visualization complete!")
-        print(f"   Collection: {self.collection.name}")
-        print(f"   PIs: {len(self.pi_objects)} objects")
-        print(f"   Segments: {len(self.segment_objects)} curves")
+        logger.info("Visualization complete!")
+        logger.info("   Collection: %s", self.collection.name)
+        logger.info("   PIs: %d objects", len(self.pi_objects))
+        logger.info("   Segments: %d curves", len(self.segment_objects))
 
     # ============================================================================
     # STATION MARKER VISUALIZATION (Blender-only, not saved to IFC)
@@ -554,7 +558,7 @@ class AlignmentVisualizer:
         # Link to scene
         bpy.context.scene.collection.children.link(markers_collection)
 
-        print(f"[Visualizer] Created '{collection_name}' collection for Blender-only visuals")
+        logger.info("Created '%s' collection for Blender-only visuals", collection_name)
         return markers_collection
 
     def clear_station_markers(self):
@@ -573,7 +577,7 @@ class AlignmentVisualizer:
                 pass
 
         self.station_markers = []
-        print("[Visualizer] Cleared station markers")
+        logger.debug("Cleared station markers")
 
     def update_station_markers(self, major_interval=1000.0, minor_interval=100.0,
                                tick_size=5.0, label_size=2.0):
@@ -596,7 +600,7 @@ class AlignmentVisualizer:
 
         # Need segments to visualize along
         if not self.alignment.segments:
-            print("[Visualizer] No segments to place station markers on")
+            logger.warning("No segments to place station markers on")
             return
 
         # Get total length of alignment
@@ -606,7 +610,7 @@ class AlignmentVisualizer:
                 total_length += segment.DesignParameters.SegmentLength
 
         if total_length <= 0:
-            print("[Visualizer] Alignment has zero length")
+            logger.warning("Alignment has zero length")
             return
 
         # Get station range
@@ -616,8 +620,8 @@ class AlignmentVisualizer:
         # Find first round minor station value (round up to next interval)
         first_station = math.ceil(starting_station / minor_interval) * minor_interval
 
-        print(f"[Visualizer] Creating station markers from {format_station_short(first_station)} "
-              f"to {format_station_short(ending_station)} (interval: {minor_interval}m)")
+        logger.info("Creating station markers from %s to %s (interval: %sm)",
+                   format_station_short(first_station), format_station_short(ending_station), minor_interval)
 
         # Iterate through round station values
         current_station = first_station
@@ -650,7 +654,7 @@ class AlignmentVisualizer:
 
             current_station += minor_interval
 
-        print(f"[Visualizer] Created {len(self.station_markers)} station marker objects")
+        logger.info("Created %d station marker objects", len(self.station_markers))
 
     def _get_distance_at_station(self, station_value):
         """Convert station value to distance along alignment.

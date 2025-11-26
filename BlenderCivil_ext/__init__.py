@@ -1,13 +1,13 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
-# 
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,14 +32,14 @@ def _reload_modules():
     """Reload all submodules in the correct order"""
     import sys
     import importlib
-    
+
     # List of submodules in dependency order
     module_names = [
         "core",
         "operators",
         "ui",
     ]
-    
+
     # Reload each module if it's already loaded
     for name in module_names:
         full_name = f"{__package__}.{name}"
@@ -56,15 +56,26 @@ from . import core
 from . import operators
 from . import ui
 
+# Import logging utilities
+from .core.logging_config import (
+    setup_logging,
+    get_logger,
+    log_startup_banner,
+    log_startup_complete,
+    log_shutdown,
+)
+
 
 def register():
     """Register extension modules and classes"""
-    print("\n" + "="*60)
-    print("BlenderCivil Extension v0.5.0 - Loading...")
-    print("="*60)
+    # Initialize logging first
+    setup_logging()
+    logger = get_logger(__name__)
+
+    log_startup_banner("0.5.0")
 
     # Register modules in order
-    print("\n[*] Loading modules:")
+    logger.info("Loading modules...")
     preferences.register()  # Register preferences FIRST (for API keys, etc.)
     core.register()
     ui.register()         # Register UI properties FIRST (operators depend on them)
@@ -74,14 +85,13 @@ def register():
     from .core import complete_update_system
     complete_update_system.register()
 
-    print("\n[+] BlenderCivil Extension loaded successfully!")
-    print("[i] Location: 3D Viewport > Sidebar (N) > BlenderCivil tab")
-    print("="*60 + "\n")
+    log_startup_complete()
 
 
 def unregister():
     """Unregister extension modules and classes"""
-    print("BlenderCivil Extension - Unregistering...")
+    logger = get_logger(__name__)
+    logger.info("BlenderCivil Extension - Unregistering...")
 
     # Unregister update system first
     from .core import complete_update_system
@@ -93,7 +103,7 @@ def unregister():
     core.unregister()
     preferences.unregister()  # Unregister preferences last
 
-    print("[+] BlenderCivil Extension unregistered")
+    log_shutdown()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,21 @@
 
 """
 Stationing Operators
-Operators for managing IFC stationing referents (IfcReferent with Pset_Stationing)
+====================
+
+Operators for managing IFC stationing referents (IfcReferent with Pset_Stationing).
+
+This module provides Blender operators for working with alignment stationing,
+including setting starting stations, managing station equations (chainage breaks),
+and calculating station values. All operations conform to IFC 4.3 standards
+for civil infrastructure.
+
+Operators:
+    BC_OT_set_starting_station: Set the starting station of the active alignment
+    BC_OT_add_station_equation: Add a station equation (chainage break) to the alignment
+    BC_OT_remove_station_equation: Remove a station equation from the alignment
+    BC_OT_calculate_station: Calculate station value at a given distance along the alignment
+    BC_OT_update_station_markers: Update station markers along the alignment
 """
 
 import bpy
@@ -31,7 +45,26 @@ from ..ui.alignment_properties import get_active_alignment_ifc
 
 
 class BC_OT_set_starting_station(bpy.types.Operator):
-    """Set the starting station of the active alignment"""
+    """
+    Set the starting station of the active alignment.
+
+    Defines the initial station value at the beginning of the alignment
+    (distance_along = 0). This is fundamental for all station calculations
+    along the alignment.
+
+    Properties:
+        station_input: String input for station value, accepts formats like:
+            - "10+000" (formatted with plus sign)
+            - "10000" (plain numeric)
+            - "5+50.25" (with decimal precision)
+
+    The operator presents a dialog showing both the formatted input and
+    the parsed metric value. The starting station is stored as an IFC
+    referent with Pset_Stationing properties.
+
+    Usage context: Called when establishing the initial station reference
+    for a new alignment or updating an existing one.
+    """
     bl_idname = "bc.set_starting_station"
     bl_label = "Set Starting Station"
     bl_options = {'REGISTER', 'UNDO'}
@@ -103,7 +136,31 @@ class BC_OT_set_starting_station(bpy.types.Operator):
 
 
 class BC_OT_add_station_equation(bpy.types.Operator):
-    """Add a station equation (chainage break) to the alignment"""
+    """
+    Add a station equation (chainage break) to the alignment.
+
+    Creates a station equation where the stationing changes abruptly,
+    typically used when:
+    - Joining alignments from different projects with different stationing
+    - Adjusting stationing to match existing roadway conventions
+    - Creating logical breaks in station numbering
+
+    Properties:
+        distance_along: Physical distance along alignment where equation occurs (m)
+        incoming_station_input: Station value approaching the equation point
+        outgoing_station_input: Station value leaving the equation point
+        description: Optional descriptive text for the equation
+
+    Example: At distance 500m along alignment, station changes from
+    "10+500" (incoming) to "15+000" (outgoing), creating a +4500m jump.
+
+    The operator automatically calculates the incoming station based on
+    current stationing and suggests reasonable defaults for the outgoing
+    station.
+
+    Usage context: Called when managing complex stationing scenarios or
+    matching existing project conventions.
+    """
     bl_idname = "bc.add_station_equation"
     bl_label = "Add Station Equation"
     bl_options = {'REGISTER', 'UNDO'}
@@ -216,7 +273,22 @@ class BC_OT_add_station_equation(bpy.types.Operator):
 
 
 class BC_OT_remove_station_equation(bpy.types.Operator):
-    """Remove a station equation from the alignment"""
+    """
+    Remove a station equation from the alignment.
+
+    Deletes a previously created station equation, returning the
+    stationing to continuous calculation from the starting station.
+
+    Properties:
+        distance_along: Distance where the equation to be removed exists (m)
+
+    The operator searches for a station equation at the specified
+    distance and removes it if found. If no equation exists at that
+    location, a warning is reported.
+
+    Usage context: Called when correcting stationing or simplifying
+    alignment station management.
+    """
     bl_idname = "bc.remove_station_equation"
     bl_label = "Remove Station Equation"
     bl_options = {'REGISTER', 'UNDO'}
@@ -251,7 +323,28 @@ class BC_OT_remove_station_equation(bpy.types.Operator):
 
 
 class BC_OT_calculate_station(bpy.types.Operator):
-    """Calculate station value at a given distance along the alignment"""
+    """
+    Calculate station value at a given distance along the alignment.
+
+    Computes the station value at any point along the alignment,
+    accounting for starting station and all station equations.
+    This is a query operation that does not modify the alignment.
+
+    Properties:
+        distance_along: Physical distance along alignment (m)
+
+    The operator displays results in both formatted notation
+    (e.g., "10+234.56") and raw metric values. The dialog updates
+    in real-time as the user adjusts the distance value.
+
+    This calculation respects:
+    - Starting station offset
+    - All station equations (forward and backward)
+    - Proper ordering of equations along alignment
+
+    Usage context: Called when determining station values for
+    design features, cross-sections, or reporting purposes.
+    """
     bl_idname = "bc.calculate_station"
     bl_label = "Calculate Station"
     bl_options = {'REGISTER'}
@@ -312,7 +405,29 @@ class BC_OT_calculate_station(bpy.types.Operator):
 
 
 class BC_OT_update_station_markers(bpy.types.Operator):
-    """Update station markers along the alignment"""
+    """
+    Update station markers along the alignment.
+
+    Creates or updates visual station markers (tick marks and labels)
+    along the alignment geometry in the 3D viewport. These markers help
+    visualize station positions and are useful for design review.
+
+    The operator reads settings from scene properties:
+        - show_station_markers: Whether markers should be visible
+        - station_major_interval: Spacing for major (labeled) tick marks
+        - station_minor_interval: Spacing for minor (unlabeled) tick marks
+        - station_tick_size: Visual size of tick marks
+        - station_label_size: Text size for station labels
+
+    If markers are disabled in settings, this operator clears all
+    existing markers. Otherwise, it regenerates them with current
+    settings and station values.
+
+    Usage context: Called when:
+    - Toggling station marker visibility
+    - Changing marker display settings
+    - After modifying stationing or alignment geometry
+    """
     bl_idname = "bc.update_station_markers"
     bl_label = "Update Station Markers"
     bl_options = {'REGISTER', 'UNDO'}

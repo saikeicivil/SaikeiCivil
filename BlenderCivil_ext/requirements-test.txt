@@ -1,0 +1,24 @@
+# BlenderCivil Test Dependencies
+# ================================
+# Install with: pip install -r requirements-test.txt
+
+# Testing framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0  # Parallel test execution
+
+# Mock and fixtures
+pytest-mock>=3.0.0
+
+# Code quality (optional but recommended)
+# flake8>=6.0.0
+# black>=23.0.0
+# isort>=5.0.0
+# mypy>=1.0.0
+
+# Documentation testing
+# pytest-doctestplus>=1.0.0
+
+# Note: ifcopenshell is required for IFC tests but should be
+# installed separately as it may require specific build steps.
+# Tests will skip gracefully if ifcopenshell is not available.

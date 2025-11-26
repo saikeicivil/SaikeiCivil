@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,6 +62,10 @@ Usage Example:
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict, Any
 import math
+
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -665,12 +669,12 @@ def create_highway_example():
     """
     # Note: This is a placeholder - actual implementation would
     # import from Sprint 1 (horizontal) and Sprint 3 (vertical)
-    
-    print("Highway Example:")
-    print("- 2 km length")
-    print("- Gentle curves")
-    print("- Moderate grades (± 3%)")
-    print("- AASHTO design speed: 100 km/h")
+
+    logger.info("Highway Example:")
+    logger.info("- 2 km length")
+    logger.info("- Gentle curves")
+    logger.info("- Moderate grades (± 3%%)")
+    logger.info("- AASHTO design speed: 100 km/h")
     
     # Would create actual alignment here
     # h_alignment = HorizontalAlignment(...)
@@ -687,11 +691,11 @@ def create_urban_example():
     Returns:
         Alignment3D instance
     """
-    print("Urban Example:")
-    print("- 500 m length")
-    print("- Grid pattern")
-    print("- Flat with drainage (0.5-2%)")
-    print("- Low speeds (40-50 km/h)")
+    logger.info("Urban Example:")
+    logger.info("- 500 m length")
+    logger.info("- Grid pattern")
+    logger.info("- Flat with drainage (0.5-2%%)")
+    logger.info("- Low speeds (40-50 km/h)")
     
     return None
 
@@ -703,28 +707,28 @@ def create_mountain_example():
     Returns:
         Alignment3D instance
     """
-    print("Mountain Example:")
-    print("- 1.5 km length")
-    print("- Sharp horizontal curves")
-    print("- Steep grades (6-8%)")
-    print("- Long vertical curves")
+    logger.info("Mountain Example:")
+    logger.info("- 1.5 km length")
+    logger.info("- Sharp horizontal curves")
+    logger.info("- Steep grades (6-8%%)")
+    logger.info("- Long vertical curves")
     
     return None
 
 
 if __name__ == "__main__":
-    print("BlenderCivil - 3D Alignment System")
-    print("Sprint 3 Day 4 - H+V Integration")
-    print("=" * 50)
-    print()
-    print("This module integrates horizontal and vertical alignments")
-    print("to create complete 3D road/rail alignments.")
-    print()
-    print("Key Features:")
-    print("  • H+V alignment linking")
-    print("  • 3D position queries (x, y, z)")
-    print("  • Complete alignment data")
-    print("  • Sampling for visualization")
-    print("  • Validation and checking")
-    print()
-    print("See docstrings for usage examples!")
+    logger.info("BlenderCivil - 3D Alignment System")
+    logger.info("Sprint 3 Day 4 - H+V Integration")
+    logger.info("=" * 50)
+    logger.info("")
+    logger.info("This module integrates horizontal and vertical alignments")
+    logger.info("to create complete 3D road/rail alignments.")
+    logger.info("")
+    logger.info("Key Features:")
+    logger.info("  • H+V alignment linking")
+    logger.info("  • 3D position queries (x, y, z)")
+    logger.info("  • Complete alignment data")
+    logger.info("  • Sampling for visualization")
+    logger.info("  • Validation and checking")
+    logger.info("")
+    logger.info("See docstrings for usage examples!")

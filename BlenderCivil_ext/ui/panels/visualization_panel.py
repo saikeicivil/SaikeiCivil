@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ Date: November 3, 2025
 
 import bpy
 from bpy.types import Panel
+from ...core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BLENDERCIVIL_PT_cross_section_visualization(Panel):
@@ -316,27 +319,27 @@ def register():
     """Register panels."""
     for cls in classes:
         bpy.utils.register_class(cls)
-    
+
     # Register scene properties for settings
     bpy.types.Scene.cross_section_show_materials = bpy.props.BoolProperty(
         name="Show Materials",
         description="Apply component materials to visualization",
         default=True
     )
-    
+
     bpy.types.Scene.cross_section_smooth_shading = bpy.props.BoolProperty(
         name="Smooth Shading",
         description="Use smooth shading for better appearance",
         default=True
     )
-    
+
     bpy.types.Scene.cross_section_use_cache = bpy.props.BoolProperty(
         name="Use Cache",
         description="Use cached geometry for faster updates",
         default=True
     )
-    
-    print("[+] Visualization panels registered")
+
+    logger.info("Visualization panels registered")
 
 
 def unregister():
@@ -345,11 +348,11 @@ def unregister():
     del bpy.types.Scene.cross_section_show_materials
     del bpy.types.Scene.cross_section_smooth_shading
     del bpy.types.Scene.cross_section_use_cache
-    
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    print("[+] Visualization panels unregistered")
+
+    logger.info("Visualization panels unregistered")
 
 
 if __name__ == "__main__":

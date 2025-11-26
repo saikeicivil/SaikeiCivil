@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,17 +19,63 @@
 # ==============================================================================
 
 """
-Cross-Section Operators
-Handles all cross-section assembly operations in Blender
+Cross-Section Assembly Operators
+=================================
+
+Comprehensive operators for creating, editing, and managing cross-section
+assemblies in BlenderCivil. These operators handle the full lifecycle of
+cross-section definitions used for corridor modeling.
+
+Operators:
+    BC_OT_CreateAssembly: Create new cross-section assembly with optional templates
+    BC_OT_DeleteAssembly: Remove existing assembly from the scene
+    BC_OT_AddComponent: Add components (lanes, shoulders, ditches, curbs) to assembly
+    BC_OT_RemoveComponent: Remove component from active assembly
+    BC_OT_MoveComponentUp: Reorder component up in the list
+    BC_OT_MoveComponentDown: Reorder component down in the list
+    BC_OT_AddConstraint: Add parametric constraint for component variation along alignment
+    BC_OT_RemoveConstraint: Remove parametric constraint
+    BC_OT_ValidateAssembly: Validate assembly configuration for errors
+    BC_OT_CalculateSection: Calculate cross-section geometry at specific station
+    BC_OT_ExportAssemblyIFC: Export assembly to IFC 4.3 format
+    BC_OT_SaveAssemblyTemplate: Save assembly as reusable template
+
+Assembly Structure:
+    An assembly is a collection of components (lanes, shoulders, etc.) that
+    define the cross-section shape. Components are positioned relative to the
+    alignment centerline and can vary parametrically along the alignment using
+    constraints.
 """
 
 import bpy
 from bpy.types import Operator
 from bpy.props import FloatProperty, StringProperty, IntProperty, EnumProperty
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BC_OT_CreateAssembly(Operator):
-    """Create a new cross-section assembly"""
+    """
+    Create a new cross-section assembly.
+
+    Assemblies define the cross-sectional shape of roadways and can be
+    populated with predefined templates (two-lane rural, four-lane divided)
+    or created as empty assemblies for custom configuration.
+
+    Properties:
+        name: Assembly name (must be unique)
+        assembly_type: Template type (CUSTOM, TWO_LANE_RURAL, FOUR_LANE_DIVIDED)
+
+    Templates:
+        - Two-Lane Rural: Standard rural highway with lanes, shoulders, and ditches
+        - Four-Lane Divided: Divided highway with inside/outside shoulders
+        - Custom: Empty assembly for manual component addition
+
+    Usage:
+        Called from cross-section panel to create new assemblies. Template
+        assemblies are immediately ready for corridor generation.
+    """
     bl_idname = "bc.create_assembly"
     bl_label = "Create Assembly"
     bl_description = "Create a new cross-section assembly"
@@ -213,7 +259,16 @@ class BC_OT_CreateAssembly(Operator):
 
 
 class BC_OT_DeleteAssembly(Operator):
-    """Delete the active assembly"""
+    """
+    Delete the currently active assembly.
+
+    Removes the assembly and all its components from the scene. The active
+    assembly index is adjusted to maintain a valid selection.
+
+    Usage:
+        Invoked from cross-section panel when user wants to remove an assembly.
+        Cannot be undone beyond Blender's standard undo system.
+    """
     bl_idname = "bc.delete_assembly"
     bl_label = "Delete Assembly"
     bl_description = "Delete the active cross-section assembly"
@@ -243,7 +298,27 @@ class BC_OT_DeleteAssembly(Operator):
 
 
 class BC_OT_AddComponent(Operator):
-    """Add a new component to the active assembly"""
+    """
+    Add a new component to the active assembly.
+
+    Components are the building blocks of cross-sections, representing
+    lanes, shoulders, curbs, ditches, and other roadway elements. Each
+    component type has appropriate default properties.
+
+    Properties:
+        component_type: Type of component (LANE, SHOULDER, CURB, DITCH)
+        side: Side of centerline (LEFT, RIGHT)
+
+    Component Types:
+        - LANE: Travel lanes with width and cross slope
+        - SHOULDER: Paved or unpaved shoulders
+        - CURB: Vertical or sloped curbs
+        - DITCH: Drainage ditches with foreslope/backslope
+
+    Usage:
+        Called from assembly editor to add components. Default properties
+        are set based on typical design standards.
+    """
     bl_idname = "bc.add_component"
     bl_label = "Add Component"
     bl_description = "Add a new component to the assembly"
@@ -325,7 +400,16 @@ class BC_OT_AddComponent(Operator):
 
 
 class BC_OT_RemoveComponent(Operator):
-    """Remove the selected component from the active assembly"""
+    """
+    Remove the selected component from the active assembly.
+
+    Removes a single component from the assembly's component list. The
+    active component index is adjusted to maintain valid selection.
+
+    Usage:
+        Invoked from component list in assembly editor when user wants
+        to remove a component from the cross-section definition.
+    """
     bl_idname = "bc.remove_component"
     bl_label = "Remove Component"
     bl_description = "Remove the selected component"
@@ -359,7 +443,17 @@ class BC_OT_RemoveComponent(Operator):
 
 
 class BC_OT_MoveComponentUp(Operator):
-    """Move the selected component up in the list"""
+    """
+    Move the selected component up in the list.
+
+    Reorders components in the assembly list. While component order
+    doesn't affect geometry, it helps organize the UI display for
+    better usability.
+
+    Usage:
+        Called from component list arrows to reorder components for
+        better organization and readability.
+    """
     bl_idname = "bc.move_component_up"
     bl_label = "Move Up"
     bl_description = "Move component up"
@@ -385,7 +479,17 @@ class BC_OT_MoveComponentUp(Operator):
 
 
 class BC_OT_MoveComponentDown(Operator):
-    """Move the selected component down in the list"""
+    """
+    Move the selected component down in the list.
+
+    Reorders components in the assembly list. While component order
+    doesn't affect geometry, it helps organize the UI display for
+    better usability.
+
+    Usage:
+        Called from component list arrows to reorder components for
+        better organization and readability.
+    """
     bl_idname = "bc.move_component_down"
     bl_label = "Move Down"
     bl_description = "Move component down"
@@ -411,7 +515,24 @@ class BC_OT_MoveComponentDown(Operator):
 
 
 class BC_OT_AddConstraint(Operator):
-    """Add a parametric constraint to the active assembly"""
+    """
+    Add a parametric constraint to the active assembly.
+
+    Constraints allow component properties to vary along the alignment.
+    For example, lane width can narrow at a specific station, or shoulder
+    slope can change. Constraints are interpolated between stations.
+
+    Properties:
+        station: Station where constraint applies (meters)
+        component_name: Component to modify
+        parameter: Which parameter to vary (width, cross_slope, offset)
+        value: Parameter value at this station
+
+    Usage:
+        Used for transitioning roadway geometry along the alignment.
+        Common scenarios include widening lanes, adjusting slopes,
+        or shifting component positions.
+    """
     bl_idname = "bc.add_constraint"
     bl_label = "Add Constraint"
     bl_description = "Add a parametric constraint for component variation along alignment"
@@ -502,7 +623,16 @@ class BC_OT_AddConstraint(Operator):
 
 
 class BC_OT_RemoveConstraint(Operator):
-    """Remove the selected constraint"""
+    """
+    Remove the selected parametric constraint.
+
+    Deletes a constraint from the assembly, reverting the component to
+    its default parameter values at that station location.
+
+    Usage:
+        Called when user wants to remove parameter variation at a
+        specific station, simplifying the assembly definition.
+    """
     bl_idname = "bc.remove_constraint"
     bl_label = "Remove Constraint"
     bl_description = "Remove the selected parametric constraint"
@@ -536,7 +666,22 @@ class BC_OT_RemoveConstraint(Operator):
 
 
 class BC_OT_ValidateAssembly(Operator):
-    """Validate the active assembly"""
+    """
+    Validate the active assembly for errors and warnings.
+
+    Performs comprehensive checks on assembly configuration including:
+    - Component presence and validity
+    - Width and dimension checks
+    - Cross slope reasonableness
+    - Lane-specific standard compliance
+
+    Validation results are stored in assembly properties and reported
+    to the user. Invalid assemblies cannot be used for corridor generation.
+
+    Usage:
+        Called before corridor creation or export to ensure assembly
+        meets design standards and will generate valid geometry.
+    """
     bl_idname = "bc.validate_assembly"
     bl_label = "Validate Assembly"
     bl_description = "Check assembly for errors and warnings"
@@ -598,7 +743,17 @@ class BC_OT_ValidateAssembly(Operator):
 
 
 class BC_OT_CalculateSection(Operator):
-    """Calculate cross-section at a station"""
+    """
+    Calculate cross-section geometry at a specified station.
+
+    Computes the cross-section properties at a query station, applying
+    any parametric constraints that affect component dimensions at that
+    location. Results include total width and component-specific values.
+
+    Usage:
+        Used for querying assembly properties at specific stations.
+        Helpful for design verification and quantity calculations.
+    """
     bl_idname = "bc.calculate_section"
     bl_label = "Calculate Section"
     bl_description = "Calculate cross-section geometry at specified station"
@@ -630,7 +785,25 @@ class BC_OT_CalculateSection(Operator):
 
 
 class BC_OT_ExportAssemblyIFC(Operator):
-    """Export the active assembly to IFC"""
+    """
+    Export the active assembly to IFC 4.3 format.
+
+    Converts the assembly definition to IFC 4.3 IfcAlignment schema,
+    enabling interoperability with other civil engineering software
+    that supports IFC standards.
+
+    Properties:
+        filepath: Destination path for IFC file
+
+    Requirements:
+        - Assembly must be valid (run validation first)
+        - Assembly must have at least one component
+        - ifcopenshell library must be available
+
+    Usage:
+        Called from export menu to save assembly definitions for use
+        in other software or for project archival.
+    """
     bl_idname = "bc.export_assembly_ifc"
     bl_label = "Export to IFC"
     bl_description = "Export assembly to IFC 4.3 file"
@@ -687,7 +860,24 @@ class BC_OT_ExportAssemblyIFC(Operator):
 
 
 class BC_OT_SaveAssemblyTemplate(Operator):
-    """Save the active assembly as a template"""
+    """
+    Save the active assembly as a reusable template.
+
+    Exports the assembly configuration to an external template file that
+    can be loaded in future projects, enabling standardization of cross-
+    section designs across multiple projects.
+
+    Properties:
+        template_name: Name for the saved template
+
+    Requirements:
+        - Assembly must be valid
+        - Template name must be provided
+
+    Usage:
+        Called after creating a custom assembly that should be reused.
+        Useful for creating organization-specific design standards.
+    """
     bl_idname = "bc.save_assembly_template"
     bl_label = "Save as Template"
     bl_description = "Save assembly configuration as a reusable template"
@@ -743,16 +933,16 @@ def register():
     """Register operator classes"""
     for cls in classes:
         bpy.utils.register_class(cls)
-    
-    print("  [+] Cross-section operators registered")
+
+    logger.info("Cross-section operators registered")
 
 
 def unregister():
     """Unregister operator classes"""
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    print("  [-] Cross-section operators unregistered")
+
+    logger.info("Cross-section operators unregistered")
 
 
 if __name__ == "__main__":

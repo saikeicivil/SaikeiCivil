@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,9 @@ not just IFC entities.
 """
 
 from typing import Optional, Dict, Tuple
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # Global registries - use regular dicts to keep alignments alive
@@ -39,24 +42,24 @@ _visualizer_instances: Dict[str, 'AlignmentVisualizer'] = {}
 
 def register_alignment(alignment_obj):
     """Register a NativeIfcAlignment instance.
-    
+
     Args:
         alignment_obj: NativeIfcAlignment instance
     """
     global_id = alignment_obj.alignment.GlobalId
     _alignment_instances[global_id] = alignment_obj
-    print(f"[Registry] Registered alignment: {global_id}")
+    logger.debug("Registered alignment: %s", global_id)
 
 
 def register_visualizer(visualizer_obj, alignment_global_id):
     """Register an AlignmentVisualizer instance.
-    
+
     Args:
         visualizer_obj: AlignmentVisualizer instance
         alignment_global_id: GlobalId of the alignment this visualizes
     """
     _visualizer_instances[alignment_global_id] = visualizer_obj
-    print(f"[Registry] Registered visualizer for: {alignment_global_id}")
+    logger.debug("Registered visualizer for: %s", alignment_global_id)
 
 
 def get_alignment(alignment_global_id) -> Optional['NativeIfcAlignment']:
@@ -179,15 +182,15 @@ def clear_registry():
     global _alignment_instances, _visualizer_instances
     _alignment_instances.clear()
     _visualizer_instances.clear()
-    print("[Registry] Cleared all registrations")
+    logger.info("Cleared all registrations")
 
 
 def list_registered():
     """List all registered alignments for debugging."""
-    print(f"[Registry] Registered alignments: {len(_alignment_instances)}")
+    logger.info("Registered alignments: %s", len(_alignment_instances))
     for global_id in _alignment_instances.keys():
-        print(f"  - {global_id}")
-    
-    print(f"[Registry] Registered visualizers: {len(_visualizer_instances)}")
+        logger.info("  - %s", global_id)
+
+    logger.info("Registered visualizers: %s", len(_visualizer_instances))
     for global_id in _visualizer_instances.keys():
-        print(f"  - {global_id}")
+        logger.info("  - %s", global_id)

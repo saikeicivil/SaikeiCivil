@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ All operator classes will be organized here.
 
 import bpy
 from .. import core
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Conditionally import operator modules based on IFC support
 _operator_modules = []
@@ -84,14 +87,14 @@ if core.has_ifc_support():
 
 def register():
     """Register operators"""
-    print("  [+] Operators module loaded")
+    logger.info("Operators module loaded")
 
     if _operator_modules:
         for module in _operator_modules:
             module.register()
-        print(f"  [+] Registered {len(_operator_modules)} operator modules")
+        logger.info("Registered %d operator modules", len(_operator_modules))
     else:
-        print("  [!] IFC operators disabled (ifcopenshell not found)")
+        logger.warning("IFC operators disabled (ifcopenshell not found)")
 
 
 def unregister():

@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,21 @@
 
 """
 Interactive Curve Operations
-Add curves between tangent segments by selecting tangents graphically
+=============================
+
+Provides operators for adding and managing horizontal curves between tangent segments
+in IFC alignments. Curves are inserted at Point of Intersections (PIs) by selecting
+adjacent tangent segments graphically in the viewport.
+
+The curve insertion process follows civil engineering conventions: curves are defined
+by radius and automatically tangent to the incoming and outgoing tangent lines at
+the shared PI location.
+
+Operators:
+    BC_OT_add_curve_interactive: Select two tangent segments interactively to insert curve
+    BC_OT_add_curve_dialog: Dialog for entering curve radius after tangent selection
+    BC_OT_delete_curve: Remove a curve segment and restore tangent connection
+    BC_OT_edit_curve_radius: Modify the radius of an existing curve segment
 """
 
 import bpy
@@ -31,9 +45,51 @@ from bpy.props import StringProperty, FloatProperty, IntProperty, BoolProperty
 from mathutils import Vector
 from gpu_extras.batch import batch_for_shader
 
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 class BC_OT_add_curve_interactive(bpy.types.Operator):
-    """Add curve by selecting two tangent segments"""
+    """Add curve by selecting two adjacent tangent segments interactively.
+
+    Modal operator that guides the user through selecting two tangent segments that
+    share a common PI, then prompts for a curve radius to insert at that PI. The
+    operator uses ray casting to detect tangent segments under the mouse cursor and
+    provides visual feedback during selection.
+
+    Modal States:
+        SELECT_FIRST: Waiting for user to click first tangent segment
+        SELECT_SECOND: First tangent selected, waiting for second tangent
+
+    State Transitions:
+        - Mouse move: Updates hovered object and cursor feedback
+        - Left click (SELECT_FIRST): Validates and selects first tangent
+        - Left click (SELECT_SECOND): Validates second tangent, checks adjacency,
+          then exits modal and launches radius dialog
+        - ESC: Cancels operation at any state
+
+    Properties:
+        radius: Curve radius in meters (entered in subsequent dialog)
+
+    Internal State:
+        _handle: Drawing handler for HUD overlay
+        _first_tangent: First selected tangent object
+        _second_tangent: Second selected tangent object
+        _last_mouse_pos: Current mouse position for cursor feedback
+        _hovered_object: Object currently under mouse cursor
+        _state: Current selection state
+        _finished: Flag to prevent crashes during transition to dialog
+
+    Requirements:
+        - Active alignment with at least 2 tangent segments
+        - Selected tangents must be adjacent (share a common PI)
+
+    Usage:
+        Invoke operator, click first tangent segment, click adjacent second tangent
+        segment, then enter desired curve radius in the dialog. The curve is inserted
+        at the shared PI and all visualizations are updated.
+    """
     bl_idname = "bc.add_curve_interactive"
     bl_label = "Add Curve (Click Tangents)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -333,7 +389,32 @@ class BC_OT_add_curve_interactive(bpy.types.Operator):
 
 
 class BC_OT_add_curve_dialog(bpy.types.Operator):
-    """Dialog for entering curve radius (separated from modal)"""
+    """Dialog for entering curve radius (separated from modal operator).
+
+    This operator is invoked automatically by BC_OT_add_curve_interactive after
+    the user selects two adjacent tangent segments. It presents a dialog to enter
+    the desired curve radius, then creates the curve in the IFC alignment.
+
+    The separation of modal selection and dialog entry prevents Blender crashes
+    that can occur when invoking dialogs from within modal operators.
+
+    Properties:
+        radius: Curve radius in meters (min: 0.1, default: 100.0)
+
+    Scene Properties Used:
+        bc_curve_tangent1: Name of first selected tangent (temporary storage)
+        bc_curve_tangent2: Name of second selected tangent (temporary storage)
+
+    Algorithm:
+        1. Retrieve tangent object references from scene properties
+        2. Find the shared PI between the two tangents
+        3. Call alignment.insert_curve_at_pi() with specified radius
+        4. Update all visualizations through the visualizer
+        5. Clean up temporary scene properties
+
+    Usage:
+        Automatically invoked after tangent selection. Not called directly by user.
+    """
     bl_idname = "bc.add_curve_dialog"
     bl_label = "Add Curve"
     bl_options = {'REGISTER', 'UNDO'}
@@ -373,9 +454,7 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
                 self.report({'ERROR'}, "Failed to create curve")
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create curve: {e}")
-            print(f"[CurveTool] Error in create_curve: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Error in create_curve: %s", e, exc_info=True)
 
         # Clean up scene properties
         if "bc_curve_tangent1" in context.scene:
@@ -417,14 +496,14 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
         # Get the alignment parent object
         alignment = tangent1.parent
         if not alignment or tangent2.parent != alignment:
-            print(f"[CurveTool] Tangents don't share the same parent alignment")
+            logger.warning("Tangents don't share the same parent alignment")
             return None
 
         # Find all PI objects in the alignment
         pi_objects = [obj for obj in alignment.children if obj.name.startswith("PI_")]
 
         if not pi_objects:
-            print(f"[CurveTool] No PI objects found in alignment")
+            logger.warning("No PI objects found in alignment")
             return None
 
         # Get the endpoints of each tangent curve
@@ -440,10 +519,10 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
                     tangent1_start = spline1.bezier_points[0].co
                     tangent1_end = spline1.bezier_points[-1].co
                 else:
-                    print(f"[CurveTool] Tangent1 has no points (type: {spline1.type})")
+                    logger.warning("Tangent1 has no points (type: %s)", spline1.type)
                     return None
             else:
-                print(f"[CurveTool] Tangent1 has no splines")
+                logger.warning("Tangent1 has no splines")
                 return None
 
             if len(tangent2.data.splines) > 0:
@@ -456,13 +535,13 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
                     tangent2_start = spline2.bezier_points[0].co
                     tangent2_end = spline2.bezier_points[-1].co
                 else:
-                    print(f"[CurveTool] Tangent2 has no points (type: {spline2.type})")
+                    logger.warning("Tangent2 has no points (type: %s)", spline2.type)
                     return None
             else:
-                print(f"[CurveTool] Tangent2 has no splines")
+                logger.warning("Tangent2 has no splines")
                 return None
         except Exception as e:
-            print(f"[CurveTool] Error getting tangent endpoints: {e}")
+            logger.error("Error getting tangent endpoints: %s", e)
             return None
 
         # Transform to world space
@@ -476,9 +555,9 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
         tolerance = 1.0  # 1 meter tolerance (increased for floating point precision)
 
         # Debug output
-        print(f"[CurveTool] Searching for shared PI between {tangent1.name} and {tangent2.name}")
-        print(f"[CurveTool] Tangent1 endpoints: {tangent1_start_world} to {tangent1_end_world}")
-        print(f"[CurveTool] Tangent2 endpoints: {tangent2_start_world} to {tangent2_end_world}")
+        logger.debug("Searching for shared PI between %s and %s", tangent1.name, tangent2.name)
+        logger.debug("Tangent1 endpoints: %s to %s", tangent1_start_world, tangent1_end_world)
+        logger.debug("Tangent2 endpoints: %s to %s", tangent2_start_world, tangent2_end_world)
 
         for pi_obj in pi_objects:
             pi_location = pi_obj.matrix_world.translation
@@ -494,21 +573,21 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
             is_tangent2_endpoint = (dist_t2_start < tolerance or dist_t2_end < tolerance)
 
             # Debug output for each PI
-            print(f"[CurveTool] {pi_obj.name}: t1_start={dist_t1_start:.3f}m, t1_end={dist_t1_end:.3f}m, "
-                  f"t2_start={dist_t2_start:.3f}m, t2_end={dist_t2_end:.3f}m")
+            logger.debug("%s: t1_start=%.3fm, t1_end=%.3fm, t2_start=%.3fm, t2_end=%.3fm",
+                        pi_obj.name, dist_t1_start, dist_t1_end, dist_t2_start, dist_t2_end)
 
             if is_tangent1_endpoint and is_tangent2_endpoint:
                 # Found the shared PI! Extract its index from the name
                 try:
                     # PI_002 -> index 2
                     pi_index = int(pi_obj.name.split('_')[-1])
-                    print(f"[CurveTool] ✓ Found shared PI: {pi_obj.name} at index {pi_index}")
+                    logger.info("Found shared PI: %s at index %s", pi_obj.name, pi_index)
                     return pi_index
                 except:
-                    print(f"[CurveTool] Could not parse PI index from name: {pi_obj.name}")
+                    logger.warning("Could not parse PI index from name: %s", pi_obj.name)
                     return None
 
-        print(f"[CurveTool] ✗ No shared PI found between tangents")
+        logger.warning("No shared PI found between tangents")
         return None
 
     def create_curve(self, tangent1, tangent2, radius):
@@ -521,10 +600,10 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
         pi_index = self._find_shared_pi(tangent1, tangent2)
 
         if pi_index is None:
-            print(f"[CurveTool] Could not find shared PI between {tangent1.name} and {tangent2.name}")
+            logger.error("Could not find shared PI between %s and %s", tangent1.name, tangent2.name)
             return False
 
-        print(f"[CurveTool] Found shared PI at index {pi_index}")
+        logger.info("Found shared PI at index %s", pi_index)
 
         # Get the alignment object from the registry
         from ..core.native_ifc_manager import NativeIfcManager
@@ -534,46 +613,63 @@ class BC_OT_add_curve_dialog(bpy.types.Operator):
         # Get the active alignment IFC entity
         ifc = NativeIfcManager.get_file()
         if not ifc:
-            print(f"[CurveTool] No IFC file loaded")
+            logger.error("No IFC file loaded")
             return False
 
         active_alignment_ifc = get_active_alignment_ifc(bpy.context)
         if not active_alignment_ifc:
-            print(f"[CurveTool] No active alignment")
+            logger.error("No active alignment")
             return False
 
         # Get the alignment object from registry
         alignment_obj = alignment_registry.get_alignment(active_alignment_ifc.GlobalId)
         if not alignment_obj:
-            print(f"[CurveTool] Could not find alignment object in registry")
+            logger.error("Could not find alignment object in registry")
             return False
 
         # Insert curve at PI using the alignment's built-in method
-        print(f"[CurveTool] Inserting curve at PI {pi_index} with radius {radius:.1f}m")
+        logger.info("Inserting curve at PI %s with radius %.1fm", pi_index, radius)
 
         curve_data = alignment_obj.insert_curve_at_pi(pi_index, radius)
 
         if not curve_data:
-            print(f"[CurveTool] Failed to insert curve at PI {pi_index}")
+            logger.error("Failed to insert curve at PI %s", pi_index)
             return False
 
         # The alignment has updated its segments, now update visualization
         if hasattr(alignment_obj, 'visualizer') and alignment_obj.visualizer:
             alignment_obj.visualizer.update_all()
-            print(f"[CurveTool] Updated visualization")
+            logger.debug("Updated visualization")
 
-        print(f"[CurveTool] Successfully inserted curve:")
-        print(f"[CurveTool]   PI Index: {pi_index}")
-        print(f"[CurveTool]   Radius: {radius:.1f}m")
-        print(f"[CurveTool]   Arc Length: {curve_data['arc_length']:.2f}m")
-        print(f"[CurveTool]   Deflection: {math.degrees(curve_data['deflection']):.1f}°")
-        print(f"[CurveTool]   Turn: {curve_data['turn_direction']}")
+        logger.info("Successfully inserted curve:")
+        logger.info("  PI Index: %s", pi_index)
+        logger.info("  Radius: %.1fm", radius)
+        logger.info("  Arc Length: %.2fm", curve_data['arc_length'])
+        logger.info("  Deflection: %.1f°", math.degrees(curve_data['deflection']))
+        logger.info("  Turn: %s", curve_data['turn_direction'])
 
         return True
 
 
 class BC_OT_delete_curve(bpy.types.Operator):
-    """Delete selected curve"""
+    """Delete a curve segment from the alignment.
+
+    Removes the selected curve segment from the Blender scene. The operator validates
+    that the selected object is a curve segment (not a tangent) by checking the
+    object name for "Curve" prefix.
+
+    Requirements:
+        - Active object must be a curve segment (CURVE type)
+        - Object name must contain "Curve" (not "Tangent")
+
+    Note:
+        Current implementation removes the Blender curve object but does not restore
+        the tangent connection at the PI. Full implementation should extend the
+        adjacent tangent lines to meet at the PI and update the IFC alignment structure.
+
+    Usage:
+        Select a curve segment object in the viewport and invoke to delete it.
+    """
     bl_idname = "bc.delete_curve"
     bl_label = "Delete Curve"
     bl_options = {'REGISTER', 'UNDO'}
@@ -601,7 +697,33 @@ class BC_OT_delete_curve(bpy.types.Operator):
 
 
 class BC_OT_edit_curve_radius(bpy.types.Operator):
-    """Edit radius of selected curve"""
+    """Edit the radius of an existing curve segment.
+
+    Modifies the radius parameter of a curve segment that has already been inserted
+    into the alignment. The operator retrieves the curve's IFC entity, updates the
+    radius value, regenerates all affected segments, and updates the visualization.
+
+    Properties:
+        radius: New curve radius in meters (min: 0.1, default: 100.0)
+        _current_radius: Internal storage of current radius for dialog display
+
+    Requirements:
+        - Active object must be a curve segment (CURVE type)
+        - Object must be linked to IFC ("ifc_definition_id" property)
+        - Active alignment must be set and available in registry
+
+    Algorithm:
+        1. Extract PI index from curve object name (e.g., "Curve_2" -> PI 2)
+        2. Retrieve curve data from alignment's PI list
+        3. Update radius parameter in curve data
+        4. Call alignment.regenerate_segments_with_curves()
+        5. Update all visualizations through the visualizer
+
+    Usage:
+        Select a curve segment in the viewport and invoke to show dialog with
+        current radius. Enter new radius and confirm to update the curve geometry.
+        The invoke method pre-populates the dialog with the current radius value.
+    """
     bl_idname = "bc.edit_curve_radius"
     bl_label = "Edit Curve Radius"
     bl_options = {'REGISTER', 'UNDO'}
@@ -676,7 +798,7 @@ class BC_OT_edit_curve_radius(bpy.types.Operator):
         try:
             curve_name = obj.name
             pi_index = int(curve_name.split('_')[-1].split('.')[0])  # Handle .001 suffixes
-            print(f"[EditCurve] Editing curve at PI {pi_index}, new radius: {self.radius:.1f}m")
+            logger.info("Editing curve at PI %s, new radius: %.1fm", pi_index, self.radius)
         except:
             self.report({'ERROR'}, "Could not determine PI index from curve name")
             return {'CANCELLED'}
@@ -695,7 +817,7 @@ class BC_OT_edit_curve_radius(bpy.types.Operator):
         old_radius = pi_data['curve']['radius']
         pi_data['curve']['radius'] = self.radius
 
-        print(f"[EditCurve] Updated radius from {old_radius:.1f}m to {self.radius:.1f}m")
+        logger.info("Updated radius from %.1fm to %.1fm", old_radius, self.radius)
 
         # Regenerate segments with the new curve data
         alignment_obj.regenerate_segments_with_curves()
@@ -703,7 +825,7 @@ class BC_OT_edit_curve_radius(bpy.types.Operator):
         # Update visualization
         if hasattr(alignment_obj, 'visualizer') and alignment_obj.visualizer:
             alignment_obj.visualizer.update_all()
-            print(f"[EditCurve] Updated visualization")
+            logger.debug("Updated visualization")
 
         self.report({'INFO'}, f"Updated curve radius: {old_radius:.1f}m → {self.radius:.1f}m")
         return {'FINISHED'}
@@ -736,13 +858,13 @@ class BC_OT_edit_curve_radius(bpy.types.Operator):
                         current_radius = abs(params.StartRadiusOfCurvature)
                         self.radius = current_radius
                         self._current_radius = current_radius
-                        print(f"[EditCurve] Current radius: {current_radius:.1f}m")
+                        logger.debug("Current radius: %.1fm", current_radius)
                     else:
-                        print(f"[EditCurve] Curve entity has no radius")
+                        logger.warning("Curve entity has no radius")
                 else:
-                    print(f"[EditCurve] Could not get curve parameters")
+                    logger.warning("Could not get curve parameters")
             except Exception as e:
-                print(f"[EditCurve] Error getting current radius: {e}")
+                logger.error("Error getting current radius: %s", e)
 
         return context.window_manager.invoke_props_dialog(self)
 

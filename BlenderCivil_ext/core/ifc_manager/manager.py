@@ -1,0 +1,567 @@
+# ==============================================================================
+# BlenderCivil - Civil Engineering Tools for Blender
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Primary Author: Michael Yoder
+# Company: Desert Springs Civil Engineering PLLC
+# ==============================================================================
+
+"""
+Native IFC Manager
+===================
+
+Central manager for IFC file lifecycle and Blender visualization.
+Creates and manages the IFC spatial hierarchy:
+
+    IfcProject
+    └── IfcSite
+        └── IfcRoad
+
+And visualizes it in Blender with organizational empties.
+"""
+
+import logging
+from typing import Dict, List, Optional
+
+import bpy
+import ifcopenshell
+import ifcopenshell.guid
+
+from .ifc_entities import (
+    create_units,
+    create_geometric_context,
+    create_local_placement,
+    find_geometric_context,
+    find_axis_subcontext,
+)
+from .blender_hierarchy import (
+    create_blender_hierarchy,
+    clear_blender_hierarchy,
+    get_or_find_collection,
+    get_or_find_object,
+    PROJECT_COLLECTION_NAME,
+    ALIGNMENTS_EMPTY_NAME,
+    GEOMODELS_EMPTY_NAME,
+)
+from .validation import validate_for_external_viewers, validate_and_report
+
+logger = logging.getLogger(__name__)
+
+
+class NativeIfcManager:
+    """Manages IFC file lifecycle and Blender visualization.
+
+    Creates proper spatial structure per IFC 4.3 standards and
+    visualizes it in Blender's outliner for user clarity.
+
+    This is a singleton-style class using class-level state.
+    """
+
+    # Class-level state
+    file: Optional[ifcopenshell.file] = None
+    filepath: Optional[str] = None
+    project: Optional[ifcopenshell.entity_instance] = None
+    site: Optional[ifcopenshell.entity_instance] = None
+    road: Optional[ifcopenshell.entity_instance] = None
+
+    # IFC core entities
+    unit_assignment: Optional[ifcopenshell.entity_instance] = None
+    geometric_context: Optional[ifcopenshell.entity_instance] = None
+    axis_subcontext: Optional[ifcopenshell.entity_instance] = None
+
+    # Blender references
+    project_collection: Optional[bpy.types.Collection] = None
+    alignments_collection: Optional[bpy.types.Object] = None
+    geomodels_collection: Optional[bpy.types.Object] = None
+
+    # Loaded vertical alignments
+    vertical_alignments: List = []
+
+    @classmethod
+    def new_file(cls, schema: str = "IFC4X3") -> Dict:
+        """Create new IFC file with complete spatial hierarchy.
+
+        Creates IFC structure:
+            IfcProject → IfcSite → IfcRoad
+
+        And Blender visualization:
+            Project (Empty) → Site (Empty) → Road (Empty)
+            + Alignments, Geomodels empties
+
+        Args:
+            schema: IFC schema version (default: IFC4X3)
+
+        Returns:
+            dict with 'ifc_file', 'project_collection', entity references
+        """
+        cls.clear()
+
+        # Create IFC file and core entities
+        cls.file = ifcopenshell.file(schema=schema)
+        cls.unit_assignment = create_units(cls.file)
+        cls.geometric_context, cls.axis_subcontext = create_geometric_context(cls.file)
+
+        # Create IfcProject
+        cls.project = cls.file.create_entity(
+            "IfcProject",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="BlenderCivil Project",
+            Description="Civil engineering project",
+            UnitsInContext=cls.unit_assignment,
+            RepresentationContexts=[cls.geometric_context]
+        )
+
+        # Create IfcSite with placement
+        site_placement = create_local_placement(cls.file)
+        cls.site = cls.file.create_entity(
+            "IfcSite",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="Site",
+            Description="Project site",
+            ObjectPlacement=site_placement
+        )
+
+        # Create IfcRoad with placement (relative to site)
+        road_placement = create_local_placement(cls.file, relative_to=site_placement)
+        cls.road = cls.file.create_entity(
+            "IfcRoad",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="Road",
+            Description="Road facility",
+            ObjectPlacement=road_placement
+        )
+
+        # Establish relationships
+        cls.file.create_entity(
+            "IfcRelAggregates",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="ProjectContainsSite",
+            RelatingObject=cls.project,
+            RelatedObjects=[cls.site]
+        )
+
+        cls.file.create_entity(
+            "IfcRelAggregates",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="SiteContainsRoad",
+            RelatingObject=cls.site,
+            RelatedObjects=[cls.road]
+        )
+
+        # Create Blender visualization
+        cls._create_blender_hierarchy()
+
+        logger.info(
+            f"Created IFC spatial hierarchy with {len(cls.file.by_type('IfcRoot'))} entities"
+        )
+
+        return {
+            'ifc_file': cls.file,
+            'project_collection': cls.project_collection,
+            'project': cls.project,
+            'site': cls.site,
+            'road': cls.road
+        }
+
+    @classmethod
+    def _create_blender_hierarchy(cls) -> None:
+        """Create Blender visualization of IFC hierarchy."""
+        result = create_blender_hierarchy(
+            cls.project, cls.site, cls.road, cls.link_object
+        )
+        cls.project_collection = result[0]
+        cls.alignments_collection = result[1]
+        cls.geomodels_collection = result[2]
+
+    @classmethod
+    def open_file(cls, filepath: str) -> ifcopenshell.file:
+        """Load existing IFC file and create Blender visualization.
+
+        Args:
+            filepath: Path to IFC file
+
+        Returns:
+            Loaded IFC file
+        """
+        cls.clear()
+        cls.file = ifcopenshell.open(filepath)
+        cls.filepath = filepath
+
+        # Find key entities
+        cls._load_entities_from_file()
+
+        # Create Blender visualization
+        cls._create_blender_hierarchy()
+
+        # Load alignments
+        cls._load_alignments()
+
+        # Load vertical alignments
+        cls._load_vertical_alignments()
+
+        logger.info(
+            f"Loaded IFC file: {filepath} "
+            f"({len(cls.file.by_type('IfcRoot'))} entities, "
+            f"{len(cls.file.by_type('IfcAlignment'))} alignments)"
+        )
+
+        return cls.file
+
+    @classmethod
+    def _load_entities_from_file(cls) -> None:
+        """Load IFC entities from opened file."""
+        projects = cls.file.by_type("IfcProject")
+        if projects:
+            cls.project = projects[0]
+            cls.unit_assignment = cls.project.UnitsInContext
+            if cls.project.RepresentationContexts:
+                cls.geometric_context = find_geometric_context(cls.file)
+            cls.axis_subcontext = find_axis_subcontext(cls.file)
+
+        sites = cls.file.by_type("IfcSite")
+        if sites:
+            cls.site = sites[0]
+
+        roads = cls.file.by_type("IfcRoad")
+        if roads:
+            cls.road = roads[0]
+
+    @classmethod
+    def _load_alignments(cls) -> None:
+        """Load horizontal alignments from file."""
+        from ..native_ifc_alignment import NativeIfcAlignment
+        from ..alignment_visualizer import AlignmentVisualizer
+        from ..alignment_registry import register_alignment, register_visualizer
+
+        alignments = cls.file.by_type("IfcAlignment")
+        for alignment_entity in alignments:
+            try:
+                alignment_obj = NativeIfcAlignment(
+                    cls.file,
+                    alignment_entity=alignment_entity
+                )
+                register_alignment(alignment_obj)
+
+                visualizer = AlignmentVisualizer(alignment_obj)
+                register_visualizer(visualizer, alignment_entity.GlobalId)
+                alignment_obj.visualizer = visualizer
+                visualizer.update_visualizations()
+
+                logger.info(
+                    f"Loaded alignment: {alignment_entity.Name} "
+                    f"({len(alignment_obj.pis)} PIs)"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load alignment {alignment_entity.Name}: {e}"
+                )
+
+        # Set first alignment as active
+        if alignments:
+            from ...ui.alignment_properties import (
+                set_active_alignment,
+                refresh_alignment_list
+            )
+            if hasattr(bpy.context, 'scene'):
+                refresh_alignment_list(bpy.context)
+                set_active_alignment(bpy.context, alignments[0])
+
+    @classmethod
+    def _load_vertical_alignments(cls) -> None:
+        """Load vertical alignments from file."""
+        from ..native_ifc_vertical_alignment import load_vertical_alignments_from_ifc
+
+        try:
+            cls.vertical_alignments = load_vertical_alignments_from_ifc(cls.file)
+            if cls.vertical_alignments:
+                logger.info(
+                    f"Loaded {len(cls.vertical_alignments)} vertical alignment(s)"
+                )
+                cls._integrate_vertical_alignments_with_profile_view()
+        except Exception as e:
+            logger.warning(f"Failed to load vertical alignments: {e}")
+            cls.vertical_alignments = []
+
+    @classmethod
+    def _integrate_vertical_alignments_with_profile_view(cls) -> None:
+        """Add loaded vertical alignments to profile view if open."""
+        if not cls.vertical_alignments:
+            return
+
+        try:
+            from ..profile_view_overlay import get_profile_overlay
+            overlay = get_profile_overlay()
+
+            if overlay:
+                overlay.data.clear_vertical_alignments()
+                for valign in cls.vertical_alignments:
+                    overlay.data.add_vertical_alignment(valign)
+
+                if cls.vertical_alignments:
+                    overlay.data.select_vertical_alignment(0)
+                overlay.data.update_view_extents()
+
+                logger.debug("Profile view updated with vertical alignments")
+        except Exception as e:
+            logger.debug(f"Could not integrate with profile view: {e}")
+
+    @classmethod
+    def save_file(cls, filepath: Optional[str] = None, validate: bool = True) -> None:
+        """Write IFC file to disk.
+
+        Args:
+            filepath: Path to save (uses stored filepath if None)
+            validate: If True, validates before saving
+
+        Raises:
+            ValueError: If no filepath or file to save
+        """
+        if filepath:
+            cls.filepath = filepath
+
+        if not cls.filepath:
+            raise ValueError("No filepath specified")
+        if not cls.file:
+            raise ValueError("No IFC file to save")
+
+        if validate:
+            validate_and_report(cls.file)
+
+        cls.file.write(cls.filepath)
+        bpy.context.scene["ifc_filepath"] = cls.filepath
+
+        logger.info(f"Saved IFC file: {cls.filepath}")
+
+    @classmethod
+    def get_file(cls) -> ifcopenshell.file:
+        """Get active IFC file, creating one if needed."""
+        if cls.file is None:
+            cls.new_file()
+        return cls.file
+
+    @classmethod
+    def get_project(cls) -> Optional[ifcopenshell.entity_instance]:
+        """Get IfcProject entity."""
+        if cls.project is None and cls.file:
+            projects = cls.file.by_type("IfcProject")
+            if projects:
+                cls.project = projects[0]
+        return cls.project
+
+    @classmethod
+    def get_site(cls) -> Optional[ifcopenshell.entity_instance]:
+        """Get IfcSite entity."""
+        if cls.site is None and cls.file:
+            sites = cls.file.by_type("IfcSite")
+            if sites:
+                cls.site = sites[0]
+        return cls.site
+
+    @classmethod
+    def get_road(cls) -> Optional[ifcopenshell.entity_instance]:
+        """Get IfcRoad entity."""
+        if cls.road is None and cls.file:
+            roads = cls.file.by_type("IfcRoad")
+            if roads:
+                cls.road = roads[0]
+        return cls.road
+
+    @classmethod
+    def get_geometric_context(cls) -> Optional[ifcopenshell.entity_instance]:
+        """Get geometric representation context."""
+        if cls.geometric_context:
+            return cls.geometric_context
+        if cls.file:
+            cls.geometric_context = find_geometric_context(cls.file)
+        return cls.geometric_context
+
+    @classmethod
+    def get_axis_subcontext(cls) -> Optional[ifcopenshell.entity_instance]:
+        """Get Axis sub-context for alignment curves."""
+        if cls.axis_subcontext:
+            return cls.axis_subcontext
+        if cls.file:
+            cls.axis_subcontext = find_axis_subcontext(cls.file)
+            if not cls.axis_subcontext:
+                return cls.get_geometric_context()
+        return cls.axis_subcontext
+
+    @classmethod
+    def get_project_collection(cls) -> Optional[bpy.types.Collection]:
+        """Get Blender collection for the project."""
+        cls.project_collection = get_or_find_collection(
+            cls.project_collection, PROJECT_COLLECTION_NAME
+        )
+        if cls.project_collection is None and cls.file is not None:
+            logger.debug("Project collection was deleted, recreating...")
+            cls._create_blender_hierarchy()
+        return cls.project_collection
+
+    @classmethod
+    def get_alignments_collection(cls) -> Optional[bpy.types.Object]:
+        """Get Blender empty for alignments."""
+        cls.alignments_collection = get_or_find_object(
+            cls.alignments_collection, ALIGNMENTS_EMPTY_NAME
+        )
+        if cls.alignments_collection is None and cls.file is not None:
+            logger.debug("Alignments object was deleted, recreating...")
+            cls._create_blender_hierarchy()
+        return cls.alignments_collection
+
+    @classmethod
+    def get_geomodels_collection(cls) -> Optional[bpy.types.Object]:
+        """Get Blender empty for geomodels."""
+        cls.geomodels_collection = get_or_find_object(
+            cls.geomodels_collection, GEOMODELS_EMPTY_NAME
+        )
+        if cls.geomodels_collection is None and cls.file is not None:
+            logger.debug("Geomodels object was deleted, recreating...")
+            cls._create_blender_hierarchy()
+        return cls.geomodels_collection
+
+    @classmethod
+    def contain_alignment_in_road(
+        cls,
+        alignment: ifcopenshell.entity_instance
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """Add spatial containment for alignment within road.
+
+        Args:
+            alignment: IfcAlignment entity to contain
+
+        Returns:
+            IfcRelContainedInSpatialStructure entity or None
+        """
+        if not cls.road:
+            logger.warning("No road entity to contain alignment in")
+            return None
+
+        # Check if already contained
+        for rel in cls.file.by_type("IfcRelContainedInSpatialStructure"):
+            if rel.RelatingStructure == cls.road:
+                if alignment in (rel.RelatedElements or []):
+                    return rel
+                existing = list(rel.RelatedElements or [])
+                existing.append(alignment)
+                rel.RelatedElements = existing
+                return rel
+
+        # Create new containment
+        containment = cls.file.create_entity(
+            "IfcRelContainedInSpatialStructure",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="RoadContainsAlignments",
+            RelatedElements=[alignment],
+            RelatingStructure=cls.road
+        )
+        return containment
+
+    @classmethod
+    def create_alignment_placement(cls) -> ifcopenshell.entity_instance:
+        """Create IfcLocalPlacement for a new alignment."""
+        road_placement = None
+        if cls.road and hasattr(cls.road, 'ObjectPlacement'):
+            road_placement = cls.road.ObjectPlacement
+        return create_local_placement(cls.file, relative_to=road_placement)
+
+    @classmethod
+    def link_object(
+        cls,
+        blender_obj: bpy.types.Object,
+        ifc_entity: ifcopenshell.entity_instance
+    ) -> None:
+        """Link Blender object to IFC entity.
+
+        Args:
+            blender_obj: Blender object
+            ifc_entity: IFC entity to link
+        """
+        blender_obj["ifc_definition_id"] = ifc_entity.id()
+        blender_obj["ifc_class"] = ifc_entity.is_a()
+        blender_obj["GlobalId"] = ifc_entity.GlobalId
+
+    @classmethod
+    def get_entity(
+        cls,
+        blender_obj: bpy.types.Object
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """Retrieve IFC entity from Blender object.
+
+        Args:
+            blender_obj: Blender object with IFC link
+
+        Returns:
+            IFC entity or None
+        """
+        if "ifc_definition_id" in blender_obj:
+            return cls.file.by_id(blender_obj["ifc_definition_id"])
+        return None
+
+    @classmethod
+    def clear(cls) -> None:
+        """Clear all IFC data and Blender collections."""
+        cls.file = None
+        cls.filepath = None
+        cls.project = None
+        cls.site = None
+        cls.road = None
+        cls.unit_assignment = None
+        cls.geometric_context = None
+        cls.axis_subcontext = None
+        cls.vertical_alignments = []
+
+        clear_blender_hierarchy()
+
+        cls.project_collection = None
+        cls.alignments_collection = None
+        cls.geomodels_collection = None
+
+        # Clear alignment registry
+        from .. import alignment_registry
+        alignment_registry.clear_registry()
+
+        logger.info("Cleared IFC data and Blender hierarchy")
+
+    @classmethod
+    def get_info(cls) -> Dict:
+        """Get information about current IFC file."""
+        if cls.file is None:
+            return {'loaded': False, 'message': 'No IFC file loaded'}
+
+        return {
+            'loaded': True,
+            'filepath': cls.filepath,
+            'schema': cls.file.schema,
+            'entities': len(cls.file.by_type("IfcRoot")),
+            'project': cls.project.Name if cls.project else None,
+            'site': cls.site.Name if cls.site else None,
+            'road': cls.road.Name if cls.road else None,
+            'alignments': len(cls.file.by_type("IfcAlignment")),
+            'geomodels': len(cls.file.by_type("IfcGeomodel"))
+        }
+
+    @classmethod
+    def validate_for_external_viewers(cls) -> List[str]:
+        """Validate IFC file for external viewers."""
+        return validate_for_external_viewers(cls.file)
+
+    @classmethod
+    def validate_and_report(cls) -> bool:
+        """Validate and print report."""
+        return validate_and_report(cls.file)
+
+
+__all__ = ["NativeIfcManager"]

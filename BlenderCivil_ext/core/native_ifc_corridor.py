@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,6 +64,9 @@ import ifcopenshell.guid
 from typing import List, Tuple, Dict, Optional, Any
 from dataclasses import dataclass
 import math
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -746,10 +749,10 @@ class CorridorManager:
 
 if __name__ == "__main__":
     # Basic validation
-    print("BlenderCivil Native IFC Corridor System")
-    print("=" * 50)
-    print("✓ StationManager class defined")
-    print("✓ CorridorModeler class defined")
-    print("✓ CorridorManager class defined")
-    print("✓ Ready for integration testing")
-    print("\nNext: Create corridor_mesh_generator.py (Day 3)")
+    logger.info("BlenderCivil Native IFC Corridor System")
+    logger.info("=" * 50)
+    logger.info("✓ StationManager class defined")
+    logger.info("✓ CorridorModeler class defined")
+    logger.info("✓ CorridorManager class defined")
+    logger.info("✓ Ready for integration testing")
+    logger.info("Next: Create corridor_mesh_generator.py (Day 3)")

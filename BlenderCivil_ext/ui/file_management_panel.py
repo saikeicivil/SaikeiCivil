@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ UI panel for managing IFC files with spatial hierarchy
 
 import bpy
 from bpy.types import Panel
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Import from parent ui module
 from . import NativeIfcManager
@@ -141,14 +145,14 @@ def register():
     """Register panel classes"""
     for cls in classes:
         bpy.utils.register_class(cls)
-    print("  [+] File Management panel registered")
+    logger.debug("File Management panel registered")
 
 
 def unregister():
     """Unregister panel classes"""
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    print("  [+] File Management panel unregistered")
+    logger.debug("File Management panel unregistered")
 
 
 if __name__ == "__main__":

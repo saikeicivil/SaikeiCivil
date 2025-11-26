@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,6 +62,10 @@ import bmesh
 import math
 from typing import List, Tuple, Optional, Dict, Any
 from mathutils import Vector, Matrix, Euler
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class CrossSectionVisualizer:
@@ -182,15 +186,15 @@ class CrossSectionVisualizer:
         
         # Get 3D position and orientation at station
         if not self.alignment.in_station_range(station):
-            print(f"Warning: Station {station} outside alignment range")
+            logger.warning("Station %s outside alignment range", station)
             return None
-        
+
         # Get position from alignment
         h_data = self.alignment.horizontal.get_point_at_station(station)
         point_3d = self.alignment.get_point_at_station(station)
-        
+
         if point_3d is None or h_data is None:
-            print(f"Error: Could not get position at station {station}")
+            logger.error("Could not get position at station %s", station)
             return None
         
         position = Vector((point_3d.x, point_3d.y, point_3d.z))
@@ -198,9 +202,9 @@ class CrossSectionVisualizer:
         
         # Calculate section points for all components
         section_points = self.assembly.calculate_section_points(station)
-        
+
         if not section_points:
-            print(f"Warning: No section points at station {station}")
+            logger.warning("No section points at station %s", station)
             return None
         
         # Create mesh
@@ -300,9 +304,9 @@ class CrossSectionVisualizer:
         Returns:
             Blender mesh object with the complete corridor
         """
-        print(f"\n🏗️ Creating corridor: {name}")
-        print(f"   Stations: {start_station:.2f} to {end_station:.2f}")
-        print(f"   Interval: {interval:.2f} meters")
+        logger.info("Creating corridor: %s", name)
+        logger.info("   Stations: %s to %s", start_station, end_station)
+        logger.info("   Interval: %s meters", interval)
         
         # Calculate stations
         stations = []
@@ -314,8 +318,8 @@ class CrossSectionVisualizer:
         # Ensure we include end station
         if abs(stations[-1] - end_station) > 0.01:
             stations.append(end_station)
-        
-        print(f"   Total sections: {len(stations)}")
+
+        logger.debug("   Total sections: %s", len(stations))
         
         # Create mesh
         mesh = bpy.data.meshes.new(name)
@@ -369,7 +373,7 @@ class CrossSectionVisualizer:
             
             # Ensure profiles have same number of vertices
             if len(profile1) != len(profile2):
-                print(f"Warning: Profile mismatch at stations {i} and {i+1}")
+                logger.warning("Profile mismatch at stations %s and %s", i, i+1)
                 continue
             
             # Create quad strips connecting profiles
@@ -410,9 +414,9 @@ class CrossSectionVisualizer:
         
         # Update scene
         bpy.context.view_layer.update()
-        
-        print(f"[+] Corridor created: {len(profile_verts)} profiles, {len(mesh.polygons)} faces")
-        
+
+        logger.info("Corridor created: %s profiles, %s faces", len(profile_verts), len(mesh.polygons))
+
         return obj
     
     def create_station_markers(
@@ -439,8 +443,8 @@ class CrossSectionVisualizer:
         Returns:
             List of marker objects created
         """
-        print(f"\n📍 Creating station markers...")
-        print(f"   Interval: {interval:.2f} meters")
+        logger.info("Creating station markers...")
+        logger.debug("   Interval: %s meters", interval)
         
         markers = []
         
@@ -497,9 +501,9 @@ class CrossSectionVisualizer:
             
             markers.append(obj)
             markers.append(text_obj)
-        
-        print(f"[+] Created {len(stations)} station markers")
-        
+
+        logger.info("Created %s station markers", len(stations))
+
         return markers
     
     def create_component_preview(
@@ -528,9 +532,9 @@ class CrossSectionVisualizer:
         
         # Get component points
         points = component.calculate_points(station)
-        
+
         if not points or len(points) < 2:
-            print(f"Warning: Component {component.name} has insufficient points")
+            logger.warning("Component %s has insufficient points", component.name)
             return None
         
         # Get 3D position and bearing
@@ -615,27 +619,27 @@ class CrossSectionVisualizer:
     
     def clear_visualization(self):
         """Clear all visualization objects from the scene."""
-        print(f"\n🧹 Clearing visualization...")
-        
+        logger.info("Clearing visualization...")
+
         # Delete all objects in our collection
         for obj in list(self.collection.objects):
             bpy.data.objects.remove(obj, do_unlink=True)
-        
+
         # Clear caches
         self._mesh_cache.clear()
-        
-        print("[+] Visualization cleared")
+
+        logger.info("Visualization cleared")
     
     def update_visualization(self, fast_mode: bool = True):
         """
         Update existing visualization (< 100ms for fast mode).
-        
+
         Args:
             fast_mode: If True, use cached data for speed
         """
         # TODO: Implement incremental updates
         # For now, recommend clearing and recreating
-        print("[!]  Update not yet implemented - use clear + recreate")
+        logger.warning("Update not yet implemented - use clear + recreate")
         pass
 
 
@@ -697,16 +701,16 @@ def demo_visualization():
     Demo function showing how to use the visualizer.
     Run this in Blender to see cross-section visualization in action!
     """
-    print("\n" + "="*60)
-    print("🎨 CROSS-SECTION 3D VISUALIZATION DEMO")
-    print("="*60)
-    
+    logger.info("=" * 60)
+    logger.info("CROSS-SECTION 3D VISUALIZATION DEMO")
+    logger.info("=" * 60)
+
     # This is a simplified demo - full version needs actual alignment and assembly
-    print("\n[!]  This demo requires:")
-    print("   1. Alignment3D instance")
-    print("   2. RoadAssembly instance with components")
-    print("\nSee test files for complete examples!")
-    
+    logger.info("This demo requires:")
+    logger.info("   1. Alignment3D instance")
+    logger.info("   2. RoadAssembly instance with components")
+    logger.info("See test files for complete examples!")
+
     return True
 
 

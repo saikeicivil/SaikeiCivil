@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,9 @@ Handles checking and installing required dependencies for BlenderCivil
 import subprocess
 import sys
 from typing import Dict, List, Tuple
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 class DependencyManager:
     """Manages addon dependencies - checking and installation"""
@@ -114,14 +117,14 @@ class DependencyManager:
         dep_info = cls.DEPENDENCIES[dep_key]
         package_name = dep_info['package']
         
-        print(f"\n[*] Installing {dep_info['display_name']}...")
-        print(f"   Package: {package_name}")
-        
+        logger.info("Installing %s...", dep_info['display_name'])
+        logger.info("Package: %s", package_name)
+
         try:
             # Get Python executable from Blender
             python_exe = sys.executable
-            print(f"   Python: {python_exe}")
-            
+            logger.info("Python: %s", python_exe)
+
             # Install using pip with --break-system-packages flag
             # This is needed for Blender's Python environment
             cmd = [
@@ -131,8 +134,8 @@ class DependencyManager:
                 package_name,
                 '--break-system-packages'
             ]
-            
-            print(f"   Command: {' '.join(cmd)}")
+
+            logger.info("Command: %s", ' '.join(cmd))
             
             # Run installation with timeout
             result = subprocess.run(
@@ -143,12 +146,12 @@ class DependencyManager:
             )
             
             if result.returncode == 0:
-                print(f"   [+] Installation successful!")
+                logger.info("Installation successful!")
                 return True, f"Successfully installed {dep_info['display_name']}"
             else:
                 error_msg = result.stderr or result.stdout
-                print(f"   [-] Installation failed!")
-                print(f"   Error: {error_msg[:200]}")
+                logger.error("Installation failed!")
+                logger.error("Error: %s", error_msg[:200])
                 return False, f"Installation failed: {error_msg[:200]}"
                 
         except subprocess.TimeoutExpired:
@@ -168,10 +171,10 @@ class DependencyManager:
         
         if not missing:
             return True, "All dependencies already installed"
-        
-        print(f"\n{'='*60}")
-        print(f"Installing {len(missing)} dependencies...")
-        print(f"{'='*60}")
+
+        logger.info("=" * 60)
+        logger.info("Installing %s dependencies...", len(missing))
+        logger.info("=" * 60)
         
         all_success = True
         messages = []
@@ -186,10 +189,10 @@ class DependencyManager:
         result_message = "\n".join(messages)
 
         if all_success:
-            print(f"\n[+] All dependencies installed successfully!")
+            logger.info("All dependencies installed successfully!")
             return True, result_message
         else:
-            print(f"\n[!] Some installations failed")
+            logger.warning("Some installations failed")
             return False, result_message
     
     @classmethod

@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import ifcopenshell.api
 from typing import Optional, Tuple, Dict
 import math
 import logging
+from .logging_config import get_logger
 
 try:
     import pyproj
@@ -63,7 +64,7 @@ class NativeIfcGeoreferencing:
     
     def __init__(self, ifc_file: ifcopenshell.file):
         self.ifc = ifc_file
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
         
         # Transformation matrices
         self._local_to_map_matrix = None
@@ -448,17 +449,17 @@ class NativeIfcGeoreferencing:
 def validate_georeferencing(ifc_file: ifcopenshell.file) -> Dict:
     """
     Validate georeferencing in an IFC file.
-    
+
     Checks:
     - IfcProjectedCRS exists
     - IfcMapConversion exists
     - Required attributes are set
     - EPSG code is valid
-    
+
     Returns:
         Dictionary with validation results
     """
-    logger = logging.getLogger(__name__)
+    logger = get_logger(__name__)
     results = {
         'valid': True,
         'warnings': [],
@@ -518,28 +519,29 @@ if __name__ == "__main__":
         description="Example georeferencing setup"
     )
     
-    print("\n=== Georeferencing Setup Complete ===")
-    print(f"IfcProjectedCRS: {crs.Name}")
-    print(f"False Origin: {conversion.Eastings}, {conversion.Northings}, {conversion.OrthogonalHeight}")
-    
+    logger = get_logger(__name__)
+    logger.info("=== Georeferencing Setup Complete ===")
+    logger.info("IfcProjectedCRS: %s", crs.Name)
+    logger.info("False Origin: %s, %s, %s", conversion.Eastings, conversion.Northings, conversion.OrthogonalHeight)
+
     # Test coordinate transformations
-    print("\n=== Coordinate Transformations ===")
+    logger.info("=== Coordinate Transformations ===")
     local = (100.0, 200.0, 5.0)
     map_coords = georef.local_to_map(local)
-    print(f"Local {local} → Map {map_coords}")
-    
+    logger.info("Local %s → Map %s", local, map_coords)
+
     back_to_local = georef.map_to_local(map_coords)
-    print(f"Map {map_coords} → Local {back_to_local}")
-    
+    logger.info("Map %s → Local %s", map_coords, back_to_local)
+
     # Validate
-    print("\n=== Validation ===")
+    logger.info("=== Validation ===")
     validation = validate_georeferencing(ifc)
-    print(f"Valid: {validation['valid']}")
+    logger.info("Valid: %s", validation['valid'])
     if validation['warnings']:
-        print(f"Warnings: {validation['warnings']}")
+        logger.warning("Warnings: %s", validation['warnings'])
     if validation['errors']:
-        print(f"Errors: {validation['errors']}")
-    
+        logger.error("Errors: %s", validation['errors'])
+
     # Save example file
     ifc.write("/home/claude/test_georeferenced.ifc")
-    print("\n=== Saved test_georeferenced.ifc ===")
+    logger.info("=== Saved test_georeferenced.ifc ===")

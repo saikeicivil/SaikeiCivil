@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,18 @@
 
 """
 Alignment Management Operators
-Helper operators for managing alignments, active alignment, and alignment list
+==============================
+
+Helper operators for managing alignments, active alignment, and alignment list.
+
+This module provides Blender operators for working with IFC alignments within
+the BlenderCivil addon. These operators handle alignment list management,
+active alignment selection, and collection selection.
+
+Operators:
+    BC_OT_refresh_alignment_list: Refresh the alignment list from IFC file
+    BC_OT_set_active_alignment: Set the active alignment by index
+    BC_OT_select_active_alignment_collection: Select the active alignment's collection
 """
 
 import bpy
@@ -28,7 +39,18 @@ from bpy.props import StringProperty, IntProperty
 
 
 class BC_OT_refresh_alignment_list(bpy.types.Operator):
-    """Refresh the alignment list from IFC file"""
+    """
+    Refresh the alignment list from IFC file.
+
+    Scans the loaded IFC file and updates the alignment list property
+    in the UI. This operator is typically called when:
+    - A new IFC file is loaded
+    - User manually requests a refresh
+    - IFC file contents have been modified
+
+    The operation is fast and non-destructive, only updating the
+    displayed list without modifying the IFC data.
+    """
     bl_idname = "bc.refresh_alignment_list"
     bl_label = "Refresh Alignment List"
     bl_options = {'REGISTER'}
@@ -45,7 +67,22 @@ class BC_OT_refresh_alignment_list(bpy.types.Operator):
 
 
 class BC_OT_set_active_alignment(bpy.types.Operator):
-    """Set the active alignment by index"""
+    """
+    Set the active alignment by index.
+
+    Designates a specific alignment as the "active" alignment for operations.
+    The active alignment is used by other operators as the default target for:
+    - Station calculations
+    - Profile view display
+    - Corridor generation
+    - Vertical alignment operations
+
+    Properties:
+        alignment_index: Index of alignment in the list to set as active
+
+    This operator refreshes the alignment list before setting the active
+    alignment to ensure the index is valid.
+    """
     bl_idname = "bc.set_active_alignment"
     bl_label = "Set Active Alignment"
     bl_options = {'REGISTER', 'UNDO'}
@@ -91,7 +128,18 @@ class BC_OT_set_active_alignment(bpy.types.Operator):
 
 
 class BC_OT_select_active_alignment_collection(bpy.types.Operator):
-    """Select the active alignment's collection"""
+    """
+    Select the active alignment's collection.
+
+    Selects all objects that belong to the active alignment's collection
+    in the 3D viewport. This is useful for:
+    - Quickly isolating alignment geometry
+    - Batch operations on alignment objects
+    - Visual inspection of alignment components
+
+    The operator deselects all other objects before selecting the
+    alignment collection objects. Requires an active alignment to be set.
+    """
     bl_idname = "bc.select_active_alignment_collection"
     bl_label = "Select Active Alignment"
     bl_options = {'REGISTER', 'UNDO'}

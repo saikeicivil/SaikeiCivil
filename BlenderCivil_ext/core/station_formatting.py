@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,6 +34,10 @@ This module uses metric (1000m) by default.
 
 import re
 from typing import Union
+
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def parse_station(station_str: Union[str, float]) -> float:
@@ -187,21 +191,21 @@ def validate_station_input(station_str: str) -> tuple[bool, str]:
 # Example usage and tests
 if __name__ == "__main__":
     # Test parsing
-    print("Parsing tests:")
-    print(f"  '10+472.58' → {parse_station('10+472.58')}")  # 10472.58
-    print(f"  '0+000' → {parse_station('0+000')}")          # 0.0
-    print(f"  '10+000' → {parse_station('10+000')}")        # 10000.0
-    print(f"  '472.58' → {parse_station('472.58')}")        # 472.58
-    print(f"  472.58 → {parse_station(472.58)}")            # 472.58
+    logger.debug("Parsing tests:")
+    logger.debug("  '10+472.58' → %s", parse_station('10+472.58'))  # 10472.58
+    logger.debug("  '0+000' → %s", parse_station('0+000'))          # 0.0
+    logger.debug("  '10+000' → %s", parse_station('10+000'))        # 10000.0
+    logger.debug("  '472.58' → %s", parse_station('472.58'))        # 472.58
+    logger.debug("  472.58 → %s", parse_station(472.58))            # 472.58
 
-    print("\nFormatting tests:")
-    print(f"  10472.58 → '{format_station(10472.58)}'")    # 10+472.58
-    print(f"  10000.0 → '{format_station(10000.0)}'")      # 10+000.00
-    print(f"  472.58 → '{format_station(472.58)}'")        # 0+472.58
-    print(f"  0.0 → '{format_station(0.0)}'")              # 0+000.00
+    logger.debug("\nFormatting tests:")
+    logger.debug("  10472.58 → '%s'", format_station(10472.58))    # 10+472.58
+    logger.debug("  10000.0 → '%s'", format_station(10000.0))      # 10+000.00
+    logger.debug("  472.58 → '%s'", format_station(472.58))        # 0+472.58
+    logger.debug("  0.0 → '%s'", format_station(0.0))              # 0+000.00
 
-    print("\nShort formatting tests:")
-    print(f"  10472.58 → '{format_station_short(10472.58)}'")  # 10+472.58
-    print(f"  10000.0 → '{format_station_short(10000.0)}'")    # 10+000
-    print(f"  472.5 → '{format_station_short(472.5)}'")        # 0+472.5
-    print(f"  0.0 → '{format_station_short(0.0)}'")            # 0+000
+    logger.debug("\nShort formatting tests:")
+    logger.debug("  10472.58 → '%s'", format_station_short(10472.58))  # 10+472.58
+    logger.debug("  10000.0 → '%s'", format_station_short(10000.0))    # 10+000
+    logger.debug("  472.5 → '%s'", format_station_short(472.5))        # 0+472.5
+    logger.debug("  0.0 → '%s'", format_station_short(0.0))            # 0+000

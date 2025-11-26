@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,16 +20,61 @@
 
 """
 Vertical Alignment Operators
-Handles all vertical alignment operations in Blender
+=============================
+
+Provides comprehensive operators for creating and managing IFC 4.3 vertical alignments
+(profiles) in Blender. Vertical alignments define the elevation profile along a
+horizontal alignment using Point of Vertical Intersections (PVIs) connected by
+tangent grades and vertical curves.
+
+Supports full design workflow including PVI management, vertical curve design using
+K-values, grade calculations, validation against design standards, and terrain tracing
+for existing ground profiles.
+
+Operators:
+    BC_OT_AddPVI: Add a new Point of Vertical Intersection with optional curve
+    BC_OT_RemovePVI: Delete the selected PVI from the alignment
+    BC_OT_EditPVI: Modify station, elevation, or curve length of existing PVI
+    BC_OT_DesignVerticalCurve: Calculate curve length using K-value and grade change
+    BC_OT_CalculateGrades: Compute grades between all consecutive PVIs
+    BC_OT_GenerateSegments: Create tangent and curve segments from PVI data
+    BC_OT_ValidateVertical: Check alignment against design standards and minimums
+    BC_OT_QueryStation: Get elevation and grade at any station along alignment
+    BC_OT_TraceTerrainAsVertical: Create vertical alignment from sampled terrain data
+    BC_OT_ClearVerticalAlignment: Remove all PVIs and segments from alignment
+    BC_OT_SelectVerticalAlignment: Choose vertical alignment for profile view display
 """
 
 import bpy
 from bpy.types import Operator
 from bpy.props import FloatProperty, StringProperty, IntProperty
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BC_OT_AddPVI(Operator):
-    """Add a new PVI to the vertical alignment"""
+    """Add a new Point of Vertical Intersection (PVI) to the vertical alignment.
+
+    Creates a new PVI at the specified station and elevation. PVIs are automatically
+    sorted by station after insertion. Optionally includes a vertical curve length
+    for parabolic curves centered at the PVI.
+
+    Properties:
+        station: Station location in meters (must be unique)
+        elevation: Elevation at the station in meters
+        curve_length: Optional vertical curve length in meters (0 = no curve)
+
+    Post-Processing:
+        After adding PVI, automatically triggers:
+        - Grade calculation between all PVIs
+        - Segment generation for tangents and curves
+        - Validation against design standards
+
+    Usage:
+        Invoked via dialog to prompt for PVI parameters. If a PVI already exists
+        at the specified station, operation is cancelled with error message.
+    """
     bl_idname = "bc.add_pvi"
     bl_label = "Add PVI"
     bl_description = "Add a Point of Vertical Intersection"
@@ -99,7 +144,25 @@ class BC_OT_AddPVI(Operator):
 
 
 class BC_OT_RemovePVI(Operator):
-    """Remove the selected PVI"""
+    """Remove the selected Point of Vertical Intersection from the alignment.
+
+    Deletes the PVI at the active index from the vertical alignment. Automatically
+    adjusts the active index if it becomes out of bounds after removal.
+
+    Requirements:
+        - At least one PVI must exist in the alignment
+        - A valid PVI must be selected (active_pvi_index >= 0)
+
+    Post-Processing:
+        After removing PVI, automatically triggers:
+        - Grade recalculation for remaining PVIs
+        - Segment regeneration
+        - Validation update
+
+    Usage:
+        Select a PVI from the list in the UI panel and invoke this operator to
+        remove it. The active index adjusts automatically to stay in valid range.
+    """
     bl_idname = "bc.remove_pvi"
     bl_label = "Remove PVI"
     bl_description = "Remove the selected Point of Vertical Intersection"
@@ -134,7 +197,31 @@ class BC_OT_RemovePVI(Operator):
 
 
 class BC_OT_EditPVI(Operator):
-    """Edit the selected PVI"""
+    """Edit the station, elevation, or curve length of the selected PVI.
+
+    Modifies an existing PVI's parameters. If the station value changes, PVIs are
+    automatically re-sorted to maintain proper station order.
+
+    Properties:
+        station: New station location in meters
+        elevation: New elevation in meters
+        curve_length: New vertical curve length in meters
+
+    Requirements:
+        - At least one PVI must exist in the alignment
+        - A valid PVI must be selected (active_pvi_index >= 0)
+
+    Post-Processing:
+        After editing PVI, automatically triggers:
+        - Re-sorting of PVIs if station changed
+        - Grade recalculation
+        - Segment regeneration
+        - Validation update
+
+    Usage:
+        Select a PVI from the list in the UI panel and invoke. The dialog is
+        pre-populated with current values. Modify as needed and confirm to update.
+    """
     bl_idname = "bc.edit_pvi"
     bl_label = "Edit PVI"
     bl_description = "Edit the selected Point of Vertical Intersection"
@@ -214,7 +301,35 @@ class BC_OT_EditPVI(Operator):
 
 
 class BC_OT_DesignVerticalCurve(Operator):
-    """Design vertical curve using K-value"""
+    """Design vertical curve length using K-value method.
+
+    Calculates the required vertical curve length based on the K-value (rate of
+    vertical curvature) and the algebraic grade change at the PVI. Uses the
+    standard formula: L = K × A, where A is the absolute grade change in percent.
+
+    Automatically determines curve type (crest or sag) based on grade directions
+    and validates against minimum K-values for the design speed.
+
+    Properties:
+        k_value: Rate of vertical curvature in meters per percent grade change
+
+    Requirements:
+        - Selected PVI must have calculated grades (requires adjacent PVIs)
+        - Grade change must be significant (> 0.01%)
+
+    Algorithm:
+        1. Retrieve incoming and outgoing grades from selected PVI
+        2. Calculate algebraic grade change: A = |grade_out - grade_in| × 100
+        3. Determine curve type: Crest if grade_in > grade_out, else Sag
+        4. Calculate curve length: L = K × A
+        5. Validate against minimum K-value for curve type
+        6. Update PVI curve_length and k_value properties
+
+    Usage:
+        Select a PVI with defined grades and invoke. Dialog suggests appropriate
+        K-value based on curve type and design speed minimums. Adjust as needed
+        and confirm to calculate and apply curve length.
+    """
     bl_idname = "bc.design_vertical_curve"
     bl_label = "Design Curve"
     bl_description = "Calculate curve length from K-value and grade change"
@@ -299,7 +414,36 @@ class BC_OT_DesignVerticalCurve(Operator):
 
 
 class BC_OT_CalculateGrades(Operator):
-    """Calculate grades between all PVIs"""
+    """Calculate grades between all consecutive PVIs in the alignment.
+
+    Computes the tangent grade (slope) between each pair of adjacent PVIs using
+    rise-over-run calculation. Grades are stored in decimal form (0.05 = 5%).
+    Also calculates grade changes at interior PVIs and updates K-values for
+    existing curves.
+
+    Requirements:
+        - At least 2 PVIs must exist in the alignment
+        - PVIs must have unique stations (no zero-length runs)
+
+    Algorithm:
+        For each consecutive PVI pair:
+        1. Calculate grade: (elevation2 - elevation1) / (station2 - station1)
+        2. Store as grade_out for first PVI and grade_in for second PVI
+
+        For each interior PVI (has both incoming and outgoing grades):
+        1. Calculate grade_change = |grade_out - grade_in|
+        2. If curve exists, calculate K-value = curve_length / (grade_change × 100)
+        3. Determine curve type: Crest if grade_in > grade_out, else Sag
+
+    Statistics:
+        Updates alignment statistics:
+        - Total length (station range)
+        - Minimum and maximum elevations
+
+    Usage:
+        Invoke after adding or modifying PVIs to update all grade calculations.
+        Automatically called by other operators that affect PVI geometry.
+    """
     bl_idname = "bc.calculate_grades"
     bl_label = "Calculate Grades"
     bl_description = "Calculate grades between all PVIs"
@@ -371,7 +515,39 @@ class BC_OT_CalculateGrades(Operator):
 
 
 class BC_OT_GenerateSegments(Operator):
-    """Generate vertical segments from PVIs"""
+    """Generate tangent and curve segments from PVI definitions.
+
+    Creates a sequential list of segments that fully define the vertical alignment
+    geometry. Each segment represents either a constant-grade tangent or a parabolic
+    vertical curve.
+
+    Requirements:
+        - At least 2 PVIs must exist in the alignment
+        - Grades must be calculated before generating segments
+
+    Algorithm:
+        For each PVI with a curve:
+        1. Calculate BVC (Begin Vertical Curve) = PVI station - curve_length/2
+        2. Add tangent segment from current position to BVC
+        3. Calculate EVC (End Vertical Curve) = PVI station + curve_length/2
+        4. Add curve segment from BVC to EVC
+        5. Update current position to EVC
+
+        After all curved PVIs:
+        1. Add final tangent segment to last PVI
+
+    Segment Properties:
+        - segment_type: "TANGENT" or "CURVE"
+        - start_station, end_station: Station limits
+        - start_elevation, end_elevation: Elevation limits
+        - grade: Constant grade (tangents) or average grade (curves)
+        - length: Horizontal length of segment
+
+    Usage:
+        Invoke after calculating grades to create the segment list used for
+        station queries and profile visualization. Automatically called by
+        other operators that modify alignment geometry.
+    """
     bl_idname = "bc.generate_segments"
     bl_label = "Generate Segments"
     bl_description = "Generate tangent and curve segments from PVIs"
@@ -452,7 +628,36 @@ class BC_OT_GenerateSegments(Operator):
 
 
 class BC_OT_ValidateVertical(Operator):
-    """Validate vertical alignment against design standards"""
+    """Validate vertical alignment against design standards and criteria.
+
+    Performs comprehensive validation checks on the vertical alignment including
+    minimum PVI count, station ordering, and K-value compliance with design
+    speed requirements. Reports errors that must be fixed and warnings for
+    substandard but technically valid conditions.
+
+    Requirements:
+        - At least 2 PVIs must exist in the alignment
+
+    Validation Checks:
+        Errors (alignment invalid):
+        - Less than 2 PVIs
+        - PVI stations not in ascending order
+
+        Warnings (alignment valid but substandard):
+        - K-value not calculated for existing curves
+        - Crest curve K-value below minimum for design speed
+        - Sag curve K-value below minimum for design speed
+
+    Results:
+        Updates vertical alignment properties:
+        - is_valid: Boolean indicating if alignment meets minimum requirements
+        - validation_message: Detailed message listing all errors/warnings
+
+    Usage:
+        Invoke after any geometry changes to check alignment validity. Reports
+        errors to user via Blender's report system and updates UI validation display.
+        Automatically called by operators that modify alignment geometry.
+    """
     bl_idname = "bc.validate_vertical"
     bl_label = "Validate"
     bl_description = "Validate vertical alignment against design standards"
@@ -516,7 +721,37 @@ class BC_OT_ValidateVertical(Operator):
 
 
 class BC_OT_QueryStation(Operator):
-    """Query elevation and grade at a station"""
+    """Query elevation and grade at any station along the vertical alignment.
+
+    Performs linear interpolation within segments to determine the precise elevation
+    and grade at a specified station. Searches through the generated segments to
+    find which contains the query station.
+
+    Requirements:
+        - At least 2 PVIs must exist
+        - Segments must be generated before querying
+        - Query station must fall within alignment station range
+
+    Query Properties:
+        Input:
+        - query_station: Station to query (from vertical alignment properties)
+
+        Output (stored in vertical alignment properties):
+        - query_elevation: Elevation at the station in meters
+        - query_grade: Grade at the station (decimal)
+        - query_grade_percent: Grade at the station (percent)
+
+    Algorithm:
+        1. Search segments for one containing query station
+        2. Calculate position within segment: x = station - segment.start_station
+        3. For tangent: Linear interpolation of elevation, constant grade
+        4. For curve: Simplified using average grade (full parabolic calc in future)
+        5. Update query result properties
+
+    Usage:
+        Set query_station property in vertical alignment settings, then invoke
+        this operator. Results appear in the query results section of the panel.
+    """
     bl_idname = "bc.query_station"
     bl_label = "Query Station"
     bl_description = "Get elevation and grade at specified station"
@@ -570,7 +805,46 @@ class BC_OT_QueryStation(Operator):
 
 
 class BC_OT_TraceTerrainAsVertical(Operator):
-    """Create vertical alignment by tracing terrain data"""
+    """Create vertical alignment by tracing terrain elevation data.
+
+    Generates a vertical alignment that follows the existing ground profile by
+    sampling terrain points at regular intervals and creating PVIs at each sample.
+    Uses linear interpolation to determine elevations at uniform station spacing.
+    Creates an IFC 4.3 compliant vertical alignment entity and associates it with
+    the active horizontal alignment.
+
+    Properties:
+        pvi_interval: Distance between PVIs in meters (default: 5.0)
+        alignment_name: Name for the new vertical alignment
+
+    Requirements:
+        - Terrain data must be available in profile view overlay
+        - Active horizontal alignment must be set
+        - IFC file must be loaded
+
+    Algorithm:
+        1. Retrieve terrain points from profile overlay (sorted by station)
+        2. Determine station range from terrain data
+        3. Generate uniform station intervals based on pvi_interval
+        4. Interpolate terrain elevations at each interval station
+        5. Create VerticalAlignment object with PVIs (no curves)
+        6. Export to IFC and associate with horizontal alignment
+        7. Create Blender Empty representation
+        8. Add to profile view overlay for visualization
+        9. Save IFC file
+
+    Output:
+        Creates IFC entities:
+        - IfcAlignment (vertical)
+        - IfcAlignmentVertical
+        - Multiple IfcAlignmentSegment entities
+        - Associated geometry representations
+
+    Usage:
+        Invoke after sampling terrain in profile view. Dialog shows terrain data
+        summary and allows customization of PVI spacing. Confirm to generate the
+        alignment matching existing ground elevations.
+    """
     bl_idname = "bc.trace_terrain_as_vertical"
     bl_label = "Trace Terrain as Alignment"
     bl_description = "Create IFC vertical alignment by tracing sampled terrain data"
@@ -669,7 +943,7 @@ class BC_OT_TraceTerrainAsVertical(Operator):
                 overlay.data.add_vertical_alignment(valign)
                 overlay.data.select_vertical_alignment(0)  # Auto-select it
                 overlay.data.update_view_extents()
-                print(f"[Terrain Trace] Added vertical alignment to profile view")
+                logger.info("Added vertical alignment to profile view")
 
             # Save IFC file
             NativeIfcManager.save_file()
@@ -677,10 +951,10 @@ class BC_OT_TraceTerrainAsVertical(Operator):
             self.report({'INFO'},
                        f"Created vertical alignment '{self.alignment_name}' with {len(valign.pvis)} PVIs")
 
-            # Print summary to console
-            print("\n" + "="*60)
-            print(valign.summary())
-            print("="*60 + "\n")
+            # Log summary to console
+            logger.info("="*60)
+            logger.info(valign.summary())
+            logger.info("="*60)
 
             return {'FINISHED'}
 
@@ -732,7 +1006,29 @@ class BC_OT_TraceTerrainAsVertical(Operator):
 
 
 class BC_OT_ClearVerticalAlignment(Operator):
-    """Clear all PVIs and segments"""
+    """Clear all PVIs and segments from the vertical alignment.
+
+    Removes all Point of Vertical Intersections and generated segments from the
+    current vertical alignment, resetting it to an empty state. This operation
+    cannot be undone.
+
+    Requirements:
+        - At least one PVI must exist in the alignment
+
+    Confirmation:
+        Uses invoke_confirm to prompt user before clearing, preventing accidental
+        data loss.
+
+    Post-Processing:
+        After clearing:
+        - Sets is_valid to False
+        - Sets validation_message to "No PVIs defined"
+        - Reports number of PVIs cleared to user
+
+    Usage:
+        Invoke when starting a new vertical alignment design or when major
+        redesign is needed. Confirm the dialog to proceed with clearing all data.
+    """
     bl_idname = "bc.clear_vertical"
     bl_label = "Clear All"
     bl_description = "Clear all PVIs and segments (cannot be undone)"
@@ -760,7 +1056,29 @@ class BC_OT_ClearVerticalAlignment(Operator):
 
 
 class BC_OT_SelectVerticalAlignment(Operator):
-    """Select a vertical alignment for display in profile view"""
+    """Select a vertical alignment for display in the profile view overlay.
+
+    Changes which vertical alignment is actively displayed in the profile viewer.
+    Multiple vertical alignments may exist (proposed designs, existing ground, etc.)
+    but only one can be actively displayed at a time.
+
+    Properties:
+        alignment_index: Zero-based index of vertical alignment to select
+
+    Requirements:
+        - Profile view overlay must be available
+        - Specified alignment index must be valid
+
+    Effects:
+        - Updates profile view data to display selected alignment
+        - Refreshes profile overlay if currently enabled
+        - Redraws all 3D viewports to update visualization
+        - Reports selected alignment name to user
+
+    Usage:
+        Called when user clicks on a vertical alignment in the UI list or outliner.
+        The alignment_index parameter identifies which alignment to display.
+    """
     bl_idname = "bc.select_vertical_alignment"
     bl_label = "Select Vertical Alignment"
     bl_description = "Select this vertical alignment for display in the profile viewer"
@@ -825,16 +1143,16 @@ def register():
     """Register operator classes"""
     for cls in classes:
         bpy.utils.register_class(cls)
-    
-    print("  [+] Vertical alignment operators registered")
+
+    logger.info("Vertical alignment operators registered")
 
 
 def unregister():
     """Unregister operator classes"""
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    print("  [-] Vertical alignment operators unregistered")
+
+    logger.info("Vertical alignment operators unregistered")
 
 
 if __name__ == "__main__":

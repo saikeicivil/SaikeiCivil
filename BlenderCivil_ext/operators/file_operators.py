@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,16 @@
 
 """
 File Operations
-IFC file creation and management operators
+================
+
+IFC file creation and management operators.
+
+This module provides Blender operators for creating and managing IFC files
+within the BlenderCivil addon. These operators handle fundamental file
+operations like creating new IFC projects with proper initialization.
+
+Operators:
+    BC_OT_new_ifc_file: Create a new IFC file with BlenderCivil schema
 """
 
 import bpy
@@ -31,7 +40,19 @@ from . import NativeIfcManager
 
 
 class BC_OT_new_ifc_file(bpy.types.Operator):
-    """Create new IFC file"""
+    """
+    Create a new IFC file.
+
+    Initializes a new IFC file with proper project structure and schema.
+    This creates an empty IFC project that can be populated with civil
+    engineering entities like alignments, profiles, and terrain.
+
+    The new file uses IFC 4.3 schema which supports civil infrastructure
+    entities and is managed through the NativeIfcManager.
+
+    Usage context: Called when starting a new BlenderCivil project or
+    when the user needs a fresh IFC file to work with.
+    """
     bl_idname = "bc.new_ifc_file"
     bl_label = "New IFC File"
     bl_options = {'REGISTER', 'UNDO'}

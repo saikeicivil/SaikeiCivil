@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,18 +20,42 @@
 
 """
 Alignment Operations
-Create and update alignment operators
+====================
+
+Provides operators for creating and managing IFC horizontal alignments in Blender.
+These operators integrate with the native IFC alignment system to create persistent
+geometric data following IFC 4.3 standards.
+
+Operators:
+    BC_OT_create_native_alignment: Create new IFC alignment with automatic registration
+    BC_OT_update_pi_from_location: Update PI coordinates from Blender object location
 """
 
 import bpy
 from bpy.props import StringProperty, FloatProperty, IntProperty, BoolProperty
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Import from parent operators module (where classes are injected)
 from . import NativeIfcManager, NativeIfcAlignment, AlignmentVisualizer
 
 
 class BC_OT_create_native_alignment(bpy.types.Operator):
-    """Create new native IFC alignment with automatic registration"""
+    """Create new native IFC alignment with automatic registration.
+
+    Creates a new IFC 4.3 compliant horizontal alignment entity in the active IFC file.
+    If no IFC file exists, creates a new one with proper project hierarchy. The alignment
+    is automatically registered in both the property system and instance registry for
+    real-time visualization and editing.
+
+    Properties:
+        name: Name for the new alignment (default: "Alignment")
+
+    Usage:
+        Invoked via dialog to prompt user for alignment name. Creates the alignment
+        with an attached visualizer for immediate feedback in the viewport.
+    """
     bl_idname = "bc.create_native_alignment"
     bl_label = "Create Native Alignment"
     bl_options = {'REGISTER', 'UNDO'}
@@ -72,8 +96,8 @@ class BC_OT_create_native_alignment(bpy.types.Operator):
         alignment.visualizer = visualizer
 
         self.report({'INFO'}, f"Created alignment: {self.name}")
-        print(f"[Alignment] Created and registered: {self.name}")
-        print(f"[Alignment] Visualizer attached for real-time updates")
+        logger.info("Created and registered alignment: %s", self.name)
+        logger.debug("Visualizer attached for real-time updates")
 
         return {'FINISHED'}
 
@@ -83,7 +107,22 @@ class BC_OT_create_native_alignment(bpy.types.Operator):
 
 
 class BC_OT_update_pi_from_location(bpy.types.Operator):
-    """Update PI in IFC from Blender location with registry integration"""
+    """Update PI coordinates in IFC from Blender object location.
+
+    Synchronizes the IFC alignment data with the current position of a PI marker
+    object in Blender's 3D viewport. Updates both the underlying IFC IfcCartesianPoint
+    entity and the alignment's internal PI data, then regenerates all dependent
+    segments and visualizations.
+
+    Requirements:
+        - Active object must be a PI marker with "ifc_pi_id" custom property
+        - Active alignment must be set in the property system
+        - PI marker must have "ifc_point_id" linking to IFC entity
+
+    Usage:
+        Select a PI marker object in the viewport and invoke this operator to
+        apply its current location to the IFC alignment geometry.
+    """
     bl_idname = "bc.update_pi_from_location"
     bl_label = "Update from Location"
     bl_options = {'REGISTER', 'UNDO'}

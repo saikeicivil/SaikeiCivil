@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,6 +61,10 @@ import bpy
 import math
 from typing import List, Tuple, Optional, Dict, Any
 from mathutils import Vector
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class AlignmentVisualizer3D:
@@ -456,9 +460,9 @@ class AlignmentVisualizer3D:
         # horizontal and vertical alignments
         
         # Placeholder implementation
-        print("Curve highlighting: To be implemented")
-        print(f"  Horizontal curves: {horizontal}")
-        print(f"  Vertical curves: {vertical}")
+        logger.info("Curve highlighting: To be implemented")
+        logger.debug("  Horizontal curves: %s", horizontal)
+        logger.debug("  Vertical curves: %s", vertical)
         
         return highlights
     
@@ -498,33 +502,33 @@ class AlignmentVisualizer3D:
             >>> print(f"Created {len(result)} visualization elements")
         """
         result = {}
-        
+
         # Main 3D curve
-        print("Creating 3D alignment curve...")
+        logger.info("Creating 3D alignment curve...")
         result['3d_curve'] = self.create_3d_curve(interval=interval)
-        
+
         # Plan view
         if include_plan:
-            print("Creating plan view...")
+            logger.info("Creating plan view...")
             result['plan_curve'] = self.create_plan_view(interval=interval)
-        
+
         # Profile view
         if include_profile:
-            print("Creating profile view...")
+            logger.info("Creating profile view...")
             offset = self.alignment.get_length() + 100  # Offset to side
             result['profile_curve'] = self.create_profile_view(
                 interval=interval,
                 offset_x=offset
             )
-        
+
         # Station markers
         if include_markers:
-            print("Creating station markers...")
+            logger.info("Creating station markers...")
             result['markers'] = self.create_station_markers(
                 interval=station_interval
             )
-        
-        print(f"[+] Visualization complete! Created {len(result)} elements")
+
+        logger.info("Visualization complete! Created %s elements", len(result))
         
         return result
     
@@ -617,8 +621,8 @@ class AlignmentVisualizer3D:
                     f"{point.horizontal_curvature:.6f}",
                     f"{point.vertical_curvature:.1f}"
                 ])
-        
-        print(f"[+] Exported {len(points)} points to {filepath}")
+
+        logger.info("Exported %s points to %s", len(points), filepath)
     
     def __repr__(self) -> str:
         """String representation."""
@@ -628,26 +632,26 @@ class AlignmentVisualizer3D:
 def demo_visualization():
     """
     Demonstrate 3D visualization capabilities.
-    
+
     This creates sample visualizations to show what's possible.
     """
-    print("=== BlenderCivil 3D Visualization Demo ===")
-    print()
-    print("Visualization Capabilities:")
-    print("  [+] 3D alignment curves")
-    print("  [+] Plan view (top-down)")
-    print("  [+] Profile view (elevation)")
-    print("  [+] Station markers")
-    print("  [+] Grade indicators")
-    print("  [+] Curve highlighting")
-    print()
-    print("To use:")
-    print("  1. Create Alignment3D (H+V)")
-    print("  2. Create visualizer: viz = AlignmentVisualizer3D(alignment)")
-    print("  3. Create elements: viz.create_3d_curve()")
-    print("  4. Or all at once: viz.create_complete_visualization()")
-    print()
-    print("See docstrings for detailed examples!")
+    logger.info("=== BlenderCivil 3D Visualization Demo ===")
+    logger.info("")
+    logger.info("Visualization Capabilities:")
+    logger.info("  [+] 3D alignment curves")
+    logger.info("  [+] Plan view (top-down)")
+    logger.info("  [+] Profile view (elevation)")
+    logger.info("  [+] Station markers")
+    logger.info("  [+] Grade indicators")
+    logger.info("  [+] Curve highlighting")
+    logger.info("")
+    logger.info("To use:")
+    logger.info("  1. Create Alignment3D (H+V)")
+    logger.info("  2. Create visualizer: viz = AlignmentVisualizer3D(alignment)")
+    logger.info("  3. Create elements: viz.create_3d_curve()")
+    logger.info("  4. Or all at once: viz.create_complete_visualization()")
+    logger.info("")
+    logger.info("See docstrings for detailed examples!")
 
 
 if __name__ == "__main__":

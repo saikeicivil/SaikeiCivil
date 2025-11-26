@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@ from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import math
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -82,7 +85,7 @@ class LandXMLImporter:
             return True
             
         except Exception as e:
-            print(f"Error parsing LandXML: {e}")
+            logger.error("Error parsing LandXML: %s", e)
             return False
     
     def extract_cross_sections(self) -> List[CrossSectionData]:
@@ -153,7 +156,7 @@ class LandXMLImporter:
             )
             
         except Exception as e:
-            print(f"Error parsing cross-section: {e}")
+            logger.error("Error parsing cross-section: %s", e)
             return None
     
     def _identify_components(self, points: List[Tuple[float, float]]) -> List[Dict[str, Any]]:
@@ -274,7 +277,7 @@ class LandXMLExporter:
             return True
             
         except Exception as e:
-            print(f"Error exporting to LandXML: {e}")
+            logger.error("Error exporting to LandXML: %s", e)
             return False
     
     def _add_cross_section(self, parent: ET.Element, section: CrossSectionData):
@@ -313,7 +316,7 @@ class Civil3DImporter:
             self.root = self.tree.getroot()
             return True
         except Exception as e:
-            print(f"Error parsing Civil 3D XML: {e}")
+            logger.error("Error parsing Civil 3D XML: %s", e)
             return False
     
     def extract_cross_sections(self) -> List[CrossSectionData]:
@@ -365,7 +368,7 @@ class Civil3DImporter:
             )
             
         except Exception as e:
-            print(f"Error parsing Civil 3D cross-section: {e}")
+            logger.error("Error parsing Civil 3D cross-section: %s", e)
             return None
 
 
@@ -414,7 +417,7 @@ class CSVExporter:
             return True
             
         except Exception as e:
-            print(f"Error exporting to CSV: {e}")
+            logger.error("Error exporting to CSV: %s", e)
             return False
 
 
@@ -449,7 +452,7 @@ class JSONExporter:
             return True
             
         except Exception as e:
-            print(f"Error exporting to JSON: {e}")
+            logger.error("Error exporting to JSON: %s", e)
             return False
 
 
@@ -477,8 +480,8 @@ class BatchProcessor:
         
         dir_path = Path(directory)
         files = list(dir_path.glob(file_pattern))
-        
-        print(f"Found {len(files)} files matching '{file_pattern}' in {directory}")
+
+        logger.info("Found %d files matching '%s' in %s", len(files), file_pattern, directory)
         
         for file_path in files:
             result = self.process_file(str(file_path))
@@ -531,7 +534,28 @@ import bpy
 
 
 class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
-    """Import cross-sections from LandXML"""
+    """
+    Import cross-sections from LandXML format.
+
+    Reads LandXML 1.2 or 2.0 files containing cross-section definitions
+    and creates corresponding assemblies in BlenderCivil. Supports both
+    point-based and parametric cross-section data.
+
+    Properties:
+        filepath: Path to LandXML file
+        filter_glob: File extension filter (.xml, .landxml)
+
+    Supported Features:
+        - CrossSect elements with point data
+        - Multiple cross-sections per file
+        - Station and elevation data
+        - Basic component identification
+
+    Usage:
+        Called from File > Import menu to bring LandXML data into
+        BlenderCivil. Common workflow for importing survey data or
+        designs from other civil engineering software.
+    """
     bl_idname = "blendercivil.import_landxml"
     bl_label = "Import LandXML"
     bl_options = {'REGISTER', 'UNDO'}
@@ -581,7 +605,28 @@ class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
 
 
 class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
-    """Export cross-sections to LandXML"""
+    """
+    Export cross-sections to LandXML format.
+
+    Converts BlenderCivil assemblies to LandXML 1.2 format for use in
+    other civil engineering software. Creates standard-compliant XML
+    with cross-section point data.
+
+    Properties:
+        filepath: Destination path for LandXML file
+        filter_glob: File extension filter (.xml, .landxml)
+        project_name: Project name to embed in XML metadata
+
+    Output Format:
+        - LandXML 1.2 schema-compliant
+        - Cross-section point data (offset, elevation pairs)
+        - Station information for each section
+        - Project metadata
+
+    Usage:
+        Called from File > Export menu to save cross-sections for use
+        in Civil 3D, 12d Model, or other LandXML-compatible software.
+    """
     bl_idname = "blendercivil.export_landxml"
     bl_label = "Export LandXML"
     bl_options = {'REGISTER'}
@@ -630,7 +675,29 @@ class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
 
 
 class BLENDERCIVIL_OT_batch_import(bpy.types.Operator):
-    """Batch import cross-sections from directory"""
+    """
+    Batch import cross-sections from a directory.
+
+    Processes multiple LandXML or Civil 3D XML files in a directory,
+    importing all cross-section data in a single operation. Useful for
+    large projects with data split across multiple files.
+
+    Properties:
+        directory: Directory containing files to import
+        file_pattern: Glob pattern for file matching (e.g., "*.xml", "*.landxml")
+
+    Features:
+        - Recursive directory scanning
+        - Pattern-based file filtering
+        - Progress reporting
+        - Error handling per file (continues on failures)
+        - Summary statistics
+
+    Usage:
+        Called when importing data from surveys or design packages that
+        contain multiple cross-section files. Saves time compared to
+        importing files individually.
+    """
     bl_idname = "blendercivil.batch_import"
     bl_label = "Batch Import"
     bl_options = {'REGISTER'}
@@ -719,7 +786,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    print("  [+] Cross section import/export operators registered")
+    logger.info("Cross section import/export operators registered")
 
 
 def unregister():
@@ -727,8 +794,8 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    print("  [-] Cross section import/export operators unregistered")
+    logger.info("Cross section import/export operators unregistered")
 
 
 if __name__ == "__main__":
-    print(get_import_export_summary())
+    logger.info(get_import_export_summary())

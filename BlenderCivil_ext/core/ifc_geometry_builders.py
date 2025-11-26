@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -257,40 +257,45 @@ def create_axis2placement_3d(ifc_file, x: float, y: float, z: float,
 def create_line_parent_curve(ifc_file, start_x: float, start_y: float,
                               end_x: float, end_y: float):
     """Create IfcLine as ParentCurve for tangent segment
-    
+
     This is the geometric representation of a straight line segment.
     IfcLine is defined by a point and a direction vector.
-    
+
+    IMPORTANT: The line is created at the ORIGIN (0,0), NOT at world coordinates!
+    The IfcCurveSegment.Placement will position it in world space.
+    Creating the line at world coords AND using Placement would cause double-positioning.
+
     Args:
         ifc_file: IFC file object
-        start_x, start_y: Start point coordinates in meters
+        start_x, start_y: Start point coordinates in meters (used for direction only)
         end_x, end_y: End point coordinates in meters
-        
+
     Returns:
         IfcLine entity
-        
+
     Example:
         >>> # Create line from (0,0) to (100,0)
         >>> line = create_line_parent_curve(ifc, 0, 0, 100, 0)
-        
+
     Note:
-        This creates the GEOMETRIC representation.
-        It must be wrapped in IfcCurveSegment to be used in alignment.
+        This creates the GEOMETRIC representation at origin.
+        The IfcCurveSegment.Placement moves it to world position.
     """
-    # Line is defined by: point + direction vector
-    point = create_cartesian_point_2d(ifc_file, start_x, start_y)
-    
-    # Direction from start to end
+    # Line is at ORIGIN - Placement will position it in world space
+    # DO NOT use world coordinates here - it causes double-positioning!
+    point = create_cartesian_point_2d(ifc_file, 0.0, 0.0)
+
+    # Direction from start to end (this encodes the line orientation)
     dx = end_x - start_x
     dy = end_y - start_y
     direction = create_direction_2d(ifc_file, dx, dy)
-    
+
     # Create direction vector (magnitude = 1.0 for unit vector)
     vector = ifc_file.create_entity("IfcVector",
         Orientation=direction,
         Magnitude=1.0)
-    
-    # Create line
+
+    # Create line at origin with direction
     return ifc_file.create_entity("IfcLine",
         Pnt=point,
         Dir=vector)
@@ -299,35 +304,39 @@ def create_line_parent_curve(ifc_file, start_x: float, start_y: float,
 def create_circle_parent_curve(ifc_file, center_x: float, center_y: float,
                                 radius: float, start_angle: float = 0.0):
     """Create IfcCircle as ParentCurve for curve segment
-    
+
     This is the geometric representation of a circular arc.
     IfcCircle is defined by a center placement and radius.
-    
+
+    IMPORTANT: The circle is created at the ORIGIN, NOT at world coordinates!
+    The IfcCurveSegment.Placement will position it in world space.
+    Creating the circle at world coords AND using Placement would cause double-positioning.
+
     Args:
         ifc_file: IFC file object
-        center_x, center_y: Circle center coordinates in meters
+        center_x, center_y: Circle center coordinates (NOT USED - for API compatibility)
         radius: Circle radius in meters (must be positive)
-        start_angle: Starting angle in radians (for placement orientation)
-        
+        start_angle: Starting angle in radians (for RefDirection orientation)
+
     Returns:
         IfcCircle entity
-        
+
     Example:
-        >>> # Create circle at (50,0) with 100m radius
+        >>> # Create circle with 100m radius
         >>> circle = create_circle_parent_curve(ifc, 50, 0, 100, 0)
-        
+
     Note:
-        Radius must be positive. Turn direction (left/right) is handled
-        by the signed radius in IfcAlignmentHorizontalSegment.
-        Here we only store the geometric circle with positive radius.
+        The circle is at origin. IfcCurveSegment.Placement positions it.
+        Radius must be positive. Turn direction is handled by signed angular extent.
     """
     # Ensure radius is positive (geometric representation)
     abs_radius = abs(radius)
-    
-    # Create axis placement at center with optional orientation
-    placement = create_axis2placement_2d(ifc_file, center_x, center_y, start_angle)
-    
-    # Create circle
+
+    # Circle at ORIGIN with RefDirection encoding the start angle
+    # DO NOT use world coordinates - Placement will position it!
+    placement = create_axis2placement_2d(ifc_file, 0.0, 0.0, start_angle)
+
+    # Create circle at origin
     return ifc_file.create_entity("IfcCircle",
         Position=placement,
         Radius=float(abs_radius))
@@ -374,7 +383,8 @@ def create_curve_segment(ifc_file, parent_curve, placement,
         This entity is what gets collected into IfcCompositeCurve.
         Without this, you only have business logic, not geometry!
     """
-    # Wrap numeric values in IfcParameterValue entities (required by IFC 4X3)
+    # For IFC4X3, SegmentStart and SegmentLength are IfcCurveMeasureSelect
+    # which requires IfcParameterValue entity instances (not raw floats).
     segment_start_param = ifc_file.create_entity("IfcParameterValue", float(segment_start))
     segment_length_param = ifc_file.create_entity("IfcParameterValue", float(segment_length))
 
@@ -459,30 +469,31 @@ def create_gradient_curve(ifc_file, curve_segments: List,
         SelfIntersect=self_intersect)
 
 
-def create_alignment_curve(ifc_file, composite_or_gradient_curve, 
+def create_alignment_curve(ifc_file, composite_or_gradient_curve,
                            tag: str = ""):
-    """Create IfcAlignmentCurve wrapper for composite/gradient curve
-    
-    IfcAlignmentCurve is the IFC 4.3 entity specifically for alignments.
-    It wraps either:
-    - IfcCompositeCurve (for horizontal)
-    - IfcGradientCurve (for vertical)
-    
-    Args:
-        ifc_file: IFC file object
-        composite_or_gradient_curve: IfcCompositeCurve or IfcGradientCurve
-        tag: Optional identifier (e.g., "HORIZONTAL", "VERTICAL")
-        
-    Returns:
-        IfcAlignmentCurve entity
-        
-    Example:
+    """DEPRECATED: IfcAlignmentCurve does NOT exist in IFC 4.3!
+
+    This function is kept for backwards compatibility but should NOT be used.
+    Use IfcCompositeCurve or IfcGradientCurve directly in IfcShapeRepresentation.
+
+    WARNING: External viewers like Solibri, FreeCAD, and BIMcollab will NOT
+    recognize IfcAlignmentCurve entities because they don't exist in the schema!
+
+    Correct approach:
         >>> composite = create_composite_curve(ifc, segments)
-        >>> alignment_curve = create_alignment_curve(ifc, composite, "HORIZONTAL")
+        >>> shape_rep = create_shape_representation(ifc, context, [composite], ...)
+
+    DO NOT use this function for new code!
     """
-    return ifc_file.create_entity("IfcAlignmentCurve",
-        Curve=composite_or_gradient_curve,
-        Tag=tag if tag else None)
+    import warnings
+    warnings.warn(
+        "create_alignment_curve() is DEPRECATED. IfcAlignmentCurve does not exist in IFC 4.3! "
+        "Use IfcCompositeCurve directly in IfcShapeRepresentation instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    # Return the curve directly instead of wrapping in non-existent entity
+    return composite_or_gradient_curve
 
 
 # ============================================================================

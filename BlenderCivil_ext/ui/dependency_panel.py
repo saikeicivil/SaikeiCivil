@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,10 @@ UI for checking and installing BlenderCivil dependencies
 
 import bpy
 from bpy.types import Panel, Operator
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BLENDERCIVIL_OT_install_dependencies(Operator):
@@ -65,12 +69,12 @@ class BLENDERCIVIL_OT_check_dependencies(Operator):
     
     def execute(self, context):
         from ..core import dependency_manager
-        
+
         report = dependency_manager.DependencyManager.get_status_report()
-        print("\n" + "="*60)
-        print(report)
-        print("="*60 + "\n")
-        
+        logger.info("=" * 60)
+        logger.info("%s", report)
+        logger.info("=" * 60)
+
         self.report({'INFO'}, "Dependency status printed to console")
         return {'FINISHED'}
 

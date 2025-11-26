@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ Uses EPSG.io API as primary source, with PyProj fallback for offline/validation.
 import requests
 from typing import Dict, List, Optional, Tuple
 import logging
+from .logging_config import get_logger
 
 try:
     import pyproj
@@ -104,7 +105,7 @@ class CRSSearcher:
     def __init__(self, api_key: str = "", timeout: int = 10):
         self.api_key = api_key
         self.timeout = timeout
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger(__name__)
     
     def search(
         self,
@@ -395,23 +396,25 @@ if __name__ == "__main__":
     
     searcher = CRSSearcher()
     
+    logger = get_logger(__name__)
+
     # Search for UTM Zone 10
-    print("\n=== Searching for 'UTM Zone 10' ===")
+    logger.info("=== Searching for 'UTM Zone 10' ===")
     results = searcher.search("UTM Zone 10")
     for crs in results[:5]:
-        print(f"  {crs}")
-    
+        logger.info("  %s", crs)
+
     # Get specific CRS details
-    print("\n=== Getting details for EPSG:26910 ===")
+    logger.info("=== Getting details for EPSG:26910 ===")
     crs = searcher.get_crs(26910)
     if crs:
-        print(f"  Name: {crs.name}")
-        print(f"  Kind: {crs.kind}")
-        print(f"  Area: {crs.area}")
-        print(f"  Unit: {crs.unit}")
-        print(f"  Projected: {crs.is_projected()}")
-    
+        logger.info("  Name: %s", crs.name)
+        logger.info("  Kind: %s", crs.kind)
+        logger.info("  Area: %s", crs.area)
+        logger.info("  Unit: %s", crs.unit)
+        logger.info("  Projected: %s", crs.is_projected())
+
     # Validate EPSG code
-    print("\n=== Validating EPSG codes ===")
-    print(f"  EPSG:26910 valid: {searcher.validate_epsg(26910)}")
-    print(f"  EPSG:99999 valid: {searcher.validate_epsg(99999)}")
+    logger.info("=== Validating EPSG codes ===")
+    logger.info("  EPSG:26910 valid: %s", searcher.validate_epsg(26910))
+    logger.info("  EPSG:99999 valid: %s", searcher.validate_epsg(99999))

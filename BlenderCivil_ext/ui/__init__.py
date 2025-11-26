@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@ All UI classes will be organized here.
 
 import bpy
 from .. import core
+
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Always import dependency panel (no IFC dependency)
 from . import dependency_panel
@@ -79,7 +83,7 @@ if core.has_ifc_support():
 
 def register():
     """Register UI classes"""
-    print("  [+] UI module loaded")
+    logger.debug("UI module loaded")
 
     # Register alignment properties FIRST (required by other modules)
     alignment_properties.register()
@@ -94,7 +98,7 @@ def register():
     for module in _ui_modules:
         module.register()
 
-    print(f"  [+] Registered {len(_ui_modules)} UI panel modules")
+    logger.debug("Registered %s UI panel modules", len(_ui_modules))
 
 
 def unregister():

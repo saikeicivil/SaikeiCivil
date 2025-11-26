@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,20 @@
 # ==============================================================================
 
 """
-Interactive PI Operations (Revised with Real-time Visualization)
-PIs are pure tangent intersection points - NO radius property
-Creates IFC entities and visualizations in real-time as user clicks
+Interactive PI Operations
+==========================
+
+Provides interactive operators for adding and managing Point of Intersections (PIs)
+in horizontal alignments. PIs represent pure tangent intersection points without
+radius properties - curves are added separately between adjacent tangents.
+
+Creates IFC entities and Blender visualizations in real-time as the user clicks
+in the viewport, providing immediate visual feedback for alignment design.
+
+Operators:
+    BC_OT_add_pi_interactive: Add PIs by clicking in viewport with real-time visualization
+    BC_OT_add_native_pi: Add PI at 3D cursor location (classic method)
+    BC_OT_delete_native_pi: Delete the selected PI marker from scene and IFC
 """
 
 import bpy
@@ -31,10 +42,37 @@ import math
 from bpy.props import StringProperty, FloatProperty, IntProperty, BoolProperty
 from mathutils import Vector
 from gpu_extras.batch import batch_for_shader
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BC_OT_add_pi_interactive(bpy.types.Operator):
-    """Add PIs by clicking in the viewport - Pure intersection points with real-time visualization"""
+    """Add PIs by clicking in the viewport with real-time visualization.
+
+    Modal operator that allows users to place Point of Intersections (PIs) by clicking
+    directly in the 3D viewport. Each click creates an IFC entity and visual marker
+    immediately. Tangent lines are automatically created between consecutive PIs and
+    visualized in real-time.
+
+    Modal States:
+        - RUNNING_MODAL: Tracking mouse movement and waiting for user input
+        - Mouse move: Updates cursor feedback and crosshair position
+        - Left click: Places PI at mouse position on XY plane (Z=0)
+        - Right click/Enter: Finishes placement and exits modal mode
+        - ESC: Cancels operation
+
+    Internal State:
+        _handle: Drawing handler for HUD overlay
+        _alignment_obj: Active NativeIfcAlignment instance
+        _visualizer: AlignmentVisualizer for real-time updates
+        _last_mouse_pos: Current mouse position for cursor feedback
+
+    Usage:
+        Requires an active alignment. Enters modal mode with on-screen instructions.
+        Each PI is immediately added to IFC and visualized. Tangent segments are
+        created between consecutive PIs automatically.
+    """
     bl_idname = "bc.add_pi_interactive"
     bl_label = "Add PI (Click to Place)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -107,11 +145,11 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         # Get or create the Python alignment instance and visualizer
         self._alignment_obj, was_created = get_or_create_alignment(active_alignment)
         self._visualizer, vis_created = get_or_create_visualizer(self._alignment_obj)
-        
+
         if was_created:
-            print(f"[PI Tool] Created new alignment instance")
+            logger.info("Created new alignment instance")
         if vis_created:
-            print(f"[PI Tool] Created new visualizer")
+            logger.info("Created new visualizer")
         
         # Setup drawing handler for HUD
         args = (self, context)
@@ -170,9 +208,9 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         
         pi_count = len(self._alignment_obj.pis)
         self.report({'INFO'}, f"[+] PI {pi_count} at ({location.x:.2f}, {location.y:.2f})")
-        
-        print(f"[PI Tool] Added PI {pi_count} at ({location.x:.2f}, {location.y:.2f})")
-        print(f"[PI Tool] Total segments: {len(self._alignment_obj.segments)}")
+
+        logger.debug("Added PI %d at (%.2f, %.2f)", pi_count, location.x, location.y)
+        logger.debug("Total segments: %d", len(self._alignment_obj.segments))
     
     def draw_callback_px(self, operator, context):
         """Draw on-screen instructions and visual feedback"""
@@ -258,10 +296,11 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         if self._alignment_obj:
             pi_count = len(self._alignment_obj.pis)
             segment_count = len(self._alignment_obj.segments)
-            
+
+
             if pi_count > 0:
                 self.report({'INFO'}, f"[OK] Placed {pi_count} PIs, created {segment_count} tangent segments")
-                print(f"[PI Tool] Finished: {pi_count} PIs, {segment_count} segments in IFC")
+                logger.info("Finished: %d PIs, %d segments in IFC", pi_count, segment_count)
             else:
                 self.report({'WARNING'}, "No PIs placed")
         
@@ -280,7 +319,24 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
 
 # Keep original operator for backward compatibility
 class BC_OT_add_native_pi(bpy.types.Operator):
-    """Add PI at 3D cursor (classic method)"""
+    """Add PI at 3D cursor location (classic method).
+
+    Non-interactive operator that places a Point of Intersection at the current
+    3D cursor position. Creates IFC entity and visualization marker, then updates
+    tangent segments if multiple PIs exist.
+
+    This is the traditional placement method, as opposed to the interactive click-to-place
+    mode. Useful for precise placement when cursor position is set programmatically
+    or snapped to specific locations.
+
+    Requirements:
+        - Active alignment must be set
+        - 3D cursor position determines PI location (X, Y coordinates used)
+
+    Usage:
+        Position 3D cursor at desired location, then invoke this operator to
+        place PI. Tangent visualization updates automatically if 2+ PIs exist.
+    """
     bl_idname = "bc.add_native_pi"
     bl_label = "Add PI at Cursor"
     bl_options = {'REGISTER', 'UNDO'}
@@ -320,7 +376,23 @@ class BC_OT_add_native_pi(bpy.types.Operator):
 
 
 class BC_OT_delete_native_pi(bpy.types.Operator):
-    """Delete selected PI"""
+    """Delete the selected PI marker from scene and IFC.
+
+    Removes a Point of Intersection marker object from the Blender scene. The operator
+    validates that the selected object is a PI marker by checking for the "ifc_pi_id"
+    custom property.
+
+    Requirements:
+        - Active object must be a PI marker with "ifc_pi_id" custom property
+
+    Note:
+        Current implementation removes the Blender object but does not fully update
+        the IFC alignment structure. Full implementation should regenerate segments
+        and update visualization after PI removal.
+
+    Usage:
+        Select a PI marker object in the viewport and invoke to delete it.
+    """
     bl_idname = "bc.delete_native_pi"
     bl_label = "Delete PI"
     bl_options = {'REGISTER', 'UNDO'}

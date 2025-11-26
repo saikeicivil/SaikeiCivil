@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,9 @@ Professional Blender interface for vertical alignment design
 
 import bpy
 from bpy.types import Panel, UIList
+from ...core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BC_UL_pvi_list(UIList):
@@ -623,7 +626,7 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    print("  [+] Vertical alignment UI panels registered")
+    logger.info("Vertical alignment UI panels registered")
 
 
 def unregister():
@@ -631,7 +634,7 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    print("  [-] Vertical alignment UI panels unregistered")
+    logger.info("Vertical alignment UI panels unregistered")
 
 
 if __name__ == "__main__":

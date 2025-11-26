@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ License: GPL v3
 import numpy as np
 from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass, field
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -558,46 +561,46 @@ def interpolate_elevation(station: float,
 
 if __name__ == "__main__":
     # Simple test
-    print("ProfileViewData Test")
-    print("=" * 50)
-    
+    logger.info("ProfileViewData Test")
+    logger.info("=" * 50)
+
     data = ProfileViewData()
-    
+
     # Add some PVIs
     data.add_pvi(0.0, 100.0, {'curve_length': 100.0})
     data.add_pvi(250.0, 110.0, {'curve_length': 150.0})
     data.add_pvi(500.0, 105.0, {'curve_length': 100.0})
-    
-    print(f"Added {len(data.pvis)} PVIs")
-    
+
+    logger.info("Added %s PVIs", len(data.pvis))
+
     # Add terrain points
     for station in np.linspace(0, 500, 50):
         elevation = 95.0 + 10.0 * np.sin(station / 100.0)
         data.add_terrain_point(station, elevation)
-    
-    print(f"Added {len(data.terrain_points)} terrain points")
-    
+
+    logger.info("Added %s terrain points", len(data.terrain_points))
+
     # Update extents
     data.update_view_extents()
-    print(f"View extents: Station {data.station_min:.1f} to {data.station_max:.1f}m")
-    print(f"              Elevation {data.elevation_min:.1f} to {data.elevation_max:.1f}m")
-    
+    logger.info("View extents: Station %.1fm to %.1fm", data.station_min, data.station_max)
+    logger.info("              Elevation %.1fm to %.1fm", data.elevation_min, data.elevation_max)
+
     # Statistics
     stats = data.get_statistics()
-    print(f"\nStatistics:")
+    logger.info("\nStatistics:")
     for key, value in stats.items():
         if isinstance(value, float):
-            print(f"  {key}: {value:.2f}")
+            logger.info("  %s: %.2f", key, value)
         else:
-            print(f"  {key}: {value}")
-    
+            logger.info("  %s: %s", key, value)
+
     # Validation
     warnings = data.validate_pvis()
     if warnings:
-        print(f"\nWarnings:")
+        logger.warning("\nWarnings:")
         for warning in warnings:
-            print(f"  - {warning}")
+            logger.warning("  - %s", warning)
     else:
-        print(f"\nValidation: OK")
-    
-    print("\n✓ ProfileViewData working correctly!")
+        logger.info("\nValidation: OK")
+
+    logger.info("\nProfileViewData working correctly!")

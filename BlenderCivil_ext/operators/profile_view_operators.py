@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,20 @@ This follows BlenderCivil's architecture pattern:
 - operators/ = User actions and workflows
 - Imports from core/ for business logic
 
+Operators:
+    BC_OT_ProfileView_Toggle: Toggle profile view overlay on/off
+    BC_OT_ProfileView_Enable: Enable profile view overlay
+    BC_OT_ProfileView_Disable: Disable profile view overlay
+    BC_OT_ProfileView_LoadFromSprint3: Load vertical alignment from Sprint 3 data
+    BC_OT_ProfileView_SyncToSprint3: Sync profile view changes back to Sprint 3
+    BC_OT_ProfileView_LoadTerrain: Load terrain profile from selected mesh
+    BC_OT_ProfileView_AddPVI: Add a new PVI at specified location
+    BC_OT_ProfileView_DeleteSelectedPVI: Delete the currently selected PVI
+    BC_OT_ProfileView_SelectPVI: Select a PVI by index
+    BC_OT_ProfileView_FitToData: Automatically fit view extents to data
+    BC_OT_ProfileView_ClearData: Clear all profile view data
+    BC_OT_ProfileView_ModalHandler: Modal event handler for profile view interaction
+
 Author: BlenderCivil Development Team
 Date: November 2025
 License: GPL v3
@@ -55,7 +69,19 @@ import os
 # ============================================================================
 
 class BC_OT_ProfileView_Toggle(Operator):
-    """Toggle profile view overlay on/off"""
+    """
+    Toggle profile view overlay on/off.
+
+    Toggles the visibility of the profile view overlay in the 3D viewport.
+    The profile view displays vertical alignment information at the bottom
+    of the viewport, showing PVIs, grades, and terrain profiles.
+
+    When enabled, this operator also starts the modal event handler for
+    interactive resize and editing capabilities.
+
+    Usage context: Primary toggle button in the UI panel for showing/hiding
+    the profile view overlay.
+    """
     bl_idname = "blendercivil.profile_view_toggle"
     bl_label = "Toggle Profile View"
     bl_description = "Show/hide the profile view overlay at bottom of viewport"
@@ -82,7 +108,18 @@ class BC_OT_ProfileView_Toggle(Operator):
 
 
 class BC_OT_ProfileView_Enable(Operator):
-    """Enable profile view overlay"""
+    """
+    Enable profile view overlay.
+
+    Explicitly enables the profile view overlay, ensuring it is visible
+    in the 3D viewport. Unlike Toggle, this always enables the overlay
+    regardless of current state.
+
+    Automatically starts the modal event handler if not already running.
+
+    Usage context: Called programmatically when loading data or when
+    explicit enable is needed (e.g., after loading vertical alignment data).
+    """
     bl_idname = "blendercivil.profile_view_enable"
     bl_label = "Enable Profile View"
     bl_description = "Show the profile view overlay"
@@ -104,7 +141,19 @@ class BC_OT_ProfileView_Enable(Operator):
 
 
 class BC_OT_ProfileView_Disable(Operator):
-    """Disable profile view overlay"""
+    """
+    Disable profile view overlay.
+
+    Explicitly disables the profile view overlay, hiding it from the
+    3D viewport. Unlike Toggle, this always disables the overlay
+    regardless of current state.
+
+    The modal event handler will automatically stop itself when the
+    overlay is disabled.
+
+    Usage context: Called when user wants to explicitly hide the overlay
+    or when cleaning up the viewport.
+    """
     bl_idname = "blendercivil.profile_view_disable"
     bl_label = "Disable Profile View"
     bl_description = "Hide the profile view overlay"
@@ -124,7 +173,20 @@ class BC_OT_ProfileView_Disable(Operator):
 # ============================================================================
 
 class BC_OT_ProfileView_LoadFromSprint3(Operator):
-    """Load vertical alignment from Sprint 3 data"""
+    """
+    Load vertical alignment from Sprint 3 data.
+
+    Imports vertical alignment data from the Sprint 3 vertical alignment
+    system (bc_vertical properties) into the profile view overlay.
+    This provides backward compatibility and data migration.
+
+    The operator reads PVIs, grades, and curve information from Sprint 3's
+    property-based storage and converts it to the profile view data model.
+    Automatically enables the profile view overlay after loading.
+
+    Usage context: Called when migrating existing projects or when working
+    with Sprint 3 vertical alignment data.
+    """
     bl_idname = "blendercivil.profile_view_load_from_sprint3"
     bl_label = "Load from Sprint 3"
     bl_description = "Load vertical alignment data from Sprint 3 bc_vertical properties"
@@ -156,7 +218,20 @@ class BC_OT_ProfileView_LoadFromSprint3(Operator):
 
 
 class BC_OT_ProfileView_SyncToSprint3(Operator):
-    """Sync profile view changes back to Sprint 3"""
+    """
+    Sync profile view changes back to Sprint 3.
+
+    Writes modifications made in the profile view overlay back to the
+    Sprint 3 vertical alignment system (bc_vertical properties).
+    This maintains bidirectional compatibility between systems.
+
+    Any PVIs added, modified, or deleted in the profile view will be
+    reflected in the Sprint 3 data structures. Refreshes the profile
+    view after syncing.
+
+    Usage context: Called after editing vertical alignment in profile view
+    to persist changes to Sprint 3 storage.
+    """
     bl_idname = "blendercivil.profile_view_sync_to_sprint3"
     bl_label = "Sync to Sprint 3"
     bl_description = "Write profile view changes back to Sprint 3 vertical alignment"
@@ -182,7 +257,21 @@ class BC_OT_ProfileView_SyncToSprint3(Operator):
 
 
 class BC_OT_ProfileView_LoadTerrain(Operator):
-    """Load terrain profile from selected mesh"""
+    """
+    Load terrain profile from selected mesh.
+
+    Samples elevation data from the active mesh object (DTM/terrain)
+    along the horizontal alignment. Creates a terrain profile that can
+    be displayed in the profile view for comparison with the design
+    vertical alignment.
+
+    The operator performs raycasting or vertex sampling along the alignment
+    path to extract terrain elevation points. Currently includes placeholder
+    implementation that will be replaced with actual terrain sampling.
+
+    Usage context: Called when user wants to display existing ground
+    elevations in the profile view for design comparison.
+    """
     bl_idname = "blendercivil.profile_view_load_terrain"
     bl_label = "Load Terrain"
     bl_description = "Sample terrain elevations from selected mesh along alignment"
@@ -228,7 +317,25 @@ class BC_OT_ProfileView_LoadTerrain(Operator):
 # ============================================================================
 
 class BC_OT_ProfileView_AddPVI(Operator):
-    """Add a new PVI at specified location"""
+    """
+    Add a new PVI at specified location.
+
+    Creates a new Point of Vertical Intersection (PVI) in the vertical
+    alignment. PVIs are the fundamental control points that define the
+    vertical profile of the alignment.
+
+    Properties:
+        station: Station coordinate where PVI should be placed (m)
+        elevation: Elevation of the PVI (m)
+        curve_length: Length of the vertical curve at this PVI (m)
+
+    The operator presents a dialog for entering PVI parameters and
+    automatically sorts PVIs by station after insertion. Refreshes
+    the profile view to show the new PVI.
+
+    Usage context: Called when user needs to add a new control point
+    to the vertical alignment design.
+    """
     bl_idname = "blendercivil.profile_view_add_pvi"
     bl_label = "Add PVI"
     bl_description = "Add a new Point of Vertical Intersection"
@@ -276,7 +383,20 @@ class BC_OT_ProfileView_AddPVI(Operator):
 
 
 class BC_OT_ProfileView_DeleteSelectedPVI(Operator):
-    """Delete the currently selected PVI"""
+    """
+    Delete the currently selected PVI.
+
+    Removes the currently selected Point of Vertical Intersection from
+    the vertical alignment. This operation requires a PVI to be selected
+    first (via clicking or the SelectPVI operator).
+
+    The operator validates that a PVI is selected before attempting
+    deletion and refreshes the profile view after successful removal.
+
+    Usage context: Called when user wants to remove a control point
+    from the vertical alignment. Typically bound to keyboard shortcuts
+    or delete buttons in the UI.
+    """
     bl_idname = "blendercivil.profile_view_delete_selected_pvi"
     bl_label = "Delete PVI"
     bl_description = "Delete the currently selected PVI"
@@ -303,7 +423,21 @@ class BC_OT_ProfileView_DeleteSelectedPVI(Operator):
 
 
 class BC_OT_ProfileView_SelectPVI(Operator):
-    """Select a PVI by index"""
+    """
+    Select a PVI by index.
+
+    Sets the active/selected PVI in the profile view data model.
+    Selection is required for operations like deletion or editing.
+
+    Properties:
+        pvi_index: Zero-based index of the PVI to select
+
+    The operator validates the index before setting selection and
+    refreshes the profile view to highlight the selected PVI.
+
+    Usage context: Called internally by profile view mouse interactions
+    or when programmatically selecting a PVI for editing.
+    """
     bl_idname = "blendercivil.profile_view_select_pvi"
     bl_label = "Select PVI"
     bl_description = "Select a PVI for editing"
@@ -336,7 +470,20 @@ class BC_OT_ProfileView_SelectPVI(Operator):
 # ============================================================================
 
 class BC_OT_ProfileView_FitToData(Operator):
-    """Automatically fit view extents to data"""
+    """
+    Automatically fit view extents to data.
+
+    Calculates appropriate view bounds to display all profile data
+    (PVIs, terrain, alignment) and adjusts the profile view's display
+    extents accordingly. Similar to "zoom to fit" functionality.
+
+    The operator examines all data points and determines optimal
+    station and elevation ranges with appropriate padding for
+    comfortable viewing.
+
+    Usage context: Called when user wants to quickly frame all profile
+    data or after loading new data that may be outside current view.
+    """
     bl_idname = "blendercivil.profile_view_fit_to_data"
     bl_label = "Fit to Data"
     bl_description = "Automatically adjust view extents to fit all data"
@@ -354,7 +501,21 @@ class BC_OT_ProfileView_FitToData(Operator):
 
 
 class BC_OT_ProfileView_ClearData(Operator):
-    """Clear all profile view data"""
+    """
+    Clear all profile view data.
+
+    Removes all data from the profile view including:
+    - Terrain profile points
+    - Vertical alignment PVIs
+    - Computed curve data
+
+    This is a destructive operation and presents a confirmation dialog
+    before clearing. Use this to start fresh with a new vertical
+    alignment design.
+
+    Usage context: Called when resetting the profile view or starting
+    a new vertical alignment design from scratch.
+    """
     bl_idname = "blendercivil.profile_view_clear_data"
     bl_label = "Clear All Data"
     bl_description = "Clear all terrain, alignment, and PVI data"
@@ -375,7 +536,27 @@ class BC_OT_ProfileView_ClearData(Operator):
 
 
 class BC_OT_ProfileView_ModalHandler(Operator):
-    """Modal event handler for profile view interaction (resize, etc.)"""
+    """
+    Modal event handler for profile view interaction.
+
+    Handles continuous mouse events for interactive profile view features:
+    - Resize overlay by dragging top border
+    - Hover detection for resize cursor
+    - PVI selection by clicking (future)
+    - PVI dragging for editing (future)
+
+    This operator runs in modal mode, continuously processing mouse events
+    while the profile view is enabled. It automatically terminates when
+    the profile view is disabled.
+
+    The modal handler uses a state machine to track:
+    - Hover state (over resize border)
+    - Resizing state (actively dragging)
+    - Normal state (pass-through events)
+
+    Usage context: Automatically invoked when profile view is enabled.
+    Should not be called directly by users.
+    """
     bl_idname = "blendercivil.profile_view_modal_handler"
     bl_label = "Profile View Modal Handler"
     bl_description = "Handle mouse events for profile view resize and interaction"

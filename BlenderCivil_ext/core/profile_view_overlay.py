@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,9 @@ import bpy
 
 from .profile_view_data import ProfileViewData
 from .profile_view_renderer import ProfileViewRenderer
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ProfileViewOverlay:
@@ -196,7 +199,7 @@ class ProfileViewOverlay:
             from .native_ifc_manager import NativeIfcManager
 
             if NativeIfcManager.vertical_alignments:
-                print(f"[ProfileView] Loading {len(NativeIfcManager.vertical_alignments)} vertical alignments from IFC...")
+                logger.info("Loading %s vertical alignments from IFC...", len(NativeIfcManager.vertical_alignments))
 
                 # Clear existing vertical alignments
                 self.data.clear_vertical_alignments()
@@ -204,20 +207,20 @@ class ProfileViewOverlay:
                 # Add each vertical alignment
                 for valign in NativeIfcManager.vertical_alignments:
                     self.data.add_vertical_alignment(valign)
-                    print(f"[ProfileView]   Added {valign.name}")
+                    logger.info("  Added %s", valign.name)
 
                 # Auto-select first vertical alignment
                 if len(NativeIfcManager.vertical_alignments) > 0:
                     self.data.select_vertical_alignment(0)
-                    print(f"[ProfileView]   Selected {NativeIfcManager.vertical_alignments[0].name} as active")
+                    logger.info("  Selected %s as active", NativeIfcManager.vertical_alignments[0].name)
 
                 # Update view extents
                 self.data.update_view_extents()
 
-                print(f"[ProfileView] ✅ Loaded vertical alignments into profile view")
+                logger.info("Loaded vertical alignments into profile view")
 
         except Exception as e:
-            print(f"[ProfileView] Note: Could not load vertical alignments: {e}")
+            logger.debug("Note: Could not load vertical alignments: %s", e)
 
     def is_mouse_over_resize_border(self, context, mouse_x: int, mouse_y: int) -> bool:
         """
@@ -521,5 +524,5 @@ def sync_to_sprint3_vertical(context) -> bool:
 
 
 if __name__ == "__main__":
-    print("ProfileViewOverlay - Core overlay manager")
-    print("Use from within Blender for testing.")
+    logger.info("ProfileViewOverlay - Core overlay manager")
+    logger.info("Use from within Blender for testing.")

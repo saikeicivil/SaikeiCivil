@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,6 +48,9 @@ from .profile_view_data import ProfileViewData, ProfilePoint
 # Import stationing utilities
 from .station_formatting import format_station_short
 from . import alignment_registry
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # ============================================================================
@@ -442,8 +445,8 @@ class ProfileViewRenderer:
                             x, y = self.world_to_screen(station, elevation, data)
                             vertices.append((x, y))
                     except Exception as e:
-                        # Print error for debugging but continue
-                        print(f"[ProfileRenderer] Warning: Could not query elevation at station {station}: {e}")
+                        # Log error for debugging but continue
+                        logger.warning("Could not query elevation at station %s: %s", station, e)
 
             # Draw vertical alignment line
             if len(vertices) >= 2:
@@ -458,9 +461,9 @@ class ProfileViewRenderer:
                     gpu.state.line_width_set(2.0)
                 batch.draw(self.shader_2d)
                 gpu.state.line_width_set(1.0)
-                print(f"[ProfileRenderer] Drew vertical alignment with {len(vertices)} vertices")
+                logger.debug("Drew vertical alignment with %s vertices", len(vertices))
             else:
-                print(f"[ProfileRenderer] No vertices to draw for vertical alignment {valign.name}")
+                logger.debug("No vertices to draw for vertical alignment %s", valign.name)
 
             # Draw PVIs for this vertical alignment
             if is_selected:  # Only show PVIs for selected alignment
@@ -591,6 +594,6 @@ class ProfileViewRenderer:
 
 
 if __name__ == "__main__":
-    print("ProfileViewRenderer - Core rendering module")
-    print("This module requires Blender's GPU context to run tests.")
-    print("Use from within Blender for testing.")
+    logger.info("ProfileViewRenderer - Core rendering module")
+    logger.info("This module requires Blender's GPU context to run tests.")
+    logger.info("Use from within Blender for testing.")

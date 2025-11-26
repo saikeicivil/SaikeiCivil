@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,10 @@ from mathutils import Vector
 import time
 import math
 
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 # =============================================================================
 # PART 1: ALIGNMENT REGISTRY
@@ -48,7 +52,7 @@ def register_alignment(alignment):
     """Register an alignment for real-time updates."""
     alignment_id = id(alignment)  # Use Python object ID
     _alignment_registry[alignment_id] = alignment
-    print(f"✓ Registered alignment: {alignment.alignment.Name}")
+    logger.info("Registered alignment: %s", alignment.alignment.Name)
 
 
 def unregister_alignment(alignment):
@@ -56,7 +60,7 @@ def unregister_alignment(alignment):
     alignment_id = id(alignment)
     if alignment_id in _alignment_registry:
         del _alignment_registry[alignment_id]
-        print(f"✓ Unregistered alignment: {alignment.alignment.Name}")
+        logger.info("Unregistered alignment: %s", alignment.alignment.Name)
 
 
 def get_alignment_from_pi(pi_object):
@@ -115,11 +119,11 @@ def blendercivil_update_handler(scene, depsgraph):
                     # Also check if it's in bpy.data.objects
                     if blender_obj.name not in bpy.data.objects:
                         deleted_pis.append(pi_idx)
-                        print(f"[BlenderCivil] PI {pi_idx} deleted from outliner")
+                        logger.debug("PI %s deleted from outliner", pi_idx)
                 except ReferenceError:
                     # Object was deleted
                     deleted_pis.append(pi_idx)
-                    print(f"[BlenderCivil] PI {pi_idx} deleted (reference error)")
+                    logger.debug("PI %s deleted (reference error)", pi_idx)
 
         # If any PIs were deleted, remove them from the alignment
         if deleted_pis:
@@ -133,9 +137,9 @@ def blendercivil_update_handler(scene, depsgraph):
                     if pi.get('ifc_point'):
                         try:
                             alignment.ifc.remove(pi['ifc_point'])
-                            print(f"[BlenderCivil] Removed IFC point for PI {pi_idx}")
+                            logger.debug("Removed IFC point for PI %s", pi_idx)
                         except Exception as e:
-                            print(f"[BlenderCivil] Could not remove IFC point: {e}")
+                            logger.error("Could not remove IFC point: %s", e)
 
                     # Remove from alignment.pis list
                     alignment.pis.pop(pi_idx)
@@ -150,10 +154,10 @@ def blendercivil_update_handler(scene, depsgraph):
                 # Mark this alignment for regeneration
                 alignments_to_update.add(id(alignment))
 
-                print(f"[BlenderCivil] Removed {len(deleted_pis)} PI(s), {len(alignment.pis)} remaining")
+                logger.info("Removed %s PI(s), %s remaining", len(deleted_pis), len(alignment.pis))
 
             except Exception as e:
-                print(f"[BlenderCivil] Error during PI deletion: {e}")
+                logger.error("Error during PI deletion: %s", e)
                 import traceback
                 traceback.print_exc()
             finally:
@@ -177,11 +181,11 @@ def blendercivil_update_handler(scene, depsgraph):
                         try:
                             alignment.visualizer.update_all()
                         except (ReferenceError, AttributeError, RuntimeError) as e:
-                            print(f"[BlenderCivil] Visualization update skipped: {e}")
+                            logger.warning("Visualization update skipped: %s", e)
 
-                    print(f"[BlenderCivil] Regenerated alignment after PI deletion")
+                    logger.info("Regenerated alignment after PI deletion")
                 except Exception as e:
-                    print(f"[BlenderCivil] Error regenerating after deletion: {e}")
+                    logger.error("Error regenerating after deletion: %s", e)
                     import traceback
                     traceback.print_exc()
                 finally:
@@ -272,10 +276,10 @@ def blendercivil_update_handler(scene, depsgraph):
                     except (ReferenceError, AttributeError, RuntimeError) as e:
                         # Visualization update failed (possibly due to BlenderBIM override)
                         # Don't crash - just log and continue
-                        print(f"[BlenderCivil] Visualization update skipped: {e}")
+                        logger.warning("Visualization update skipped: %s", e)
             except Exception as e:
                 # Catch any unexpected errors to prevent Blender crashes
-                print(f"[BlenderCivil] Error updating alignment: {e}")
+                logger.error("Error updating alignment: %s", e)
                 import traceback
                 traceback.print_exc()
             finally:
@@ -287,7 +291,7 @@ def register_handler():
     """Register the update handler with Blender."""
     if blendercivil_update_handler not in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.append(blendercivil_update_handler)
-        print("✓ BlenderCivil update handler REGISTERED")
+        logger.info("BlenderCivil update handler REGISTERED")
         return True
     return False
 
@@ -296,7 +300,7 @@ def unregister_handler():
     """Unregister the update handler."""
     if blendercivil_update_handler in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(blendercivil_update_handler)
-        print("✓ BlenderCivil update handler UNREGISTERED")
+        logger.info("BlenderCivil update handler UNREGISTERED")
         return True
     return False
 
@@ -538,19 +542,19 @@ def register():
     """Register operators and handler."""
     for cls in classes:
         bpy.utils.register_class(cls)
-    
+
     register_handler()
-    print("✓ BlenderCivil update system registered")
+    logger.info("BlenderCivil update system registered")
 
 
 def unregister():
     """Unregister everything."""
     unregister_handler()
-    
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    
-    print("✓ BlenderCivil update system unregistered")
+
+    logger.info("BlenderCivil update system unregistered")
 
 
 # =============================================================================
@@ -559,32 +563,32 @@ def unregister():
 
 def test_system():
     """Test the update system."""
-    print("\n=== BlenderCivil Update System Test ===")
-    
+    logger.info("\n=== BlenderCivil Update System Test ===")
+
     # Check handler
-    print(f"Handler registered: {blendercivil_update_handler in bpy.app.handlers.depsgraph_update_post}")
-    
+    logger.info("Handler registered: %s", blendercivil_update_handler in bpy.app.handlers.depsgraph_update_post)
+
     # Check alignments
-    print(f"Registered alignments: {len(_alignment_registry)}")
+    logger.info("Registered alignments: %s", len(_alignment_registry))
     for align_id, alignment in _alignment_registry.items():
-        print(f"  - {alignment.name}: {len(alignment.pis)} PIs, {len(alignment.segments)} segments")
-    
+        logger.info("  - %s: %s PIs, %s segments", alignment.name, len(alignment.pis), len(alignment.segments))
+
     # Check PIs
     if len(_alignment_registry) > 0:
         alignment = list(_alignment_registry.values())[0]
-        print(f"\nChecking PIs in '{alignment.name}':")
+        logger.info("\nChecking PIs in '%s':", alignment.name)
         for pi in alignment.pis:
             obj = pi.get('blender_object')
             if obj:
                 has_pi_id = 'bc_pi_id' in obj
                 has_align_id = 'bc_alignment_id' in obj
-                print(f"  PI {pi['id']}: Object={obj.name}, bc_pi_id={has_pi_id}, bc_alignment_id={has_align_id}")
+                logger.info("  PI %s: Object=%s, bc_pi_id=%s, bc_alignment_id=%s", pi['id'], obj.name, has_pi_id, has_align_id)
             else:
-                print(f"  PI {pi['id']}: No Blender object!")
-    
-    print("=" * 40 + "\n")
+                logger.info("  PI %s: No Blender object!", pi['id'])
+
+    logger.info("=" * 40 + "\n")
 
 
 if __name__ == "__main__":
-    print("BlenderCivil Update System")
-    print("Import this module in your addon")
+    logger.info("BlenderCivil Update System")
+    logger.info("Import this module in your addon")

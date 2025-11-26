@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ import bpy
 from bpy.types import Operator
 from bpy.props import FloatProperty, BoolProperty, StringProperty
 import time
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class BLENDERCIVIL_OT_visualize_station(Operator):
@@ -70,12 +73,12 @@ class BLENDERCIVIL_OT_visualize_station(Operator):
     def execute(self, context):
         """Execute the operator."""
         scene = context.scene
-        
+
         # Get alignment and assembly from scene properties
         # This assumes they're stored in the scene
         # TODO: Link to actual BlenderCivil data structures
-        
-        print(f"\n🎨 Visualizing cross-section at station {self.station:.2f}")
+
+        logger.info("Visualizing cross-section at station %.2f", self.station)
         
         try:
             # Import visualizer
@@ -159,9 +162,9 @@ class BLENDERCIVIL_OT_create_corridor(Operator):
     
     def execute(self, context):
         """Execute the operator."""
-        print(f"\n🏗️ Creating corridor: {self.corridor_name}")
-        print(f"   From station {self.start_station:.2f} to {self.end_station:.2f}")
-        print(f"   Interval: {self.interval:.2f} meters")
+        logger.info("Creating corridor: %s", self.corridor_name)
+        logger.info("From station %.2f to %.2f", self.start_station, self.end_station)
+        logger.info("Interval: %.2f meters", self.interval)
         
         start_time = time.time()
         
@@ -241,8 +244,8 @@ class BLENDERCIVIL_OT_add_station_markers(Operator):
     
     def execute(self, context):
         """Execute the operator."""
-        print(f"\n📍 Adding station markers")
-        print(f"   Interval: {self.interval:.2f} meters")
+        logger.info("Adding station markers")
+        logger.info("Interval: %.2f meters", self.interval)
         
         try:
             from cross_section_visualizer import CrossSectionVisualizer
@@ -291,7 +294,7 @@ class BLENDERCIVIL_OT_clear_visualization(Operator):
     
     def execute(self, context):
         """Execute the operator."""
-        print(f"\n🧹 Clearing visualization: {self.collection_name}")
+        logger.info("Clearing visualization: %s", self.collection_name)
         
         try:
             # Find and clear collection
@@ -328,8 +331,8 @@ class BLENDERCIVIL_OT_quick_preview(Operator):
     def execute(self, context):
         """Execute quick preview."""
         scene = context.scene
-        
-        print("\n⚡ Quick preview")
+
+        logger.info("Quick preview")
         
         try:
             # TODO: Get current station from scene properties
@@ -362,7 +365,22 @@ class BLENDERCIVIL_OT_quick_preview(Operator):
 
 
 class BLENDERCIVIL_OT_component_preview(Operator):
-    """Preview a single component"""
+    """
+    Preview a single cross-section component in isolation.
+
+    This operator creates a 3D visualization of a single component from
+    the active assembly, useful for inspecting individual elements like
+    lanes, shoulders, or ditches without the full cross-section.
+
+    Properties:
+        component_name: Name of the component to preview
+        station: Station location for the preview
+        extrusion: Length to extrude the component (for 3D depth)
+
+    Usage:
+        Invoked from UI panels to preview individual assembly components.
+        Helps verify component geometry before creating full corridor.
+    """
     bl_idname = "blendercivil.component_preview"
     bl_label = "Preview Component"
     bl_description = "Visualize a single cross-section component"
@@ -391,7 +409,7 @@ class BLENDERCIVIL_OT_component_preview(Operator):
     
     def execute(self, context):
         """Execute component preview."""
-        print(f"\n🔍 Previewing component: {self.component_name}")
+        logger.info("Previewing component: %s", self.component_name)
         
         try:
             from cross_section_visualizer import CrossSectionVisualizer
@@ -443,14 +461,14 @@ def register():
     """Register operators."""
     for cls in classes:
         bpy.utils.register_class(cls)
-    print("[+] Cross-section visualization operators registered")
+    logger.info("Cross-section visualization operators registered")
 
 
 def unregister():
     """Unregister operators."""
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    print("[+] Cross-section visualization operators unregistered")
+    logger.info("Cross-section visualization operators unregistered")
 
 
 if __name__ == "__main__":

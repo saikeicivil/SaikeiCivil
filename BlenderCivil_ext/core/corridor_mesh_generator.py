@@ -1,6 +1,6 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
-# Copyright (c) 2024-2025 Michael Yoder / Desert Springs Civil Engineering PLLC
+# Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,6 +58,9 @@ from typing import List, Tuple, Dict, Optional, Any
 from dataclasses import dataclass
 import math
 import time
+from .logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -232,13 +235,13 @@ class CorridorMeshGenerator:
             self.vertex_count = len(mesh.vertices)
             self.face_count = len(mesh.polygons)
             self.generation_time = time.time() - start_time
-            
-            print(f"Corridor mesh generated:")
-            print(f"  LOD: {lod_settings.name}")
-            print(f"  Vertices: {self.vertex_count:,}")
-            print(f"  Faces: {self.face_count:,}")
-            print(f"  Time: {self.generation_time:.2f}s")
-            
+
+            logger.info("Corridor mesh generated:")
+            logger.info("  LOD: %s", lod_settings.name)
+            logger.info("  Vertices: %s", f"{self.vertex_count:,}")
+            logger.info("  Faces: %s", f"{self.face_count:,}")
+            logger.info("  Time: %.2fs", self.generation_time)
+
             return self.mesh_obj
             
         finally:
@@ -482,8 +485,8 @@ class CorridorMeshGenerator:
                 
                 # Add to mesh
                 self.mesh_obj.data.materials.append(mat)
-        
-        print(f"Created {len(created_materials)} materials for corridor")
+
+        logger.info("Created %s materials for corridor", len(created_materials))
     
     def _create_material(
         self,
@@ -541,8 +544,8 @@ class CorridorMeshGenerator:
         
         # Link object to collection
         collection.objects.link(self.mesh_obj)
-        
-        print(f"Added mesh to collection: {coll_name}")
+
+        logger.info("Added mesh to collection: %s", coll_name)
     
     def generate_with_materials(self, lod: str = 'medium') -> bpy.types.Object:
         """
@@ -581,16 +584,16 @@ class CorridorMeshGenerator:
 
 # Example usage
 if __name__ == "__main__":
-    print("CorridorMeshGenerator - Sprint 5 Day 3")
-    print("This module generates Blender meshes from corridor data")
-    print()
-    print("Key Features:")
-    print("  - LOD system (High, Medium, Low)")
-    print("  - Material assignment")
-    print("  - Performance optimized")
-    print("  - Collection organization")
-    print()
-    print("Target Performance:")
-    print("  - High LOD: <5s for 1km corridor")
-    print("  - Medium LOD: <2s for 1km corridor")
-    print("  - Low LOD: <1s for 1km corridor")
+    logger.info("CorridorMeshGenerator - Sprint 5 Day 3")
+    logger.info("This module generates Blender meshes from corridor data")
+    logger.info("")
+    logger.info("Key Features:")
+    logger.info("  - LOD system (High, Medium, Low)")
+    logger.info("  - Material assignment")
+    logger.info("  - Performance optimized")
+    logger.info("  - Collection organization")
+    logger.info("")
+    logger.info("Target Performance:")
+    logger.info("  - High LOD: <5s for 1km corridor")
+    logger.info("  - Medium LOD: <2s for 1km corridor")
+    logger.info("  - Low LOD: <1s for 1km corridor")
