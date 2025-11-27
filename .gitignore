@@ -1,1 +1,40 @@
+# Archive folders
 /archive_v0.3
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Blender backup files
+*.blend1
+*.blend2
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Log files
+*.log
+
+# Test IFC output files
+Test Files/*.ifc
