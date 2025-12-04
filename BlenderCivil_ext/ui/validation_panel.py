@@ -21,51 +21,24 @@
 """
 Validation Panel
 UI panel for validation and debugging tools
+
+NOTE: The Validation panel UI has been moved to Edit > Preferences > Extensions
+This file is kept for potential future operator definitions.
 """
 
 import bpy
-from bpy.props import StringProperty, FloatProperty, IntProperty, BoolProperty
 
 
-class VIEW3D_PT_native_ifc_validation(bpy.types.Panel):
-    """Native IFC Validation Tools"""
-    bl_label = "Validation"
-    bl_idname = "VIEW3D_PT_native_ifc_validation"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
-    bl_order = 3
-    bl_options = {'DEFAULT_CLOSED'}
-    
-    def draw(self, context):
-        layout = self.layout
-        
-        # Validation Tools
-        box = layout.box()
-        box.label(text="Validation", icon='CHECKMARK')
-        
-        col = box.column(align=True)
-        col.operator("bc.validate_ifc_alignment", text="Validate IFC")
-        col.operator("bc.list_all_ifc_objects", text="List All Objects")
-        
-        # Segment Info
-        if context.active_object and "ifc_definition_id" in context.active_object:
-            box = layout.box()
-            box.label(text="Selected Segment", icon='INFO')
-            box.operator("bc.show_segment_info", text="Show Details")
+# NOTE: The Validation panel UI has been moved to Edit > Preferences > Extensions
+# Operators (bc.validate_ifc_alignment, bc.list_all_ifc_objects) are defined in
+# operators/validation_operators.py
 
 
-
-
-# Registration
-classes = (
-    VIEW3D_PT_native_ifc_validation,
-)
+# Registration - No classes to register (panel moved to preferences)
+classes = ()
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
+    pass
 
 def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+    pass

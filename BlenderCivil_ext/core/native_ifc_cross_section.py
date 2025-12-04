@@ -273,27 +273,138 @@ class RoadAssembly:
             'material_profile_set': self.ifc_material_profile_set
         }
     
-    def validate(self) -> Tuple[bool, List[str]]:
+    def validate(self, station: float = 0.0) -> Tuple[bool, List[str]]:
         """
         Validate the assembly.
-        
+
+        Checks:
+        1. Individual component validation
+        2. Component overlap detection (same offset range)
+        3. Gap detection (missing coverage between components)
+
+        Args:
+            station: Station to validate at (for parametric assemblies)
+
         Returns:
             (is_valid, error_messages) tuple
         """
         errors = []
-        
+
         # Validate each component
         for component in self.components:
             is_valid, component_errors = component.validate()
             errors.extend(component_errors)
-        
-        # Check for component overlaps
-        # TODO: Implement overlap detection
-        
-        # Check for gaps
-        # TODO: Implement gap detection
-        
+
+        # Separate components by side
+        left_components = [c for c in self.components if c.side == "LEFT"]
+        right_components = [c for c in self.components if c.side == "RIGHT"]
+
+        # Check overlaps and gaps for each side
+        overlap_errors, gap_warnings = self._check_component_coverage(
+            right_components, station, "RIGHT"
+        )
+        errors.extend(overlap_errors)
+
+        overlap_errors, gap_warnings = self._check_component_coverage(
+            left_components, station, "LEFT"
+        )
+        errors.extend(overlap_errors)
+
         return (len(errors) == 0, errors)
+
+    def _check_component_coverage(
+        self,
+        components: List[Any],
+        station: float,
+        side: str
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Check for overlaps and gaps in component coverage.
+
+        Args:
+            components: List of components on one side
+            station: Station to check at
+            side: "LEFT" or "RIGHT"
+
+        Returns:
+            Tuple of (overlap_errors, gap_warnings)
+        """
+        errors = []
+        warnings = []
+
+        if len(components) < 2:
+            return errors, warnings
+
+        # Get extent (min/max offset) for each component
+        extents = []
+        for component in components:
+            points = component.calculate_points(station)
+            if points:
+                offsets = [abs(p[0]) for p in points]  # Use absolute offset
+                extents.append({
+                    'name': component.name,
+                    'min_offset': min(offsets),
+                    'max_offset': max(offsets),
+                    'component': component
+                })
+
+        # Sort by minimum offset
+        extents.sort(key=lambda e: e['min_offset'])
+
+        # Check for overlaps
+        for i in range(len(extents) - 1):
+            current = extents[i]
+            next_ext = extents[i + 1]
+
+            # Overlap: current max > next min (with small tolerance)
+            overlap = current['max_offset'] - next_ext['min_offset']
+            if overlap > 0.01:  # 1cm tolerance
+                errors.append(
+                    f"Component overlap on {side}: '{current['name']}' "
+                    f"(offset {current['max_offset']:.3f}m) overlaps with "
+                    f"'{next_ext['name']}' (starts at {next_ext['min_offset']:.3f}m) "
+                    f"by {overlap:.3f}m"
+                )
+
+            # Gap: next min > current max (with tolerance)
+            gap = next_ext['min_offset'] - current['max_offset']
+            if gap > 0.05:  # 5cm tolerance for gaps
+                warnings.append(
+                    f"Gap on {side}: {gap:.3f}m gap between '{current['name']}' "
+                    f"(ends at {current['max_offset']:.3f}m) and '{next_ext['name']}' "
+                    f"(starts at {next_ext['min_offset']:.3f}m)"
+                )
+
+        return errors, warnings
+
+    def validate_with_warnings(self, station: float = 0.0) -> Tuple[bool, List[str], List[str]]:
+        """
+        Validate the assembly with separate errors and warnings.
+
+        Args:
+            station: Station to validate at
+
+        Returns:
+            Tuple of (is_valid, errors, warnings)
+        """
+        is_valid, errors = self.validate(station)
+
+        # Collect warnings from gap detection
+        warnings = []
+        left_components = [c for c in self.components if c.side == "LEFT"]
+        right_components = [c for c in self.components if c.side == "RIGHT"]
+
+        _, right_warnings = self._check_component_coverage(
+            right_components, station, "RIGHT"
+        )
+        warnings.extend(right_warnings)
+
+        _, left_warnings = self._check_component_coverage(
+            left_components, station, "LEFT"
+        )
+        warnings.extend(left_warnings)
+
+        return (is_valid, errors, warnings)
     
     def __repr__(self) -> str:
         return f"RoadAssembly(name='{self.name}', components={len(self.components)})"

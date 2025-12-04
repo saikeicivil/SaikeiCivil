@@ -28,6 +28,8 @@ from .lane_component import LaneComponent
 from .shoulder_component import ShoulderComponent
 from .curb_component import CurbComponent
 from .ditch_component import DitchComponent
+from .sidewalk_component import SidewalkComponent
+from .median_component import MedianComponent
 
 # Templates package
 from .templates import (
@@ -48,6 +50,8 @@ __all__ = [
     'ShoulderComponent',
     'CurbComponent',
     'DitchComponent',
+    'SidewalkComponent',
+    'MedianComponent',
     # Templates
     'TemplateMetadata',
     'TemplateLibraryExpanded',

@@ -89,6 +89,12 @@ class NativeIfcManager:
     # Loaded vertical alignments
     vertical_alignments: List = []
 
+    # Road parts by type (IfcRoadPartTypeEnum -> IfcRoadPart)
+    road_parts: Dict[str, ifcopenshell.entity_instance] = {}
+
+    # Blender empties for road parts
+    road_part_empties: Dict[str, bpy.types.Object] = {}
+
     @classmethod
     def new_file(cls, schema: str = "IFC4X3") -> Dict:
         """Create new IFC file with complete spatial hierarchy.
@@ -510,6 +516,222 @@ class NativeIfcManager:
             return cls.file.by_id(blender_obj["ifc_definition_id"])
         return None
 
+    # =========================================================================
+    # IfcRoadPart Management (IFC 4.3 Spatial Hierarchy)
+    # =========================================================================
+
+    # Mapping from component types to IfcRoadPartTypeEnum values
+    COMPONENT_TO_ROAD_PART_TYPE = {
+        'LANE': 'TRAFFICLANE',
+        'SHOULDER': 'SHOULDER',
+        'CURB': 'ROADSIDE',  # Curbs are part of roadside
+        'DITCH': 'ROADSIDE',  # Ditches are roadside elements
+        'MEDIAN': 'CENTRALRESERVE',
+        'SIDEWALK': 'SIDEWALK',
+        'CUSTOM': 'ROADSEGMENT',
+    }
+
+    # Display names for road parts in Blender
+    ROAD_PART_DISPLAY_NAMES = {
+        'TRAFFICLANE': '🚗 Traffic Lanes',
+        'SHOULDER': '🛤️ Shoulders',
+        'ROADSIDE': '🌿 Roadside',
+        'CENTRALRESERVE': '🚧 Central Reserve',
+        'SIDEWALK': '🚶 Sidewalks',
+        'CARRIAGEWAY': '🛣️ Carriageway',
+        'ROADSEGMENT': '📐 Road Segment',
+    }
+
+    @classmethod
+    def get_or_create_road_part(
+        cls,
+        road_part_type: str,
+        name: Optional[str] = None
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Get or create an IfcRoadPart entity for the specified type.
+
+        Args:
+            road_part_type: IfcRoadPartTypeEnum value (e.g., 'TRAFFICLANE', 'SHOULDER')
+            name: Optional custom name (defaults to type-based name)
+
+        Returns:
+            IfcRoadPart entity or None if no road exists
+        """
+        if not cls.file or not cls.road:
+            logger.warning("Cannot create IfcRoadPart - no file or road entity")
+            return None
+
+        # Check if already exists
+        if road_part_type in cls.road_parts:
+            return cls.road_parts[road_part_type]
+
+        # Create new IfcRoadPart
+        road_part_name = name or f"{road_part_type.replace('_', ' ').title()}"
+
+        # Get road placement for relative positioning
+        road_placement = None
+        if hasattr(cls.road, 'ObjectPlacement') and cls.road.ObjectPlacement:
+            road_placement = cls.road.ObjectPlacement
+
+        part_placement = create_local_placement(cls.file, relative_to=road_placement)
+
+        road_part = cls.file.create_entity(
+            "IfcRoadPart",
+            GlobalId=ifcopenshell.guid.new(),
+            Name=road_part_name,
+            Description=f"Road part of type {road_part_type}",
+            ObjectPlacement=part_placement,
+            PredefinedType=road_part_type
+        )
+
+        # Create aggregation relationship (Road contains RoadPart)
+        cls.file.create_entity(
+            "IfcRelAggregates",
+            GlobalId=ifcopenshell.guid.new(),
+            Name=f"RoadContains{road_part_type}",
+            RelatingObject=cls.road,
+            RelatedObjects=[road_part]
+        )
+
+        # Store reference
+        cls.road_parts[road_part_type] = road_part
+
+        # Create Blender hierarchy visualization
+        cls._create_road_part_empty(road_part_type, road_part)
+
+        logger.info(f"Created IfcRoadPart: {road_part_name} ({road_part_type})")
+
+        return road_part
+
+    @classmethod
+    def _create_road_part_empty(
+        cls,
+        road_part_type: str,
+        road_part: ifcopenshell.entity_instance
+    ) -> Optional[bpy.types.Object]:
+        """
+        Create Blender empty for a road part in the hierarchy.
+
+        Args:
+            road_part_type: Type of road part
+            road_part: IfcRoadPart entity
+
+        Returns:
+            Created empty object or None
+        """
+        from .blender_hierarchy import ROAD_EMPTY_NAME, get_or_find_object
+
+        # Find the road empty to parent to
+        road_empty = get_or_find_object(None, ROAD_EMPTY_NAME)
+        if not road_empty:
+            logger.warning("Cannot create road part empty - road empty not found")
+            return None
+
+        # Get display name
+        display_name = cls.ROAD_PART_DISPLAY_NAMES.get(
+            road_part_type, f"🔹 {road_part_type}"
+        )
+
+        # Create empty
+        part_empty = bpy.data.objects.new(display_name, None)
+        part_empty.empty_display_type = 'PLAIN_AXES'
+        part_empty.empty_display_size = 2.0
+        part_empty.parent = road_empty
+
+        # Link to collection
+        collection = cls.get_project_collection()
+        if collection:
+            collection.objects.link(part_empty)
+
+        # Link to IFC entity
+        cls.link_object(part_empty, road_part)
+
+        # Store reference
+        cls.road_part_empties[road_part_type] = part_empty
+
+        return part_empty
+
+    @classmethod
+    def get_road_part_for_component(
+        cls,
+        component_type: str
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Get the appropriate IfcRoadPart for a component type.
+
+        Args:
+            component_type: Component type (e.g., 'LANE', 'SHOULDER')
+
+        Returns:
+            IfcRoadPart entity or None
+        """
+        road_part_type = cls.COMPONENT_TO_ROAD_PART_TYPE.get(
+            component_type, 'ROADSEGMENT'
+        )
+        return cls.get_or_create_road_part(road_part_type)
+
+    @classmethod
+    def contain_in_road_part(
+        cls,
+        element: ifcopenshell.entity_instance,
+        road_part: ifcopenshell.entity_instance
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Add spatial containment for an element within a road part.
+
+        Args:
+            element: IFC element to contain
+            road_part: IfcRoadPart to contain it in
+
+        Returns:
+            IfcRelContainedInSpatialStructure entity or None
+        """
+        if not cls.file or not road_part:
+            return None
+
+        # Check if already contained in this road part
+        for rel in cls.file.by_type("IfcRelContainedInSpatialStructure"):
+            if rel.RelatingStructure == road_part:
+                if element in (rel.RelatedElements or []):
+                    return rel
+                # Add to existing relationship
+                existing = list(rel.RelatedElements or [])
+                existing.append(element)
+                rel.RelatedElements = existing
+                return rel
+
+        # Create new containment
+        containment = cls.file.create_entity(
+            "IfcRelContainedInSpatialStructure",
+            GlobalId=ifcopenshell.guid.new(),
+            Name=f"RoadPartContains{element.is_a()}",
+            RelatedElements=[element],
+            RelatingStructure=road_part
+        )
+
+        return containment
+
+    @classmethod
+    def get_road_part_empty(
+        cls,
+        road_part_type: str
+    ) -> Optional[bpy.types.Object]:
+        """
+        Get the Blender empty for a road part type.
+
+        Args:
+            road_part_type: IfcRoadPartTypeEnum value
+
+        Returns:
+            Blender empty object or None
+        """
+        return cls.road_part_empties.get(road_part_type)
+
+    # =========================================================================
+    # Cleanup
+    # =========================================================================
+
     @classmethod
     def clear(cls) -> None:
         """Clear all IFC data and Blender collections."""
@@ -522,6 +744,8 @@ class NativeIfcManager:
         cls.geometric_context = None
         cls.axis_subcontext = None
         cls.vertical_alignments = []
+        cls.road_parts = {}
+        cls.road_part_empties = {}
 
         clear_blender_hierarchy()
 

@@ -55,6 +55,33 @@ from ..core.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def update_assembly_total_width(assembly):
+    """
+    Calculate and update the total width of an assembly.
+
+    This function sums the widths of all components in the assembly,
+    keeping left and right sides separate and adding them together
+    for the full cross-section width.
+
+    Args:
+        assembly: BC_AssemblyProperties instance
+    """
+    left_width = 0.0
+    right_width = 0.0
+
+    for comp in assembly.components:
+        if comp.side == 'LEFT':
+            left_width += comp.width
+        elif comp.side == 'RIGHT':
+            right_width += comp.width
+        else:  # CENTER
+            # Center components contribute to both sides equally
+            left_width += comp.width / 2
+            right_width += comp.width / 2
+
+    assembly.total_width = left_width + right_width
+
+
 class BC_OT_CreateAssembly(Operator):
     """
     Create a new cross-section assembly.
@@ -196,7 +223,8 @@ class BC_OT_CreateAssembly(Operator):
         
         assembly.is_valid = True
         assembly.validation_message = "Template created successfully"
-    
+        update_assembly_total_width(assembly)
+
     def _create_four_lane_divided(self, assembly):
         """Populate assembly with four-lane divided template"""
         # Inside shoulder
@@ -253,7 +281,8 @@ class BC_OT_CreateAssembly(Operator):
         
         assembly.is_valid = True
         assembly.validation_message = "Template created successfully"
-    
+        update_assembly_total_width(assembly)
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -391,10 +420,13 @@ class BC_OT_AddComponent(Operator):
         
         # Set as active
         assembly.active_component_index = len(assembly.components) - 1
-        
+
+        # Update total width
+        update_assembly_total_width(assembly)
+
         self.report({'INFO'}, f"Added {comp.name}")
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -426,15 +458,18 @@ class BC_OT_RemoveComponent(Operator):
     def execute(self, context):
         cs = context.scene.bc_cross_section
         assembly = cs.assemblies[cs.active_assembly_index]
-        
+
         if assembly.active_component_index < len(assembly.components):
             name = assembly.components[assembly.active_component_index].name
             assembly.components.remove(assembly.active_component_index)
-            
+
             # Adjust active index
             if assembly.active_component_index >= len(assembly.components):
                 assembly.active_component_index = max(0, len(assembly.components) - 1)
-            
+
+            # Update total width
+            update_assembly_total_width(assembly)
+
             self.report({'INFO'}, f"Removed component '{name}'")
             return {'FINISHED'}
         else:
@@ -724,6 +759,9 @@ class BC_OT_ValidateAssembly(Operator):
                 if comp.lane_type == 'TRAVEL' and comp.width < 3.0:
                     warnings.append(f"{comp.name}: Narrow travel lane ({comp.width}m)")
         
+        # Always update total width during validation
+        update_assembly_total_width(assembly)
+
         # Update assembly status
         if errors:
             assembly.is_valid = False
@@ -738,7 +776,7 @@ class BC_OT_ValidateAssembly(Operator):
             assembly.is_valid = True
             assembly.validation_message = "Valid"
             self.report({'INFO'}, "Assembly validated successfully")
-        
+
         return {'FINISHED'}
 
 
@@ -912,6 +950,640 @@ class BC_OT_SaveAssemblyTemplate(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+class BC_OT_GenerateCrossSectionPreview(Operator):
+    """
+    Generate a 2D cross-section preview mesh.
+
+    Creates a flat 2D visualization of the cross-section assembly in the 3D view,
+    allowing users to see the component layout while building the assembly. This
+    preview does not require an alignment - it shows the cross-section shape at
+    the world origin.
+
+    The preview mesh is color-coded by component type:
+    - Lanes: Dark gray
+    - Shoulders: Light gray
+    - Curbs: White
+    - Ditches: Brown
+
+    Usage:
+        Called from the cross-section panel to visualize the assembly shape.
+        Updates the existing preview if one exists.
+    """
+    bl_idname = "bc.generate_cross_section_preview"
+    bl_label = "Generate Preview"
+    bl_description = "Generate a 2D preview of the cross-section assembly"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Component type colors (R, G, B, A)
+    COMPONENT_COLORS = {
+        'LANE': (0.3, 0.3, 0.3, 1.0),
+        'SHOULDER': (0.5, 0.5, 0.45, 1.0),
+        'CURB': (0.8, 0.8, 0.8, 1.0),
+        'DITCH': (0.4, 0.3, 0.2, 1.0),
+        'MEDIAN': (0.2, 0.6, 0.2, 1.0),
+        'SIDEWALK': (0.7, 0.7, 0.7, 1.0),
+        'CUSTOM': (0.6, 0.6, 0.6, 1.0),
+    }
+
+    @classmethod
+    def poll(cls, context):
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        assembly = cs.assemblies[cs.active_assembly_index]
+        return len(assembly.components) > 0
+
+    def execute(self, context):
+        import bmesh
+
+        cs = context.scene.bc_cross_section
+        assembly = cs.assemblies[cs.active_assembly_index]
+
+        # Collection for preview objects
+        collection_name = "Cross-Section Preview"
+        if collection_name in bpy.data.collections:
+            collection = bpy.data.collections[collection_name]
+            # Clear existing preview objects
+            for obj in list(collection.objects):
+                bpy.data.objects.remove(obj, do_unlink=True)
+        else:
+            collection = bpy.data.collections.new(collection_name)
+            context.scene.collection.children.link(collection)
+
+        # Calculate cross-section points for all components
+        all_points = []
+
+        # Sort components by side and offset for proper layout
+        left_components = []
+        right_components = []
+
+        for comp in assembly.components:
+            if comp.side == 'LEFT':
+                left_components.append(comp)
+            else:
+                right_components.append(comp)
+
+        # Process LEFT components (negative X direction)
+        current_x = 0.0
+        for comp in left_components:
+            points = self._calculate_component_points(comp, current_x, direction=-1)
+            if points:
+                all_points.append((comp.component_type, points))
+                current_x = points[-1][0]  # Update position for next component
+
+        # Process RIGHT components (positive X direction)
+        current_x = 0.0
+        for comp in right_components:
+            points = self._calculate_component_points(comp, current_x, direction=1)
+            if points:
+                all_points.append((comp.component_type, points))
+                current_x = points[-1][0]
+
+        # Create mesh objects for each component
+        for idx, (comp_type, points) in enumerate(all_points):
+            if len(points) < 2:
+                continue
+
+            # Create mesh
+            mesh_name = f"Preview_{comp_type}_{idx}"
+            mesh = bpy.data.meshes.new(mesh_name)
+            obj = bpy.data.objects.new(mesh_name, mesh)
+            collection.objects.link(obj)
+
+            # Build geometry
+            bm = bmesh.new()
+
+            # Create vertices for the profile (as a line with thickness)
+            thickness = 0.1  # Visual thickness for the preview
+
+            # Top edge vertices
+            top_verts = []
+            for x, z in points:
+                vert = bm.verts.new((x, 0.0, z))
+                top_verts.append(vert)
+
+            # Bottom edge vertices (for closed cross-section)
+            bottom_verts = []
+            for x, z in reversed(points):
+                vert = bm.verts.new((x, 0.0, z - thickness))
+                bottom_verts.append(vert)
+
+            # Create face
+            all_verts = top_verts + bottom_verts
+            if len(all_verts) >= 3:
+                try:
+                    bm.faces.new(all_verts)
+                except ValueError:
+                    # Face creation failed, use edges instead
+                    for i in range(len(top_verts) - 1):
+                        bm.edges.new((top_verts[i], top_verts[i + 1]))
+
+            bm.to_mesh(mesh)
+            bm.free()
+
+            # Apply material
+            mat = self._get_or_create_material(comp_type)
+            if mat:
+                obj.data.materials.append(mat)
+
+        # Also create a centerline marker
+        centerline_mesh = bpy.data.meshes.new("Preview_Centerline")
+        centerline_obj = bpy.data.objects.new("Preview_Centerline", centerline_mesh)
+        collection.objects.link(centerline_obj)
+
+        # Simple vertical line at origin
+        verts = [(0, 0, -0.5), (0, 0, 0.5)]
+        edges = [(0, 1)]
+        centerline_mesh.from_pydata(verts, edges, [])
+
+        # Frame the view on the preview
+        try:
+            # Select all preview objects
+            for obj in collection.objects:
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+
+            # Frame selected in view
+            bpy.ops.view3d.view_selected(use_all_regions=False)
+        except Exception:
+            pass  # May fail if no 3D view is active
+
+        # Ensure total width is updated
+        update_assembly_total_width(assembly)
+
+        self.report({'INFO'}, f"Generated preview with {len(all_points)} components")
+        return {'FINISHED'}
+
+    def _calculate_component_points(self, comp, start_x, direction=1):
+        """
+        Calculate 2D points for a component.
+
+        Args:
+            comp: Component properties
+            start_x: Starting X position
+            direction: 1 for right, -1 for left
+
+        Returns:
+            List of (x, z) tuples
+        """
+        points = []
+
+        if comp.component_type == 'LANE':
+            # Simple sloped lane
+            points.append((start_x, 0.0))
+            end_x = start_x + direction * comp.width
+            end_z = comp.width * comp.cross_slope * direction
+            points.append((end_x, end_z))
+
+        elif comp.component_type == 'SHOULDER':
+            # Similar to lane but with steeper slope
+            points.append((start_x, 0.0))
+            end_x = start_x + direction * comp.width
+            end_z = comp.width * comp.cross_slope * direction
+            points.append((end_x, end_z))
+
+        elif comp.component_type == 'CURB':
+            # Curb with vertical face
+            points.append((start_x, 0.0))
+            points.append((start_x, comp.curb_height))
+            end_x = start_x + direction * comp.width
+            points.append((end_x, comp.curb_height))
+            points.append((end_x, 0.0))
+
+        elif comp.component_type == 'DITCH':
+            # Trapezoidal ditch
+            start_z = 0.0  # Top of foreslope
+            foreslope_width = comp.depth * comp.foreslope
+            backslope_width = comp.depth * comp.backslope
+
+            # Foreslope start
+            points.append((start_x, start_z))
+            # Bottom of foreslope
+            fore_x = start_x + direction * foreslope_width
+            points.append((fore_x, start_z - comp.depth))
+            # Across bottom
+            bottom_end_x = fore_x + direction * comp.bottom_width
+            points.append((bottom_end_x, start_z - comp.depth))
+            # Top of backslope
+            back_x = bottom_end_x + direction * backslope_width
+            points.append((back_x, start_z))
+
+        elif comp.component_type == 'MEDIAN':
+            # Raised or flush median
+            points.append((start_x, 0.0))
+            points.append((start_x, 0.15))  # Default raised height
+            end_x = start_x + direction * comp.width
+            points.append((end_x, 0.15))
+            points.append((end_x, 0.0))
+
+        elif comp.component_type == 'SIDEWALK':
+            # Flat sidewalk
+            points.append((start_x, 0.0))
+            end_x = start_x + direction * comp.width
+            end_z = comp.width * comp.cross_slope * direction
+            points.append((end_x, end_z))
+
+        else:
+            # Generic component
+            points.append((start_x, 0.0))
+            end_x = start_x + direction * comp.width
+            points.append((end_x, 0.0))
+
+        return points
+
+    def _get_or_create_material(self, component_type):
+        """Get or create a material for a component type."""
+        mat_name = f"Preview_{component_type}"
+
+        if mat_name in bpy.data.materials:
+            return bpy.data.materials[mat_name]
+
+        # Create new material
+        mat = bpy.data.materials.new(name=mat_name)
+        mat.use_nodes = True
+
+        color = self.COMPONENT_COLORS.get(component_type, (0.6, 0.6, 0.6, 1.0))
+
+        if mat.node_tree:
+            bsdf = mat.node_tree.nodes.get('Principled BSDF')
+            if bsdf:
+                bsdf.inputs['Base Color'].default_value = color
+                bsdf.inputs['Roughness'].default_value = 0.8
+
+        return mat
+
+
+class BC_OT_ClearCrossSectionPreview(Operator):
+    """
+    Clear the cross-section preview from the 3D view.
+
+    Removes all preview objects created by Generate Preview, cleaning up
+    the scene when the preview is no longer needed.
+
+    Usage:
+        Called from the cross-section panel to clear the preview.
+    """
+    bl_idname = "bc.clear_cross_section_preview"
+    bl_label = "Clear Preview"
+    bl_description = "Clear the cross-section preview from the 3D view"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        return "Cross-Section Preview" in bpy.data.collections
+
+    def execute(self, context):
+        collection_name = "Cross-Section Preview"
+
+        if collection_name in bpy.data.collections:
+            collection = bpy.data.collections[collection_name]
+            # Remove all objects in the collection
+            for obj in list(collection.objects):
+                bpy.data.objects.remove(obj, do_unlink=True)
+            # Remove the collection itself
+            bpy.data.collections.remove(collection)
+
+        self.report({'INFO'}, "Cleared cross-section preview")
+        return {'FINISHED'}
+
+
+# ============================================================================
+# CROSS-SECTION OVERLAY OPERATORS (OpenRoads-style viewer)
+# ============================================================================
+
+class BC_OT_ToggleCrossSectionView(Operator):
+    """
+    Toggle the cross-section overlay viewer on/off.
+
+    This operator provides an OpenRoads-style cross-section viewer that
+    displays the assembly as a 2D overlay in the viewport, rather than
+    creating 3D geometry in the model space.
+
+    The overlay viewer shows:
+    - Cross-section profile with colored components
+    - Grid with offset and elevation labels
+    - Centerline reference
+    - Component names and dimensions
+
+    Usage:
+        Press to toggle the overlay on/off. When enabled, the overlay
+        appears at the bottom of the 3D viewport.
+    """
+    bl_idname = "bc.toggle_cross_section_view"
+    bl_label = "Toggle Cross-Section Viewer"
+    bl_description = "Toggle the cross-section overlay viewer (OpenRoads-style)"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+
+        overlay = get_cross_section_overlay()
+        overlay.toggle(context)
+
+        if overlay.enabled:
+            # Load active assembly if available
+            self._load_active_assembly(context, overlay)
+
+            # Start the interaction modal operator for drag/resize/hover
+            if not BC_OT_CrossSectionViewInteraction._is_running:
+                bpy.ops.bc.cross_section_view_interaction('INVOKE_DEFAULT')
+
+            self.report({'INFO'}, "Cross-section viewer enabled")
+        else:
+            self.report({'INFO'}, "Cross-section viewer disabled")
+
+        return {'FINISHED'}
+
+    def _load_active_assembly(self, context, overlay):
+        """Load the active assembly into the overlay."""
+        if not hasattr(context.scene, 'bc_cross_section'):
+            return
+
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index < 0 or cs.active_assembly_index >= len(cs.assemblies):
+            return
+
+        assembly = cs.assemblies[cs.active_assembly_index]
+        overlay.load_from_assembly(assembly)
+
+
+class BC_OT_LoadAssemblyToView(Operator):
+    """
+    Load the active assembly into the cross-section overlay viewer.
+
+    This refreshes the overlay with the current active assembly's data,
+    updating the visualization to show any changes made to components.
+
+    Usage:
+        Call after making changes to the assembly to refresh the viewer.
+    """
+    bl_idname = "bc.load_assembly_to_view"
+    bl_label = "Load to Viewer"
+    bl_description = "Load the active assembly into the cross-section viewer"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        if not hasattr(context.scene, 'bc_cross_section'):
+            return False
+        cs = context.scene.bc_cross_section
+        return cs.active_assembly_index >= 0 and cs.active_assembly_index < len(cs.assemblies)
+
+    def execute(self, context):
+        from ..core.cross_section_view_overlay import (
+            get_cross_section_overlay,
+            load_active_assembly_to_overlay
+        )
+
+        overlay = get_cross_section_overlay()
+
+        # Enable overlay if not already enabled
+        if not overlay.enabled:
+            overlay.enable(context)
+
+        # Load the active assembly
+        success = load_active_assembly_to_overlay(context)
+
+        if success:
+            cs = context.scene.bc_cross_section
+            assembly = cs.assemblies[cs.active_assembly_index]
+            self.report({'INFO'}, f"Loaded assembly: {assembly.name}")
+        else:
+            self.report({'WARNING'}, "Failed to load assembly")
+
+        return {'FINISHED'}
+
+
+class BC_OT_RefreshCrossSectionView(Operator):
+    """
+    Refresh the cross-section overlay viewer.
+
+    Forces a redraw of the overlay with the current assembly data.
+
+    Usage:
+        Call to force a refresh after external changes.
+    """
+    bl_idname = "bc.refresh_cross_section_view"
+    bl_label = "Refresh Viewer"
+    bl_description = "Refresh the cross-section overlay viewer"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+        return get_cross_section_overlay().enabled
+
+    def execute(self, context):
+        from ..core.cross_section_view_overlay import (
+            get_cross_section_overlay,
+            load_active_assembly_to_overlay
+        )
+
+        # Reload the active assembly
+        load_active_assembly_to_overlay(context)
+
+        # Force redraw
+        overlay = get_cross_section_overlay()
+        overlay.refresh(context)
+
+        self.report({'INFO'}, "Cross-section viewer refreshed")
+        return {'FINISHED'}
+
+
+class BC_OT_FitCrossSectionView(Operator):
+    """
+    Fit the cross-section view to show all components.
+
+    Adjusts the view extents to show the full cross-section with
+    appropriate padding.
+    """
+    bl_idname = "bc.fit_cross_section_view"
+    bl_label = "Fit to Data"
+    bl_description = "Fit the cross-section view to show all components"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+        overlay = get_cross_section_overlay()
+        return overlay.enabled and len(overlay.data.components) > 0
+
+    def execute(self, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+
+        overlay = get_cross_section_overlay()
+        overlay.data.update_view_extents()
+        overlay.refresh(context)
+
+        self.report({'INFO'}, "View fitted to cross-section data")
+        return {'FINISHED'}
+
+
+class BC_OT_SetCrossSectionViewPosition(Operator):
+    """
+    Set the cross-section overlay viewer position/anchor.
+
+    Allows positioning the overlay at different edges of the viewport
+    or as a floating, draggable window.
+
+    Positions:
+    - BOTTOM: Anchored to bottom edge (default)
+    - TOP: Anchored to top edge
+    - LEFT: Anchored to left edge
+    - RIGHT: Anchored to right edge
+    - FLOATING: Free-floating, draggable with title bar
+    """
+    bl_idname = "bc.set_cross_section_view_position"
+    bl_label = "Set Viewer Position"
+    bl_description = "Set the cross-section overlay position"
+    bl_options = {'REGISTER'}
+
+    position: bpy.props.EnumProperty(
+        name="Position",
+        description="Overlay anchor position",
+        items=[
+            ('BOTTOM', "Bottom", "Anchor to bottom edge"),
+            ('TOP', "Top", "Anchor to top edge"),
+            ('LEFT', "Left", "Anchor to left edge"),
+            ('RIGHT', "Right", "Anchor to right edge"),
+            ('FLOATING', "Floating", "Free-floating, draggable window"),
+        ],
+        default='BOTTOM'
+    )
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+        return get_cross_section_overlay().enabled
+
+    def execute(self, context):
+        from ..core.cross_section_view_overlay import (
+            get_cross_section_overlay,
+            OverlayPosition
+        )
+
+        overlay = get_cross_section_overlay()
+
+        # Convert string to enum
+        position_map = {
+            'BOTTOM': OverlayPosition.BOTTOM,
+            'TOP': OverlayPosition.TOP,
+            'LEFT': OverlayPosition.LEFT,
+            'RIGHT': OverlayPosition.RIGHT,
+            'FLOATING': OverlayPosition.FLOATING,
+        }
+
+        new_position = position_map.get(self.position, OverlayPosition.BOTTOM)
+        overlay.set_position(new_position)
+        overlay.refresh(context)
+
+        self.report({'INFO'}, f"Viewer position set to: {self.position}")
+        return {'FINISHED'}
+
+
+class BC_OT_CrossSectionViewInteraction(Operator):
+    """
+    Modal operator for cross-section overlay interaction.
+
+    This operator handles mouse events for:
+    - Dragging the floating overlay by the title bar
+    - Resizing the overlay by dragging edges
+    - Hovering over components
+    - Selecting components by clicking
+
+    The operator runs modally while the overlay is enabled, capturing
+    mouse events and routing them to the overlay's handler methods.
+
+    Usage:
+        Automatically started when the overlay is enabled in floating mode.
+        Can also be manually invoked to enable interaction.
+    """
+    bl_idname = "bc.cross_section_view_interaction"
+    bl_label = "Cross-Section View Interaction"
+    bl_description = "Enable mouse interaction with the cross-section overlay"
+    bl_options = {'INTERNAL'}
+
+    _is_running = False  # Class variable to track if modal is active
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+        overlay = get_cross_section_overlay()
+        return overlay.enabled and not cls._is_running
+
+    def invoke(self, context, event):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+
+        overlay = get_cross_section_overlay()
+        if not overlay.enabled:
+            self.report({'WARNING'}, "Cross-section overlay is not enabled")
+            return {'CANCELLED'}
+
+        # Mark as running
+        BC_OT_CrossSectionViewInteraction._is_running = True
+
+        # Add modal handler
+        context.window_manager.modal_handler_add(self)
+
+        logger.info("Cross-section view interaction started")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        from ..core.cross_section_view_overlay import get_cross_section_overlay
+
+        overlay = get_cross_section_overlay()
+
+        # Stop if overlay is disabled
+        if not overlay.enabled:
+            BC_OT_CrossSectionViewInteraction._is_running = False
+            context.window.cursor_set('DEFAULT')
+            logger.info("Cross-section view interaction stopped (overlay disabled)")
+            return {'CANCELLED'}
+
+        # Only process events in the VIEW_3D area
+        if context.area and context.area.type != 'VIEW_3D':
+            return {'PASS_THROUGH'}
+
+        # Handle mouse movement
+        if event.type == 'MOUSEMOVE':
+            handled = overlay.handle_mouse_move(context, event)
+            if handled:
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
+
+        # Handle mouse press
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            handled = overlay.handle_mouse_press(context, event)
+            if handled:
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
+
+        # Handle mouse release
+        if event.type == 'LEFTMOUSE' and event.value == 'RELEASE':
+            handled = overlay.handle_mouse_release(context, event)
+            if handled:
+                return {'RUNNING_MODAL'}
+            return {'PASS_THROUGH'}
+
+        # ESC key cancels drag/resize operations
+        if event.type == 'ESC' and event.value == 'PRESS':
+            if overlay.is_dragging or overlay.is_resizing:
+                overlay.is_dragging = False
+                overlay.is_resizing = False
+                context.window.cursor_set('DEFAULT')
+                if context.area:
+                    context.area.tag_redraw()
+                return {'RUNNING_MODAL'}
+
+        # Pass through all other events
+        return {'PASS_THROUGH'}
+
+    def cancel(self, context):
+        BC_OT_CrossSectionViewInteraction._is_running = False
+        context.window.cursor_set('DEFAULT')
+        logger.info("Cross-section view interaction cancelled")
+
+
 # Registration
 classes = (
     BC_OT_CreateAssembly,
@@ -926,6 +1598,15 @@ classes = (
     BC_OT_CalculateSection,
     BC_OT_ExportAssemblyIFC,
     BC_OT_SaveAssemblyTemplate,
+    BC_OT_GenerateCrossSectionPreview,
+    BC_OT_ClearCrossSectionPreview,
+    # Overlay-based viewer operators (OpenRoads-style)
+    BC_OT_ToggleCrossSectionView,
+    BC_OT_LoadAssemblyToView,
+    BC_OT_RefreshCrossSectionView,
+    BC_OT_FitCrossSectionView,
+    BC_OT_SetCrossSectionViewPosition,
+    BC_OT_CrossSectionViewInteraction,
 )
 
 

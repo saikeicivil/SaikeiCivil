@@ -38,27 +38,52 @@ from bpy.types import PropertyGroup
 from bpy.props import BoolProperty, FloatProperty, IntProperty
 
 
-def _update_view_extents(self, context):
-    """
-    Update callback for view extents properties.
-    Synchronizes UI property values to ProfileViewData and triggers viewport refresh.
-    """
-    # Get the profile overlay and update view extents
+def _update_station_min(self, context):
+    """Update callback for station_min property."""
     try:
         from ..core.profile_view_overlay import get_profile_overlay
         overlay = get_profile_overlay()
-
-        # Sync property values to the data object
         overlay.data.station_min = self.station_min
-        overlay.data.station_max = self.station_max
-        overlay.data.elevation_min = self.elevation_min
-        overlay.data.elevation_max = self.elevation_max
-
-        # Refresh viewport if enabled
         if overlay.enabled:
             overlay.refresh(context)
     except:
-        pass  # Overlay not available yet
+        pass
+
+
+def _update_station_max(self, context):
+    """Update callback for station_max property."""
+    try:
+        from ..core.profile_view_overlay import get_profile_overlay
+        overlay = get_profile_overlay()
+        overlay.data.station_max = self.station_max
+        if overlay.enabled:
+            overlay.refresh(context)
+    except:
+        pass
+
+
+def _update_elevation_min(self, context):
+    """Update callback for elevation_min property."""
+    try:
+        from ..core.profile_view_overlay import get_profile_overlay
+        overlay = get_profile_overlay()
+        overlay.data.elevation_min = self.elevation_min
+        if overlay.enabled:
+            overlay.refresh(context)
+    except:
+        pass
+
+
+def _update_elevation_max(self, context):
+    """Update callback for elevation_max property."""
+    try:
+        from ..core.profile_view_overlay import get_profile_overlay
+        overlay = get_profile_overlay()
+        overlay.data.elevation_max = self.elevation_max
+        if overlay.enabled:
+            overlay.refresh(context)
+    except:
+        pass
 
 
 def _update_display_toggle(self, context):
@@ -124,7 +149,7 @@ class BC_ProfileViewProperties(PropertyGroup):
         description="Minimum station value (m)",
         default=0.0,
         unit='LENGTH',
-        update=_update_view_extents
+        update=_update_station_min
     )
 
     station_max: FloatProperty(
@@ -132,7 +157,7 @@ class BC_ProfileViewProperties(PropertyGroup):
         description="Maximum station value (m)",
         default=1000.0,
         unit='LENGTH',
-        update=_update_view_extents
+        update=_update_station_max
     )
 
     elevation_min: FloatProperty(
@@ -140,7 +165,7 @@ class BC_ProfileViewProperties(PropertyGroup):
         description="Minimum elevation value (m)",
         default=0.0,
         unit='LENGTH',
-        update=_update_view_extents
+        update=_update_elevation_min
     )
 
     elevation_max: FloatProperty(
@@ -148,7 +173,7 @@ class BC_ProfileViewProperties(PropertyGroup):
         description="Maximum elevation value (m)",
         default=100.0,
         unit='LENGTH',
-        update=_update_view_extents
+        update=_update_elevation_max
     )
     
     # Grid settings

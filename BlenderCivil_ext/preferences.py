@@ -1,13 +1,13 @@
 # ==============================================================================
 # BlenderCivil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,6 +22,7 @@
 BlenderCivil Extension Preferences
 
 Stores user preferences including API keys for external services.
+Also includes Dependencies and Validation tools.
 """
 
 import bpy
@@ -47,7 +48,57 @@ class BlenderCivilPreferences(AddonPreferences):
         """Draw preferences UI"""
         layout = self.layout
 
-        # MapTiler API Section
+        # ===========================================
+        # DEPENDENCIES SECTION
+        # ===========================================
+        box = layout.box()
+        box.label(text="Dependencies", icon='PACKAGE')
+
+        # Import dependency manager
+        from .core import dependency_manager
+
+        # Check dependencies
+        results = dependency_manager.DependencyManager.check_all_dependencies()
+        has_missing = dependency_manager.DependencyManager.has_missing_dependencies()
+
+        if has_missing:
+            # Show warning
+            col = box.column(align=True)
+            col.label(text="Missing dependencies:", icon='ERROR')
+            col.separator(factor=0.5)
+
+            # List missing dependencies
+            for dep_key, (available, version) in results.items():
+                if not available:
+                    dep_info = dependency_manager.DependencyManager.DEPENDENCIES[dep_key]
+                    row = col.row()
+                    row.label(text=f"  ✗ {dep_info['display_name']}")
+
+            col.separator()
+
+            # Install button
+            col.operator("blendercivil.install_dependencies", icon='IMPORT')
+
+        else:
+            # All dependencies available
+            col = box.column(align=True)
+            col.label(text="All dependencies installed", icon='CHECKMARK')
+            col.separator(factor=0.5)
+
+            # List installed dependencies
+            for dep_key, (available, version) in results.items():
+                dep_info = dependency_manager.DependencyManager.DEPENDENCIES[dep_key]
+                version_str = f" ({version})" if version != "unknown" else ""
+                col.label(text=f"  ✓ {dep_info['display_name']}{version_str}")
+
+        # Check status button
+        box.operator("blendercivil.check_dependencies", icon='FILE_REFRESH', text="Refresh Status")
+
+        layout.separator()
+
+        # ===========================================
+        # MAPTILER API SECTION
+        # ===========================================
         box = layout.box()
         box.label(text="MapTiler Coordinates API", icon='WORLD')
 
@@ -64,6 +115,18 @@ class BlenderCivilPreferences(AddonPreferences):
             box.label(text="✓ API key saved", icon='INFO')
         else:
             box.label(text="⚠ No API key set - CRS search will not work", icon='ERROR')
+
+        layout.separator()
+
+        # ===========================================
+        # VALIDATION/DEBUG SECTION
+        # ===========================================
+        box = layout.box()
+        box.label(text="Validation & Debugging", icon='CHECKMARK')
+
+        col = box.column(align=True)
+        col.operator("bc.validate_ifc_alignment", text="Validate IFC", icon='FILE_TICK')
+        col.operator("bc.list_all_ifc_objects", text="List All IFC Objects", icon='OUTLINER')
 
 
 class BC_OT_test_maptiler_connection(bpy.types.Operator):

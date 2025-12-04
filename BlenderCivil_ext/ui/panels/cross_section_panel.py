@@ -272,7 +272,8 @@ class BC_PT_CrossSection_Components(Panel):
             col.prop(comp, "width")
             col.prop(comp, "cross_slope")
             col.prop(comp, "offset")
-            
+            col.prop(comp, "surface_thickness")
+
             # Type-specific properties
             if comp.component_type == 'LANE':
                 col.separator()
@@ -421,6 +422,129 @@ class BC_PT_CrossSection_Query(Panel):
             col.label(text=f"Total Width: {assembly.total_width:.2f}m")
 
 
+class BC_PT_CrossSection_Preview(Panel):
+    """Cross-Section Viewer panel (OpenRoads-style overlay)"""
+    bl_label = "Cross-Section Viewer"
+    bl_idname = "BC_PT_cross_section_preview"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = "BlenderCivil"
+    bl_parent_id = "BC_PT_cross_section_main"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        assembly = cs.assemblies[cs.active_assembly_index]
+        return len(assembly.components) > 0
+
+    def draw(self, context):
+        layout = self.layout
+
+        # Get overlay status
+        try:
+            from ...core.cross_section_view_overlay import get_cross_section_overlay
+            overlay = get_cross_section_overlay()
+            is_enabled = overlay.enabled
+        except ImportError:
+            is_enabled = False
+
+        # Overlay Viewer controls (OpenRoads-style)
+        box = layout.box()
+        box.label(text="Overlay Viewer", icon='OVERLAY')
+
+        col = box.column(align=True)
+
+        # Toggle button with status indication
+        if is_enabled:
+            col.operator("bc.toggle_cross_section_view",
+                        text="Disable Viewer", icon='HIDE_ON')
+            col.operator("bc.load_assembly_to_view",
+                        text="Refresh Data", icon='FILE_REFRESH')
+            col.operator("bc.fit_cross_section_view",
+                        text="Fit to Data", icon='FULLSCREEN_ENTER')
+
+            # Position controls
+            box2 = layout.box()
+            box2.label(text="Position", icon='ORIENTATION_GLOBAL')
+            row = box2.row(align=True)
+            row.scale_x = 0.9
+
+            # Position buttons
+            op = row.operator("bc.set_cross_section_view_position",
+                             text="", icon='TRIA_DOWN')
+            op.position = 'BOTTOM'
+
+            op = row.operator("bc.set_cross_section_view_position",
+                             text="", icon='TRIA_UP')
+            op.position = 'TOP'
+
+            op = row.operator("bc.set_cross_section_view_position",
+                             text="", icon='TRIA_LEFT')
+            op.position = 'LEFT'
+
+            op = row.operator("bc.set_cross_section_view_position",
+                             text="", icon='TRIA_RIGHT')
+            op.position = 'RIGHT'
+
+            op = row.operator("bc.set_cross_section_view_position",
+                             text="Float", icon='WINDOW')
+            op.position = 'FLOATING'
+
+            # Current position display
+            from ...core.cross_section_view_overlay import OverlayPosition
+            pos_names = {
+                OverlayPosition.BOTTOM: "Bottom",
+                OverlayPosition.TOP: "Top",
+                OverlayPosition.LEFT: "Left",
+                OverlayPosition.RIGHT: "Right",
+                OverlayPosition.FLOATING: "Floating",
+            }
+            current_pos = pos_names.get(overlay.position, "Unknown")
+            box2.label(text=f"Current: {current_pos}")
+
+            # Status info
+            box3 = layout.box()
+            box3.label(text="Viewer Status", icon='INFO')
+            col3 = box3.column(align=True)
+            col3.scale_y = 0.8
+            col3.label(text=f"Components: {len(overlay.data.components)}")
+            if overlay.data.assembly_name:
+                col3.label(text=f"Assembly: {overlay.data.assembly_name}")
+
+            # Interaction hints
+            if overlay.position == OverlayPosition.FLOATING:
+                col3.label(text="Drag title bar to move")
+                col3.label(text="Drag edges to resize")
+            else:
+                col3.label(text="Drag edge to resize")
+        else:
+            col.operator("bc.toggle_cross_section_view",
+                        text="Enable Viewer", icon='HIDE_OFF')
+
+            # Help text
+            box2 = layout.box()
+            box2.label(text="Viewer Info", icon='INFO')
+            col2 = box2.column(align=True)
+            col2.scale_y = 0.8
+            col2.label(text="OpenRoads-style cross-section")
+            col2.label(text="viewer as viewport overlay.")
+            col2.label(text="Shows components, grid, labels.")
+
+        # Legacy 3D Preview (collapsible section)
+        box = layout.box()
+        box.label(text="3D Mesh Preview (Legacy)", icon='MESH_DATA')
+
+        col = box.column(align=True)
+        col.scale_y = 0.9
+        col.operator("bc.generate_cross_section_preview",
+                    text="Generate 3D Preview", icon='PLAY')
+        col.operator("bc.clear_cross_section_preview",
+                    text="Clear 3D Preview", icon='X')
+
+
 class BC_PT_CrossSection_Export(Panel):
     """IFC export panel"""
     bl_label = "IFC Export"
@@ -479,6 +603,7 @@ classes = (
     BC_PT_CrossSection_Materials,
     BC_PT_CrossSection_Constraints,
     BC_PT_CrossSection_Query,
+    BC_PT_CrossSection_Preview,
     BC_PT_CrossSection_Export,
 )
 

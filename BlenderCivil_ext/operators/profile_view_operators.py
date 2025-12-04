@@ -488,15 +488,60 @@ class BC_OT_ProfileView_FitToData(Operator):
     bl_label = "Fit to Data"
     bl_description = "Automatically adjust view extents to fit all data"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     def execute(self, context):
         from ..core.profile_view_overlay import get_profile_overlay
-        
+        from ..core.logging_config import get_logger
+
+        logger = get_logger(__name__)
         overlay = get_profile_overlay()
-        overlay.data.update_view_extents()
+        data = overlay.data
+
+        # Count data points
+        num_terrain = len(data.terrain_points)
+        num_alignment = len(data.alignment_points)
+        num_pvis = len(data.pvis)
+        num_valigns = len(data.vertical_alignments)
+
+        # Count PVIs from vertical alignments
+        num_valign_pvis = sum(len(va.pvis) for va in data.vertical_alignments)
+
+        total_points = num_terrain + num_alignment + num_pvis + num_valign_pvis
+
+        logger.info("Fit to Data: terrain=%d, alignment=%d, pvis=%d, valigns=%d (pvis=%d)",
+                   num_terrain, num_alignment, num_pvis, num_valigns, num_valign_pvis)
+
+        if total_points == 0:
+            self.report({'WARNING'}, "No data to fit - load terrain or vertical alignment first")
+            return {'CANCELLED'}
+
+        # Store old extents for comparison
+        old_extents = (data.station_min, data.station_max,
+                      data.elevation_min, data.elevation_max)
+
+        # Update view extents
+        data.update_view_extents()
+
+        new_extents = (data.station_min, data.station_max,
+                      data.elevation_min, data.elevation_max)
+
+        logger.info("View extents: Station %.1f to %.1f, Elevation %.1f to %.1f",
+                   data.station_min, data.station_max,
+                   data.elevation_min, data.elevation_max)
+
+        # Also sync to UI properties directly
+        if hasattr(context.scene, 'bc_profile_view_props'):
+            props = context.scene.bc_profile_view_props
+            props.station_min = data.station_min
+            props.station_max = data.station_max
+            props.elevation_min = data.elevation_min
+            props.elevation_max = data.elevation_max
+
         overlay.refresh(context)
-        
-        self.report({'INFO'}, "Fitted view to data")
+
+        self.report({'INFO'},
+                   f"Fitted view: Station {data.station_min:.0f}-{data.station_max:.0f}m, "
+                   f"Elev {data.elevation_min:.0f}-{data.elevation_max:.0f}m")
         return {'FINISHED'}
 
 

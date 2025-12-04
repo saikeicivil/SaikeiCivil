@@ -77,46 +77,10 @@ class BC_PT_ProfileViewPanel(Panel):
         
         if not enabled:
             return
-        
-        # Data loading section
-        box = layout.box()
-        box.label(text="Load Data", icon='IMPORT')
-        
-        col = box.column(align=True)
-        col.operator("blendercivil.profile_view_load_from_sprint3", 
-                    text="Load from Sprint 3", icon='CURVE_BEZCIRCLE')
-        col.operator("blendercivil.profile_view_load_terrain",
-                    text="Load Terrain", icon='MESH_GRID')
-        col.separator()
-        col.operator("blendercivil.profile_view_sync_to_sprint3",
-                    text="Sync to Sprint 3", icon='FILE_REFRESH')
-        
-        # Display settings
-        box = layout.box()
-        box.label(text="Display", icon='PREFERENCES')
-        
+
+        # Get properties for view extents
         props = context.scene.bc_profile_view_props
-        
-        row = box.row(align=True)
-        row.prop(props, "show_terrain", text="", icon='MESH_GRID')
-        row.label(text="Terrain")
-        
-        row = box.row(align=True)
-        row.prop(props, "show_alignment", text="", icon='CURVE_PATH')
-        row.label(text="Alignment")
-        
-        row = box.row(align=True)
-        row.prop(props, "show_pvis", text="", icon='CURVE_BEZCIRCLE')
-        row.label(text="PVIs")
-        
-        row = box.row(align=True)
-        row.prop(props, "show_grades", text="", icon='DRIVER_DISTANCE')
-        row.label(text="Grades")
-        
-        row = box.row(align=True)
-        row.prop(props, "show_grid", text="", icon='GRID')
-        row.label(text="Grid")
-        
+
         # PVI Operations
         box = layout.box()
         box.label(text="PVI Operations", icon='CURVE_BEZCIRCLE')

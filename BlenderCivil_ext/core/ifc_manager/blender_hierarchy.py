@@ -229,6 +229,9 @@ __all__ = [
     "add_alignment_to_hierarchy",
     "add_geomodel_to_hierarchy",
     "PROJECT_COLLECTION_NAME",
+    "PROJECT_EMPTY_NAME",
+    "SITE_EMPTY_NAME",
+    "ROAD_EMPTY_NAME",
     "ALIGNMENTS_EMPTY_NAME",
     "GEOMODELS_EMPTY_NAME",
 ]

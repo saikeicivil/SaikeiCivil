@@ -582,46 +582,47 @@ class CorridorModeler:
     def _create_cross_section_positions(self, directrix: Any) -> List[Any]:
         """
         Create IfcAxis2PlacementLinear positions for each cross-section.
-        
+
         Each position defines where and how a cross-section is placed
         along the directrix.
-        
+
+        Per IFC 4.3 specification for IfcSectionedSolidHorizontal:
+        - Location is IfcDistanceExpression (NOT IfcPointByDistanceExpression)
+        - OffsetLongitudinal MUST NOT be used (would create non-manifold geometry)
+        - Axis defaults to Z-up if not specified
+        - RefDirection defaults to perpendicular to directrix tangent
+
         Args:
             directrix: The directrix curve
-            
+
         Returns:
             List of IfcAxis2PlacementLinear entities
         """
         positions = []
-        
+
         for station_point in self.stations:
             # Create distance expression (parametric location on directrix)
+            # CRITICAL: OffsetLongitudinal must be None per IFC 4.3 spec
             distance_expr = self.ifc_file.create_entity(
                 "IfcDistanceExpression",
                 DistanceAlong=station_point.station,
                 OffsetLateral=0.0,  # No lateral offset
                 OffsetVertical=0.0,  # No vertical offset
-                OffsetLongitudinal=0.0  # No longitudinal offset
+                # OffsetLongitudinal intentionally omitted - MUST NOT be used
             )
-            
-            # Create point on curve using distance expression
-            point = self.ifc_file.create_entity(
-                "IfcPointByDistanceExpression",
-                BasisCurve=directrix,
-                DistanceAlong=distance_expr
-            )
-            
-            # Create axis placement (orientation at this point)
-            # Default orientation: perpendicular to curve, Z-up
+
+            # Create axis placement at this distance along directrix
+            # Per IFC 4.3: Location is directly the IfcDistanceExpression
+            # Axis and RefDirection default to appropriate values based on directrix
             placement = self.ifc_file.create_entity(
                 "IfcAxis2PlacementLinear",
-                Location=point,
-                Axis=None,  # Default: Z-up
-                RefDirection=None  # Default: perpendicular to directrix
+                Location=distance_expr,
+                Axis=None,  # Default: derived from directrix, typically Z-up
+                RefDirection=None  # Default: perpendicular to directrix tangent
             )
-            
+
             positions.append(placement)
-        
+
         return positions
     
     def get_station_count(self) -> int:
