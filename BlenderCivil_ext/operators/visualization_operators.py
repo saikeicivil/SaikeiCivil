@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,15 +22,15 @@
 Cross-Section Visualization Operators for Blender UI
 Sprint 4 Day 4 - Interactive visualization from panels
 
-These operators add one-click visualization buttons to the BlenderCivil UI,
+These operators add one-click visualization buttons to the Saikei Civil UI,
 making it easy to visualize cross-sections and corridors without scripting.
 
 Operators:
-- BLENDERCIVIL_OT_visualize_station: Visualize single cross-section
-- BLENDERCIVIL_OT_create_corridor: Create full 3D corridor
-- BLENDERCIVIL_OT_add_station_markers: Add station labels
-- BLENDERCIVIL_OT_clear_visualization: Clear all visualization
-- BLENDERCIVIL_OT_quick_preview: Quick preview at current station
+- SAIKEI_OT_visualize_station: Visualize single cross-section
+- SAIKEI_OT_create_corridor: Create full 3D corridor
+- SAIKEI_OT_add_station_markers: Add station labels
+- SAIKEI_OT_clear_visualization: Clear all visualization
+- SAIKEI_OT_quick_preview: Quick preview at current station
 """
 
 import bpy
@@ -42,9 +42,9 @@ from ..core.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class BLENDERCIVIL_OT_visualize_station(Operator):
+class SAIKEI_OT_visualize_station(Operator):
     """Visualize cross-section at a specific station"""
-    bl_idname = "blendercivil.visualize_station"
+    bl_idname = "saikei.visualize_station"
     bl_label = "Visualize Cross-Section"
     bl_description = "Create 3D geometry for cross-section at specified station"
     bl_options = {'REGISTER', 'UNDO'}
@@ -76,7 +76,7 @@ class BLENDERCIVIL_OT_visualize_station(Operator):
 
         # Get alignment and assembly from scene properties
         # This assumes they're stored in the scene
-        # TODO: Link to actual BlenderCivil data structures
+        # TODO: Link to actual Saikei Civil data structures
 
         logger.info("Visualizing cross-section at station %.2f", self.station)
         
@@ -91,8 +91,8 @@ class BLENDERCIVIL_OT_visualize_station(Operator):
             return {'CANCELLED'}
             
             # Example code (when data available):
-            # alignment_3d = scene.blendercivil.alignment_3d
-            # assembly = scene.blendercivil.active_assembly
+            # alignment_3d = scene.saikei.alignment_3d
+            # assembly = scene.saikei.active_assembly
             # 
             # viz = CrossSectionVisualizer(alignment_3d, assembly)
             # obj = viz.visualize_station(
@@ -113,9 +113,9 @@ class BLENDERCIVIL_OT_visualize_station(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
-class BLENDERCIVIL_OT_create_corridor(Operator):
+class SAIKEI_OT_create_corridor(Operator):
     """Create full 3D corridor from cross-sections"""
-    bl_idname = "blendercivil.create_corridor"
+    bl_idname = "saikei.create_corridor"
     bl_label = "Create Corridor"
     bl_description = "Sweep cross-sections along alignment to create 3D road model"
     bl_options = {'REGISTER', 'UNDO'}
@@ -177,8 +177,8 @@ class BLENDERCIVIL_OT_create_corridor(Operator):
             return {'CANCELLED'}
             
             # Example code:
-            # alignment_3d = context.scene.blendercivil.alignment_3d
-            # assembly = context.scene.blendercivil.active_assembly
+            # alignment_3d = context.scene.saikei.alignment_3d
+            # assembly = context.scene.saikei.active_assembly
             # 
             # viz = CrossSectionVisualizer(alignment_3d, assembly)
             # corridor = viz.create_corridor(
@@ -205,9 +205,9 @@ class BLENDERCIVIL_OT_create_corridor(Operator):
         return context.window_manager.invoke_props_dialog(self, width=400)
 
 
-class BLENDERCIVIL_OT_add_station_markers(Operator):
+class SAIKEI_OT_add_station_markers(Operator):
     """Add station marker labels along alignment"""
-    bl_idname = "blendercivil.add_station_markers"
+    bl_idname = "saikei.add_station_markers"
     bl_label = "Add Station Markers"
     bl_description = "Create station labels and markers along the alignment"
     bl_options = {'REGISTER', 'UNDO'}
@@ -256,8 +256,8 @@ class BLENDERCIVIL_OT_add_station_markers(Operator):
             return {'CANCELLED'}
             
             # Example code:
-            # alignment_3d = context.scene.blendercivil.alignment_3d
-            # assembly = context.scene.blendercivil.active_assembly
+            # alignment_3d = context.scene.saikei.alignment_3d
+            # assembly = context.scene.saikei.active_assembly
             # 
             # viz = CrossSectionVisualizer(alignment_3d, assembly)
             # markers = viz.create_station_markers(
@@ -279,9 +279,9 @@ class BLENDERCIVIL_OT_add_station_markers(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
-class BLENDERCIVIL_OT_clear_visualization(Operator):
+class SAIKEI_OT_clear_visualization(Operator):
     """Clear all visualization objects"""
-    bl_idname = "blendercivil.clear_visualization"
+    bl_idname = "saikei.clear_visualization"
     bl_label = "Clear Visualization"
     bl_description = "Remove all cross-section visualization objects from the scene"
     bl_options = {'REGISTER', 'UNDO'}
@@ -321,9 +321,9 @@ class BLENDERCIVIL_OT_clear_visualization(Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 
-class BLENDERCIVIL_OT_quick_preview(Operator):
+class SAIKEI_OT_quick_preview(Operator):
     """Quick preview of current cross-section"""
-    bl_idname = "blendercivil.quick_preview"
+    bl_idname = "saikei.quick_preview"
     bl_label = "Quick Preview"
     bl_description = "Instantly preview cross-section at current station (fast mode)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -336,7 +336,7 @@ class BLENDERCIVIL_OT_quick_preview(Operator):
         
         try:
             # TODO: Get current station from scene properties
-            # current_station = scene.blendercivil.current_station
+            # current_station = scene.saikei.current_station
             current_station = 0.0
             
             from cross_section_visualizer import visualize_cross_section_quick
@@ -346,8 +346,8 @@ class BLENDERCIVIL_OT_quick_preview(Operator):
             return {'CANCELLED'}
             
             # Example code:
-            # alignment_3d = scene.blendercivil.alignment_3d
-            # assembly = scene.blendercivil.active_assembly
+            # alignment_3d = scene.saikei.alignment_3d
+            # assembly = scene.saikei.active_assembly
             # 
             # obj = visualize_cross_section_quick(
             #     alignment_3d,
@@ -364,7 +364,7 @@ class BLENDERCIVIL_OT_quick_preview(Operator):
             return {'CANCELLED'}
 
 
-class BLENDERCIVIL_OT_component_preview(Operator):
+class SAIKEI_OT_component_preview(Operator):
     """
     Preview a single cross-section component in isolation.
 
@@ -381,7 +381,7 @@ class BLENDERCIVIL_OT_component_preview(Operator):
         Invoked from UI panels to preview individual assembly components.
         Helps verify component geometry before creating full corridor.
     """
-    bl_idname = "blendercivil.component_preview"
+    bl_idname = "saikei.component_preview"
     bl_label = "Preview Component"
     bl_description = "Visualize a single cross-section component"
     bl_options = {'REGISTER', 'UNDO'}
@@ -419,8 +419,8 @@ class BLENDERCIVIL_OT_component_preview(Operator):
             return {'CANCELLED'}
             
             # Example code:
-            # alignment_3d = context.scene.blendercivil.alignment_3d
-            # assembly = context.scene.blendercivil.active_assembly
+            # alignment_3d = context.scene.saikei.alignment_3d
+            # assembly = context.scene.saikei.active_assembly
             # 
             # component = assembly.get_component_by_name(self.component_name)
             # if not component:
@@ -448,12 +448,12 @@ class BLENDERCIVIL_OT_component_preview(Operator):
 
 # Registration
 classes = (
-    BLENDERCIVIL_OT_visualize_station,
-    BLENDERCIVIL_OT_create_corridor,
-    BLENDERCIVIL_OT_add_station_markers,
-    BLENDERCIVIL_OT_clear_visualization,
-    BLENDERCIVIL_OT_quick_preview,
-    BLENDERCIVIL_OT_component_preview,
+    SAIKEI_OT_visualize_station,
+    SAIKEI_OT_create_corridor,
+    SAIKEI_OT_add_station_markers,
+    SAIKEI_OT_clear_visualization,
+    SAIKEI_OT_quick_preview,
+    SAIKEI_OT_component_preview,
 )
 
 

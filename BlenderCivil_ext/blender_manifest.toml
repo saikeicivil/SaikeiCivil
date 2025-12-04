@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
-id = "blendercivil_ext"
-name = "BlenderCivil"
-tagline = "Native IFC civil engineering design tools"
-version = "0.5.0"
+id = "saikei_civil"
+name = "Saikei Civil"
+tagline = "Native IFC civil engineering design — the landscape around the buildings"
+version = "0.6.0"
 type = "add-on"
 
 maintainer = "Desert Springs CE, Michael Yoder"

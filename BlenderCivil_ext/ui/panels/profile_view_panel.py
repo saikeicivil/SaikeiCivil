@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +19,16 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View Panel (UI)
+Saikei Civil - Profile View Panel (UI)
 =======================================
 
 Blender UI panel for profile view controls.
 Displays in the 3D viewport sidebar (N-panel).
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - ui/ = Blender UI elements (properties, panels)
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """
@@ -69,10 +69,10 @@ class BC_PT_ProfileViewPanel(Panel):
         row = box.row()
         row.scale_y = 1.5
         if enabled:
-            row.operator("blendercivil.profile_view_toggle", 
+            row.operator("saikei.profile_view_toggle", 
                         text="Hide Profile View", icon='HIDE_ON')
         else:
-            row.operator("blendercivil.profile_view_toggle",
+            row.operator("saikei.profile_view_toggle",
                         text="Show Profile View", icon='HIDE_OFF')
         
         if not enabled:
@@ -86,9 +86,9 @@ class BC_PT_ProfileViewPanel(Panel):
         box.label(text="PVI Operations", icon='CURVE_BEZCIRCLE')
         
         col = box.column(align=True)
-        col.operator("blendercivil.profile_view_add_pvi",
+        col.operator("saikei.profile_view_add_pvi",
                     text="Add PVI", icon='ADD')
-        col.operator("blendercivil.profile_view_delete_selected_pvi",
+        col.operator("saikei.profile_view_delete_selected_pvi",
                     text="Delete Selected", icon='X')
         
         # View Controls
@@ -96,9 +96,9 @@ class BC_PT_ProfileViewPanel(Panel):
         box.label(text="View Controls", icon='VIEWZOOM')
         
         col = box.column(align=True)
-        col.operator("blendercivil.profile_view_fit_to_data",
+        col.operator("saikei.profile_view_fit_to_data",
                     text="Fit to Data", icon='FULLSCREEN_ENTER')
-        col.operator("blendercivil.profile_view_clear_data",
+        col.operator("saikei.profile_view_clear_data",
                     text="Clear All", icon='TRASH')
         
         # View Extents (collapsible)

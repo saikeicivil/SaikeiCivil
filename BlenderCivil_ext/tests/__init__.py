@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil Test Suite
+Saikei Civil Test Suite
 ========================
 
 Test organization:

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +37,7 @@ Architecture:
         IfcLine, IfcCircle → IfcCurveSegment → IfcCompositeCurve
 
 Usage:
-    from blendercivil.core.ifc_geometry_builders import (
+    from saikei.core.ifc_geometry_builders import (
         create_line_parent_curve,
         create_circle_parent_curve,
         create_curve_segment,
@@ -49,7 +49,7 @@ Usage:
     segment = create_curve_segment(ifc, line, placement, 0, 100)
     composite = create_composite_curve(ifc, [segment])
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 6, 2025
 Sprint: Phase 1 - IFC Compliance
 Status: Day 1 Implementation

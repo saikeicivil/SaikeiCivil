@@ -1,4 +1,4 @@
-BlenderCivil - Civil Engineering Tools for Blender
+Saikei Civil - Civil Engineering Tools for Blender
 Copyright 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 
 This product includes software developed at Desert Springs Civil Engineering PLLC.
@@ -16,7 +16,7 @@ This project incorporates components from the projects listed below.
    Copyright: Blender Foundation
    Website: https://www.blender.org/
 
-   BlenderCivil is a Blender extension/addon that extends the functionality
+   Saikei Civil is a Blender extension/addon that extends the functionality
    of Blender for civil engineering applications.
 
 -------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ This project incorporates components from the projects listed below.
    Copyright: Dion Moult and contributors
    Website: https://blenderbim.org/
 
-   BlenderCivil is designed to work alongside BlenderBIM for complete BIM
+   Saikei Civil is designed to work alongside Bonsai for complete BIM
    workflows and IFC file management.
 
 -------------------------------------------------------------------------------

@@ -1,8 +1,8 @@
-# BlenderCivil - IFC-Native Civil Engineering for Blender
+# Saikei Civil - IFC-Native Civil Engineering for Blender
 
 **A modern Blender extension for civil engineering design using IFC 4.3 (IFC4X3) standards.**
 
-BlenderCivil brings professional-grade civil engineering tools directly into Blender, leveraging the power of IFC (Industry Foundation Classes) for data-driven infrastructure design.
+Saikei Civil brings professional-grade civil engineering tools directly into Blender, leveraging the power of IFC (Industry Foundation Classes) for data-driven infrastructure design.
 
 ---
 
@@ -76,14 +76,14 @@ BlenderCivil brings professional-grade civil engineering tools directly into Ble
 Run this command in **Command Prompt (Administrator)**:
 
 ```cmd
-mklink /D "C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\blendercivil_ext" "C:\Path\To\BlenderCivil\BlenderCivil_ext"
+mklink /D "C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\saikei_civil" "C:\Path\To\Saikei Civil\Saikei Civil_ext"
 ```
 
-Replace `[YourUsername]` and `C:\Path\To\BlenderCivil` with your actual paths.
+Replace `[YourUsername]` and `C:\Path\To\Saikei Civil` with your actual paths.
 
 ### Method 2: Direct Copy
 
-Copy the entire `BlenderCivil_ext` folder to:
+Copy the entire `Saikei Civil_ext` folder to:
 ```
 C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\
 ```
@@ -92,7 +92,7 @@ C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extension
 
 1. Restart Blender
 2. Go to `Edit > Preferences > Get Extensions`
-3. Find "BlenderCivil" in the list
+3. Find "Saikei Civil" in the list
 4. Enable the extension
 
 ---
@@ -101,7 +101,7 @@ C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extension
 
 ### 1. Create a New IFC Project
 
-1. Open the **BlenderCivil Panel** in the 3D Viewport sidebar (N key)
+1. Open the **Saikei Civil Panel** in the 3D Viewport sidebar (N key)
 2. Go to **File Management** panel
 3. Click **New IFC**
 4. Your IFC spatial hierarchy is created automatically
@@ -140,7 +140,7 @@ C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extension
 ## 🏗️ Architecture
 
 ```
-BlenderCivil_ext/
+Saikei Civil_ext/
 ├── blender_manifest.toml    # Extension metadata
 ├── __init__.py               # Main registration
 ├── core/                     # Core systems
@@ -175,8 +175,8 @@ BlenderCivil_ext/
 
 **Option 1: Disable/Re-enable**
 1. Edit > Preferences > Get Extensions
-2. Disable BlenderCivil
-3. Re-enable BlenderCivil
+2. Disable Saikei Civil
+3. Re-enable Saikei Civil
 
 **Option 2: Refresh Extensions**
 1. Edit > Preferences > Get Extensions
@@ -184,10 +184,10 @@ BlenderCivil_ext/
 
 ### Console Output
 
-BlenderCivil provides detailed console logging:
+Saikei Civil provides detailed console logging:
 - `[Alignment]` - Alignment operations (PI updates, segment regeneration)
 - `[Visualizer]` - Visualization updates
-- `[BlenderCivil]` - Update system events
+- `[Saikei Civil]` - Update system events
 - `[CurveTool]` - Curve insertion operations
 
 Open Blender's System Console: `Window > Toggle System Console`
@@ -216,9 +216,9 @@ Open Blender's System Console: `Window > Toggle System Console`
 
 ## 🤝 Contributing
 
-BlenderCivil is open-source and welcomes contributions! Whether it's bug reports, feature requests, or code contributions, we appreciate your help.
+Saikei Civil is open-source and welcomes contributions! Whether it's bug reports, feature requests, or code contributions, we appreciate your help.
 
-**Repository:** [https://github.com/DesertSpringsCivil/BlenderCivil](https://github.com/DesertSpringsCivil/BlenderCivil)
+**Repository:** [https://github.com/DesertSpringsCivil/Saikei Civil](https://github.com/DesertSpringsCivil/Saikei Civil)
 
 ---
 
@@ -261,7 +261,7 @@ Generated with assistance from **Claude Code** (Anthropic)
 
 **Copyright © 2025 Michael Yoder / Desert Springs Civil Engineering PLLC**
 
-BlenderCivil is licensed under the **Apache License 2.0**.
+Saikei Civil is licensed under the **Apache License 2.0**.
 
 This means you can:
 - ✅ Use it commercially

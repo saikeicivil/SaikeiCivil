@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -128,7 +128,7 @@ def get_template_summary() -> str:
         categories[category].append(name)
 
     lines = [
-        "BlenderCivil Cross-Section Template Library",
+        "Saikei Civil Cross-Section Template Library",
         "=" * 50,
         "",
         f"Total Templates: {len(templates)}",

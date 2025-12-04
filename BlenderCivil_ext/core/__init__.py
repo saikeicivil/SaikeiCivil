@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,9 +19,9 @@
 # ==============================================================================
 
 """
-BlenderCivil Core Module
+Saikei Civil Core Module
 
-Core functionality and data structures for BlenderCivil.
+Core functionality and data structures for Saikei Civil.
 This will contain IFC utilities, geometry helpers, and core algorithms.
 """
 

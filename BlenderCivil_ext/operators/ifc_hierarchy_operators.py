@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -247,7 +247,7 @@ class BC_OT_save_ifc(Operator, ExportHelper):
         if NativeIfcManager.filepath:
             self.filepath = NativeIfcManager.filepath
         else:
-            self.filepath = "BlenderCivil_Project.ifc"
+            self.filepath = "Saikei Civil_Project.ifc"
         
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}

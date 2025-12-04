@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ This package provides:
 - Native IFC IfcAlignmentHorizontal export
 
 Example:
-    >>> from blendercivil.core.horizontal_alignment import NativeIfcAlignment
+    >>> from saikei.core.horizontal_alignment import NativeIfcAlignment
     >>> alignment = NativeIfcAlignment(ifc_file, "Main Road")
     >>> alignment.add_pi(0, 0)
     >>> alignment.add_pi(100, 0)

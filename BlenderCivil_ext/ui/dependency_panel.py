@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@
 
 """
 Dependency Panel
-UI for checking and installing BlenderCivil dependencies
+UI for checking and installing Saikei Civil dependencies
 """
 
 import bpy
@@ -31,9 +31,9 @@ from ..core.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class BLENDERCIVIL_OT_install_dependencies(Operator):
-    """Install missing BlenderCivil dependencies"""
-    bl_idname = "blendercivil.install_dependencies"
+class SAIKEI_OT_install_dependencies(Operator):
+    """Install missing Saikei Civil dependencies"""
+    bl_idname = "saikei.install_dependencies"
     bl_label = "Install Dependencies"
     bl_options = {'REGISTER', 'INTERNAL'}
     
@@ -61,9 +61,9 @@ class BLENDERCIVIL_OT_install_dependencies(Operator):
         return {'FINISHED'}
 
 
-class BLENDERCIVIL_OT_check_dependencies(Operator):
-    """Check BlenderCivil dependency status"""
-    bl_idname = "blendercivil.check_dependencies"
+class SAIKEI_OT_check_dependencies(Operator):
+    """Check Saikei Civil dependency status"""
+    bl_idname = "saikei.check_dependencies"
     bl_label = "Check Dependencies"
     bl_options = {'REGISTER', 'INTERNAL'}
     
@@ -85,8 +85,8 @@ class BLENDERCIVIL_OT_check_dependencies(Operator):
 
 # Registration
 classes = (
-    BLENDERCIVIL_OT_install_dependencies,
-    BLENDERCIVIL_OT_check_dependencies,
+    SAIKEI_OT_install_dependencies,
+    SAIKEI_OT_check_dependencies,
 )
 
 def register():

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,10 +22,10 @@
 Logging Configuration Module
 =============================
 
-Centralized logging setup for BlenderCivil extension.
+Centralized logging setup for Saikei Civil extension.
 
 Usage:
-    from blendercivil.core.logging_config import get_logger
+    from saikei.core.logging_config import get_logger
 
     logger = get_logger(__name__)
     logger.info("Operation completed")
@@ -46,7 +46,7 @@ import sys
 from typing import Optional
 
 # Extension-wide logger name prefix
-LOGGER_PREFIX = "blendercivil"
+LOGGER_PREFIX = "saikei"
 
 # Default format for log messages
 DEFAULT_FORMAT = "[%(levelname)s] %(name)s: %(message)s"
@@ -61,7 +61,7 @@ def setup_logging(
     detailed: bool = False,
     stream: Optional[object] = None
 ) -> logging.Logger:
-    """Initialize logging for BlenderCivil extension.
+    """Initialize logging for Saikei Civil extension.
 
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -69,7 +69,7 @@ def setup_logging(
         stream: Output stream (defaults to sys.stdout for Blender console)
 
     Returns:
-        Root logger for blendercivil
+        Root logger for saikei
     """
     global _initialized
 
@@ -120,10 +120,10 @@ def get_logger(name: str) -> logging.Logger:
     if not _initialized:
         setup_logging()
 
-    # Convert full module path to blendercivil namespace
-    # e.g., "blendercivil_ext.core.alignment" -> "blendercivil.core.alignment"
-    if name.startswith("blendercivil_ext"):
-        name = name.replace("blendercivil_ext", LOGGER_PREFIX, 1)
+    # Convert full module path to saikei namespace
+    # e.g., "saikei_civil.core.alignment" -> "saikei.core.alignment"
+    if name.startswith("saikei_civil"):
+        name = name.replace("saikei_civil", LOGGER_PREFIX, 1)
     elif not name.startswith(LOGGER_PREFIX):
         name = f"{LOGGER_PREFIX}.{name}"
 
@@ -154,29 +154,29 @@ def disable_debug() -> None:
 
 # Convenience function for startup banner
 def log_startup_banner(version: str = "0.5.0") -> None:
-    """Log the BlenderCivil startup banner.
+    """Log the Saikei Civil startup banner.
 
     Args:
         version: Extension version string
     """
     logger = get_logger("startup")
     logger.info("=" * 50)
-    logger.info("BlenderCivil Extension v%s - Loading...", version)
+    logger.info("Saikei Civil Extension v%s - Loading...", version)
     logger.info("=" * 50)
 
 
 def log_startup_complete() -> None:
     """Log successful startup completion."""
     logger = get_logger("startup")
-    logger.info("BlenderCivil Extension loaded successfully!")
-    logger.info("Location: 3D Viewport > Sidebar (N) > BlenderCivil tab")
+    logger.info("Saikei Civil Extension loaded successfully!")
+    logger.info("Location: 3D Viewport > Sidebar (N) > Saikei Civil tab")
     logger.info("=" * 50)
 
 
 def log_shutdown() -> None:
     """Log extension shutdown."""
     logger = get_logger("startup")
-    logger.info("BlenderCivil Extension unregistered")
+    logger.info("Saikei Civil Extension unregistered")
 
 
 __all__ = [

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - 3D Alignment System (H+V Integration)
+Saikei Civil - 3D Alignment System (H+V Integration)
 Sprint 3 Day 4 - Complete 3D Alignment Integration
 
 This module provides the integration layer between horizontal (Sprint 1) 
 and vertical (Sprint 3) alignments, enabling complete 3D alignment modeling.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2, 2025
 Sprint: 3 of 16 - Vertical Alignments
 Day: 4 of 5 - H+V Integration
@@ -717,7 +717,7 @@ def create_mountain_example():
 
 
 if __name__ == "__main__":
-    logger.info("BlenderCivil - 3D Alignment System")
+    logger.info("Saikei Civil - 3D Alignment System")
     logger.info("Sprint 3 Day 4 - H+V Integration")
     logger.info("=" * 50)
     logger.info("")

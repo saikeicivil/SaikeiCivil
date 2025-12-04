@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,23 +19,23 @@
 # ==============================================================================
 
 """
-BlenderCivil - Corridor Generation Operators
+Saikei Civil - Corridor Generation Operators
 Sprint 5 Day 3 - Blender UI Integration
 
-Operators for corridor mesh generation from the BlenderCivil UI panels.
+Operators for corridor mesh generation from the Saikei Civil UI panels.
 Provides user-friendly interface for creating 3D corridor models.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 5, 2025
 Sprint: 5 of 16 - Corridor Modeling
 Day: 3 of 5 - UI Integration
 
 Operators:
-- BLENDERCIVIL_OT_generate_corridor: Main corridor generation
-- BLENDERCIVIL_OT_corridor_quick_preview: Fast preview at current station
-- BLENDERCIVIL_OT_update_corridor_lod: Change LOD of existing corridor
-- BLENDERCIVIL_OT_export_corridor_ifc: Export corridor to IFC format
-- BLENDERCIVIL_OT_clear_corridor: Clear corridor visualization
+- SAIKEI_OT_generate_corridor: Main corridor generation
+- SAIKEI_OT_corridor_quick_preview: Fast preview at current station
+- SAIKEI_OT_update_corridor_lod: Change LOD of existing corridor
+- SAIKEI_OT_export_corridor_ifc: Export corridor to IFC format
+- SAIKEI_OT_clear_corridor: Clear corridor visualization
 """
 
 import bpy
@@ -50,14 +50,14 @@ from bpy.props import (
 import time
 
 
-class BLENDERCIVIL_OT_generate_corridor(Operator):
+class SAIKEI_OT_generate_corridor(Operator):
     """
     Generate 3D corridor mesh from alignment and cross-section.
     
     Creates a complete corridor model by sweeping the cross-section
     assembly along the 3D alignment with intelligent station management.
     """
-    bl_idname = "blendercivil.generate_corridor"
+    bl_idname = "saikei.generate_corridor"
     bl_label = "Generate Corridor"
     bl_description = "Create 3D corridor mesh from alignment and cross-section"
     bl_options = {'REGISTER', 'UNDO'}
@@ -246,13 +246,13 @@ class BLENDERCIVIL_OT_generate_corridor(Operator):
             return {'CANCELLED'}
 
 
-class BLENDERCIVIL_OT_corridor_quick_preview(Operator):
+class SAIKEI_OT_corridor_quick_preview(Operator):
     """
     Quick corridor preview at current station.
     
     Generates a short section of corridor for rapid design validation.
     """
-    bl_idname = "blendercivil.corridor_quick_preview"
+    bl_idname = "saikei.corridor_quick_preview"
     bl_label = "Quick Corridor Preview"
     bl_description = "Generate quick preview of corridor at current station"
     bl_options = {'REGISTER', 'UNDO'}
@@ -337,14 +337,14 @@ class BLENDERCIVIL_OT_corridor_quick_preview(Operator):
             return {'CANCELLED'}
 
 
-class BLENDERCIVIL_OT_update_corridor_lod(Operator):
+class SAIKEI_OT_update_corridor_lod(Operator):
     """
     Update LOD of existing corridor mesh.
     
     Regenerates corridor with different detail level without
     changing other parameters.
     """
-    bl_idname = "blendercivil.update_corridor_lod"
+    bl_idname = "saikei.update_corridor_lod"
     bl_label = "Update Corridor LOD"
     bl_description = "Change level of detail of existing corridor"
     bl_options = {'REGISTER', 'UNDO'}
@@ -384,14 +384,14 @@ class BLENDERCIVIL_OT_update_corridor_lod(Operator):
         return {'FINISHED'}
 
 
-class BLENDERCIVIL_OT_export_corridor_ifc(Operator):
+class SAIKEI_OT_export_corridor_ifc(Operator):
     """
     Export corridor to IFC 4.3 format.
     
     Creates IFC file with IfcSectionedSolidHorizontal representing
     the corridor geometry.
     """
-    bl_idname = "blendercivil.export_corridor_ifc"
+    bl_idname = "saikei.export_corridor_ifc"
     bl_label = "Export Corridor to IFC"
     bl_description = "Export corridor as IFC 4.3 file"
     bl_options = {'REGISTER'}
@@ -450,13 +450,13 @@ class BLENDERCIVIL_OT_export_corridor_ifc(Operator):
             return {'CANCELLED'}
 
 
-class BLENDERCIVIL_OT_clear_corridor(Operator):
+class SAIKEI_OT_clear_corridor(Operator):
     """
     Clear corridor visualization from scene.
     
     Removes corridor mesh and associated objects.
     """
-    bl_idname = "blendercivil.clear_corridor"
+    bl_idname = "saikei.clear_corridor"
     bl_label = "Clear Corridor"
     bl_description = "Remove corridor visualization from scene"
     bl_options = {'REGISTER', 'UNDO'}
@@ -497,11 +497,11 @@ class BLENDERCIVIL_OT_clear_corridor(Operator):
 
 # Registration
 classes = (
-    BLENDERCIVIL_OT_generate_corridor,
-    BLENDERCIVIL_OT_corridor_quick_preview,
-    BLENDERCIVIL_OT_update_corridor_lod,
-    BLENDERCIVIL_OT_export_corridor_ifc,
-    BLENDERCIVIL_OT_clear_corridor,
+    SAIKEI_OT_generate_corridor,
+    SAIKEI_OT_corridor_quick_preview,
+    SAIKEI_OT_update_corridor_lod,
+    SAIKEI_OT_export_corridor_ifc,
+    SAIKEI_OT_clear_corridor,
 )
 
 

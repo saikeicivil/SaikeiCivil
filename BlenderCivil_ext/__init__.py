@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil Extension
+Saikei Civil Extension
 Version 0.5.0
 
 A fresh start for native IFC civil engineering design in Blender.
@@ -91,7 +91,7 @@ def register():
 def unregister():
     """Unregister extension modules and classes"""
     logger = get_logger(__name__)
-    logger.info("BlenderCivil Extension - Unregistering...")
+    logger.info("Saikei Civil Extension - Unregistering...")
 
     # Unregister update system first
     from .core import complete_update_system

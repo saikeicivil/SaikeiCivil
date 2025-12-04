@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Native IFC Corridor Modeling System
+Saikei Civil - Native IFC Corridor Modeling System
 Sprint 5 Day 2 - Core Architecture & Implementation
 
 This module provides corridor modeling using IFC 4.3 IfcSectionedSolidHorizontal.
 Sweeps cross-sections along 3D alignments to create complete road corridors.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 4, 2025
 Sprint: 5 of 16 - Corridor Modeling
 Day: 2 of 5 - Architecture & Core
@@ -750,7 +750,7 @@ class CorridorManager:
 
 if __name__ == "__main__":
     # Basic validation
-    logger.info("BlenderCivil Native IFC Corridor System")
+    logger.info("Saikei Civil Native IFC Corridor System")
     logger.info("=" * 50)
     logger.info("✓ StationManager class defined")
     logger.info("✓ CorridorModeler class defined")

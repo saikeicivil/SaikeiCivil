@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ visualization section with one-click buttons for:
 - Component previews
 - Clear visualization
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 3, 2025
 """
 
@@ -42,13 +42,13 @@ from ...core.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-class BLENDERCIVIL_PT_cross_section_visualization(Panel):
+class SAIKEI_PT_cross_section_visualization(Panel):
     """3D Visualization panel for cross-sections"""
     bl_label = "3D Visualization"
-    bl_idname = "BLENDERCIVIL_PT_cross_section_visualization"
+    bl_idname = "SAIKEI_PT_cross_section_visualization"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_order = 7
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -59,8 +59,8 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         # Check if we have active data
         # TODO: Link to actual data structures
-        has_alignment = False  # scene.blendercivil.has_alignment
-        has_assembly = False   # scene.blendercivil.has_assembly
+        has_alignment = False  # scene.saikei.has_alignment
+        has_assembly = False   # scene.saikei.has_assembly
         
         # Header info
         box = layout.box()
@@ -84,12 +84,12 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         col = box.column(align=True)
         col.operator(
-            "blendercivil.quick_preview",
+            "saikei.quick_preview",
             text="⚡ Quick Preview",
             icon='HIDE_OFF'
         )
         col.operator(
-            "blendercivil.visualize_station",
+            "saikei.visualize_station",
             text="📍 Visualize Station",
             icon='MESH_DATA'
         )
@@ -102,7 +102,7 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         col = box.column(align=True)
         col.operator(
-            "blendercivil.create_corridor",
+            "saikei.create_corridor",
             text="🏗️ Create Corridor",
             icon='SURFACE_DATA'
         )
@@ -124,7 +124,7 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         col = box.column(align=True)
         col.operator(
-            "blendercivil.add_station_markers",
+            "saikei.add_station_markers",
             text="📍 Add Markers",
             icon='OUTLINER_OB_FONT'
         )
@@ -137,7 +137,7 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         col = box.column(align=True)
         col.operator(
-            "blendercivil.component_preview",
+            "saikei.component_preview",
             text="🔍 Preview Component",
             icon='VIEWZOOM'
         )
@@ -160,7 +160,7 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         
         col = box.column(align=True)
         col.operator(
-            "blendercivil.clear_visualization",
+            "saikei.clear_visualization",
             text="🧹 Clear Visualization",
             icon='TRASH'
         )
@@ -190,14 +190,14 @@ class BLENDERCIVIL_PT_cross_section_visualization(Panel):
         col.label(text="Status: Ready")
 
 
-class BLENDERCIVIL_PT_visualization_settings(Panel):
+class SAIKEI_PT_visualization_settings(Panel):
     """Visualization settings subpanel"""
     bl_label = "Visualization Settings"
-    bl_idname = "BLENDERCIVIL_PT_visualization_settings"
+    bl_idname = "SAIKEI_PT_visualization_settings"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
-    bl_parent_id = "BLENDERCIVIL_PT_cross_section_visualization"
+    bl_category = 'Saikei Civil'
+    bl_parent_id = "SAIKEI_PT_cross_section_visualization"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
@@ -252,14 +252,14 @@ class BLENDERCIVIL_PT_visualization_settings(Panel):
         col.label(text="Include: All Components", icon='BLANK1')
 
 
-class BLENDERCIVIL_PT_visualization_help(Panel):
+class SAIKEI_PT_visualization_help(Panel):
     """Visualization help and tips"""
     bl_label = "Tips & Help"
-    bl_idname = "BLENDERCIVIL_PT_visualization_help"
+    bl_idname = "SAIKEI_PT_visualization_help"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
-    bl_parent_id = "BLENDERCIVIL_PT_cross_section_visualization"
+    bl_category = 'Saikei Civil'
+    bl_parent_id = "SAIKEI_PT_cross_section_visualization"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
@@ -309,9 +309,9 @@ class BLENDERCIVIL_PT_visualization_help(Panel):
 
 # Registration
 classes = (
-    BLENDERCIVIL_PT_cross_section_visualization,
-    BLENDERCIVIL_PT_visualization_settings,
-    BLENDERCIVIL_PT_visualization_help,
+    SAIKEI_PT_cross_section_visualization,
+    SAIKEI_PT_visualization_settings,
+    SAIKEI_PT_visualization_help,
 )
 
 

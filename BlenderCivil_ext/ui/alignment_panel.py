@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,7 +36,7 @@ class VIEW3D_PT_native_ifc_alignment(bpy.types.Panel):
     bl_idname = "VIEW3D_PT_native_ifc_alignment"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_order = 4
     bl_options = {'DEFAULT_CLOSED'}
     

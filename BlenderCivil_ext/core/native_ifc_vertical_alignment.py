@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@ This module has been refactored into the vertical_alignment package.
 This shim provides backwards compatibility for existing imports.
 
 New code should import from:
-    from blendercivil.core.vertical_alignment import VerticalAlignment, PVI
+    from saikei.core.vertical_alignment import VerticalAlignment, PVI
 
 This shim re-exports all public API from the new package.
 """

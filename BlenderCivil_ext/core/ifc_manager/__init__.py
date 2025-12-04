@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ This package provides:
 - Validation for external viewers
 
 Example:
-    >>> from blendercivil.core.ifc_manager import NativeIfcManager
+    >>> from saikei.core.ifc_manager import NativeIfcManager
     >>> result = NativeIfcManager.new_file()
     >>> print(f"Created project: {result['project'].Name}")
 """

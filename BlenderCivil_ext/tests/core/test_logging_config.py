@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,7 +74,7 @@ class TestGetLogger:
 
     @pytest.mark.unit
     def test_get_logger_uses_prefix(self):
-        """Test that logger name uses blendercivil prefix."""
+        """Test that logger name uses saikei prefix."""
         logger = get_logger("test_module")
         assert LOGGER_PREFIX in logger.name
 

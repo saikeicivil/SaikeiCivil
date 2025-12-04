@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,18 +19,18 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View GPU Renderer (Core)
+Saikei Civil - Profile View GPU Renderer (Core)
 ================================================
 
 GPU-based 2D rendering for profile view visualization.
 Uses Blender's GPU module but contains no operators or UI.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - Minimal Blender dependencies (only gpu module for drawing)
 - No operators or UI code
 - Pure rendering logic
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """

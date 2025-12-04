@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-Cross-Section Import/Export Module for BlenderCivil
+Cross-Section Import/Export Module for Saikei Civil
 Support for LandXML, Civil 3D XML, and various industry formats
 
 Sprint 4 Day 5 - Import/Export Workflows
@@ -235,7 +235,7 @@ class LandXMLExporter:
         """Add a cross-section to export."""
         self.sections.append(section)
     
-    def export(self, filepath: str, project_name: str = "BlenderCivil Export") -> bool:
+    def export(self, filepath: str, project_name: str = "Saikei Civil Export") -> bool:
         """
         Export to LandXML file.
         
@@ -442,7 +442,7 @@ class JSONExporter:
             # Convert to dict
             data = {
                 'version': '1.0',
-                'source': 'BlenderCivil',
+                'source': 'Saikei Civil',
                 'sections': [asdict(section) for section in sections]
             }
             
@@ -533,12 +533,12 @@ class BatchProcessor:
 import bpy
 
 
-class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
+class SAIKEI_OT_import_landxml(bpy.types.Operator):
     """
     Import cross-sections from LandXML format.
 
     Reads LandXML 1.2 or 2.0 files containing cross-section definitions
-    and creates corresponding assemblies in BlenderCivil. Supports both
+    and creates corresponding assemblies in Saikei Civil. Supports both
     point-based and parametric cross-section data.
 
     Properties:
@@ -553,10 +553,10 @@ class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
 
     Usage:
         Called from File > Import menu to bring LandXML data into
-        BlenderCivil. Common workflow for importing survey data or
+        Saikei Civil. Common workflow for importing survey data or
         designs from other civil engineering software.
     """
-    bl_idname = "blendercivil.import_landxml"
+    bl_idname = "saikei.import_landxml"
     bl_label = "Import LandXML"
     bl_options = {'REGISTER', 'UNDO'}
     
@@ -585,7 +585,7 @@ class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
                 self.report({'WARNING'}, "No cross-sections found in file")
                 return {'CANCELLED'}
             
-            # TODO: Create cross-sections in BlenderCivil
+            # TODO: Create cross-sections in Saikei Civil
             # for section in sections:
             #     # Create assembly from section data
             #     assembly = create_assembly_from_points(section.name, section.points)
@@ -604,11 +604,11 @@ class BLENDERCIVIL_OT_import_landxml(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
-class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
+class SAIKEI_OT_export_landxml(bpy.types.Operator):
     """
     Export cross-sections to LandXML format.
 
-    Converts BlenderCivil assemblies to LandXML 1.2 format for use in
+    Converts Saikei Civil assemblies to LandXML 1.2 format for use in
     other civil engineering software. Creates standard-compliant XML
     with cross-section point data.
 
@@ -627,7 +627,7 @@ class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
         Called from File > Export menu to save cross-sections for use
         in Civil 3D, 12d Model, or other LandXML-compatible software.
     """
-    bl_idname = "blendercivil.export_landxml"
+    bl_idname = "saikei.export_landxml"
     bl_label = "Export LandXML"
     bl_options = {'REGISTER'}
     
@@ -643,7 +643,7 @@ class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
     
     project_name: bpy.props.StringProperty(
         name="Project Name",
-        default="BlenderCivil Project"
+        default="Saikei Civil Project"
     )
     
     def execute(self, context):
@@ -651,7 +651,7 @@ class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
         try:
             exporter = LandXMLExporter()
             
-            # TODO: Get cross-sections from BlenderCivil
+            # TODO: Get cross-sections from Saikei Civil
             # manager = get_manager()
             # for assembly in manager.assemblies.values():
             #     section_data = convert_assembly_to_section_data(assembly)
@@ -674,7 +674,7 @@ class BLENDERCIVIL_OT_export_landxml(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
 
-class BLENDERCIVIL_OT_batch_import(bpy.types.Operator):
+class SAIKEI_OT_batch_import(bpy.types.Operator):
     """
     Batch import cross-sections from a directory.
 
@@ -698,7 +698,7 @@ class BLENDERCIVIL_OT_batch_import(bpy.types.Operator):
         contain multiple cross-section files. Saves time compared to
         importing files individually.
     """
-    bl_idname = "blendercivil.batch_import"
+    bl_idname = "saikei.batch_import"
     bl_label = "Batch Import"
     bl_options = {'REGISTER'}
     
@@ -743,7 +743,7 @@ class BLENDERCIVIL_OT_batch_import(bpy.types.Operator):
 def get_import_export_summary() -> str:
     """Get summary of import/export capabilities."""
     summary = """
-BlenderCivil Cross-Section Import/Export System
+Saikei Civil Cross-Section Import/Export System
 ================================================
 
 IMPORT FORMATS:
@@ -775,9 +775,9 @@ SUPPORTED WORKFLOWS:
 # ==================== REGISTRATION ====================
 
 classes = (
-    BLENDERCIVIL_OT_import_landxml,
-    BLENDERCIVIL_OT_export_landxml,
-    BLENDERCIVIL_OT_batch_import,
+    SAIKEI_OT_import_landxml,
+    SAIKEI_OT_export_landxml,
+    SAIKEI_OT_batch_import,
 )
 
 

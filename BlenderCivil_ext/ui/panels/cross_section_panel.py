@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -114,7 +114,7 @@ class BC_PT_CrossSection_Main(Panel):
     bl_idname = "BC_PT_cross_section_main"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_order = 8
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -164,7 +164,7 @@ class BC_PT_CrossSection_Assembly(Panel):
     bl_idname = "BC_PT_cross_section_assembly"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -223,7 +223,7 @@ class BC_PT_CrossSection_Components(Panel):
     bl_idname = "BC_PT_cross_section_components"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -299,7 +299,7 @@ class BC_PT_CrossSection_Materials(Panel):
     bl_idname = "BC_PT_cross_section_materials"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -335,7 +335,7 @@ class BC_PT_CrossSection_Constraints(Panel):
     bl_idname = "BC_PT_cross_section_constraints"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -389,7 +389,7 @@ class BC_PT_CrossSection_Query(Panel):
     bl_idname = "BC_PT_cross_section_query"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -428,7 +428,7 @@ class BC_PT_CrossSection_Preview(Panel):
     bl_idname = "BC_PT_cross_section_preview"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -551,7 +551,7 @@ class BC_PT_CrossSection_Export(Panel):
     bl_idname = "BC_PT_cross_section_export"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
     

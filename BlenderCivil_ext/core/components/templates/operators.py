@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,10 +34,10 @@ from .registry import get_all_templates, list_templates
 logger = logging.getLogger(__name__)
 
 
-class BLENDERCIVIL_OT_load_template(bpy.types.Operator):
+class SAIKEI_OT_load_template(bpy.types.Operator):
     """Load a standard cross-section template."""
 
-    bl_idname = "blendercivil.load_template"
+    bl_idname = "saikei.load_template"
     bl_label = "Load Template"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -73,10 +73,10 @@ class BLENDERCIVIL_OT_load_template(bpy.types.Operator):
             return {'CANCELLED'}
 
 
-class BLENDERCIVIL_OT_template_browser(bpy.types.Operator):
+class SAIKEI_OT_template_browser(bpy.types.Operator):
     """Browse and select from template library."""
 
-    bl_idname = "blendercivil.template_browser"
+    bl_idname = "saikei.template_browser"
     bl_label = "Template Browser"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -120,7 +120,7 @@ class BLENDERCIVIL_OT_template_browser(bpy.types.Operator):
         for name, category, description in filtered_templates:
             row = box.row()
             row.operator(
-                "blendercivil.load_template",
+                "saikei.load_template",
                 text=name
             ).template_name = name
             row.label(text=f"[{category}]")
@@ -132,8 +132,8 @@ class BLENDERCIVIL_OT_template_browser(bpy.types.Operator):
 
 # Registration
 classes = [
-    BLENDERCIVIL_OT_load_template,
-    BLENDERCIVIL_OT_template_browser,
+    SAIKEI_OT_load_template,
+    SAIKEI_OT_template_browser,
 ]
 
 
@@ -152,8 +152,8 @@ def unregister():
 
 
 __all__ = [
-    "BLENDERCIVIL_OT_load_template",
-    "BLENDERCIVIL_OT_template_browser",
+    "SAIKEI_OT_load_template",
+    "SAIKEI_OT_template_browser",
     "register",
     "unregister",
 ]

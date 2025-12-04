@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil - Cross-Section View Overlay Manager (Core)
+Saikei Civil - Cross-Section View Overlay Manager (Core)
 =========================================================
 
 Manages the viewport overlay system for cross-section view visualization.
@@ -30,7 +30,7 @@ in a dedicated viewer, not in the 3D model space.
 
 Supports multiple anchor positions and drag-to-move functionality.
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: December 2025
 """
 

@@ -1,4 +1,4 @@
-# BlenderCivil Test Dependencies
+# Saikei Civil Test Dependencies
 # ================================
 # Install with: pip install -r requirements-test.txt
 

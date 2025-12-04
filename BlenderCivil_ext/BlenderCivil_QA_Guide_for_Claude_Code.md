@@ -1,4 +1,4 @@
-# BlenderCivil QA Guide for Claude Code
+# Saikei Civil QA Guide for Claude Code
 
 **Version:** 1.0  
 **Date:** November 25, 2025  
@@ -26,11 +26,11 @@ Your **primary mission** is to review codebases and make suggestions to organize
 
 ## 📁 Repository Structure
 
-### Expected BlenderCivil Directory Layout
+### Expected Saikei Civil Directory Layout
 
 ```
-BlenderCivil/
-├── BlenderCivil_ext/              ← Main Blender extension package
+Saikei Civil/
+├── Saikei Civil_ext/              ← Main Blender extension package
 │   ├── __init__.py                ← Extension entry point
 │   ├── blender_manifest.toml      ← Blender 4.x manifest (REQUIRED)
 │   │
@@ -158,7 +158,7 @@ core/
 **EVERY `.py` file MUST begin with this exact header:**
 
 ```python
-# BlenderCivil - Native IFC Civil Engineering Tools for Blender
+# Saikei Civil - Native IFC Civil Engineering Tools for Blender
 # Copyright (C) 2025 Michael Yoder, Desert Springs Civil Engineering, PLLC
 #
 # This program is licensed under the Apache License, Version 2.0 (the "License");
@@ -184,7 +184,7 @@ core/
 This module provides...
 
 Example:
-    >>> from blendercivil.core import AlignmentManager
+    >>> from saikei.core import AlignmentManager
     >>> manager = AlignmentManager()
 """
 ```
@@ -232,12 +232,12 @@ from typing import List, Optional, Tuple
 import numpy as np
 from ifcopenshell import api as ifc_api
 
-from blendercivil.core.native_ifc_manager import IFCManager
-from blendercivil.core.alignment import PI, Curve
+from saikei.core.native_ifc_manager import IFCManager
+from saikei.core.alignment import PI, Curve
 
 # INCORRECT:
 import os, sys  # Multiple imports on one line
-from blendercivil.core import *  # Wildcard imports
+from saikei.core import *  # Wildcard imports
 
 # ═══════════════════════════════════════════════════════════════════════════
 # NAMING CONVENTIONS
@@ -678,8 +678,8 @@ logger.exception("Error with stack trace")  # Use in except blocks
 ```toml
 schema_version = "1.0.0"
 
-id = "blendercivil"
-name = "BlenderCivil"
+id = "saikei"
+name = "Saikei Civil"
 tagline = "Native IFC civil engineering design tools"
 version = "0.5.0"
 type = "add-on"
@@ -691,7 +691,7 @@ blender_version_min = "4.2.0"
 blender_version_max = "5.0.0"
 
 # Optional but recommended
-website = "https://github.com/DesertSpringsCivil/BlenderCivil"
+website = "https://github.com/DesertSpringsCivil/Saikei Civil"
 
 [permissions]
 files = "Import/export IFC files"
@@ -714,15 +714,15 @@ paths_exclude_pattern = [
 # Blender operator bl_idname format:
 # {category}.{action}_{object}
 
-class BLENDERCIVIL_OT_add_pi(bpy.types.Operator):
+class SAIKEI_OT_add_pi(bpy.types.Operator):
     """Add a Point of Intersection to the alignment"""
-    bl_idname = "blendercivil.add_pi"
+    bl_idname = "saikei.add_pi"
     bl_label = "Add PI"
     bl_options = {'REGISTER', 'UNDO'}
 
-class BLENDERCIVIL_OT_export_ifc(bpy.types.Operator):
+class SAIKEI_OT_export_ifc(bpy.types.Operator):
     """Export alignment to IFC file"""
-    bl_idname = "blendercivil.export_ifc"
+    bl_idname = "saikei.export_ifc"
     bl_label = "Export to IFC"
     bl_options = {'REGISTER'}
 ```
@@ -730,13 +730,13 @@ class BLENDERCIVIL_OT_export_ifc(bpy.types.Operator):
 ### Panel Naming Convention
 
 ```python
-class BLENDERCIVIL_PT_alignment_main(bpy.types.Panel):
+class SAIKEI_PT_alignment_main(bpy.types.Panel):
     """Main alignment panel"""
-    bl_idname = "BLENDERCIVIL_PT_alignment_main"
+    bl_idname = "SAIKEI_PT_alignment_main"
     bl_label = "Alignment"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
 ```
 
 ### Registration Pattern
@@ -744,9 +744,9 @@ class BLENDERCIVIL_PT_alignment_main(bpy.types.Panel):
 ```python
 # In __init__.py
 classes = [
-    BLENDERCIVIL_OT_add_pi,
-    BLENDERCIVIL_OT_export_ifc,
-    BLENDERCIVIL_PT_alignment_main,
+    SAIKEI_OT_add_pi,
+    SAIKEI_OT_export_ifc,
+    SAIKEI_PT_alignment_main,
 ]
 
 def register():
@@ -830,7 +830,7 @@ Use this checklist when reviewing each file:
 
 ---
 
-*This document serves as the authoritative reference for BlenderCivil code quality standards. All contributions should adhere to these guidelines.*
+*This document serves as the authoritative reference for Saikei Civil code quality standards. All contributions should adhere to these guidelines.*
 
 **Document Version:** 1.0  
 **Last Updated:** November 25, 2025  

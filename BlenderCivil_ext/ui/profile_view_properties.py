@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +19,16 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View Properties (UI)
+Saikei Civil - Profile View Properties (UI)
 ============================================
 
 Blender property groups for profile view settings.
 These are stored in the Blender scene and persist with .blend files.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - ui/ = Blender UI elements (properties, panels)
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """

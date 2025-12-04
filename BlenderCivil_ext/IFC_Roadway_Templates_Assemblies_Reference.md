@@ -1,9 +1,9 @@
 # IFC Roadway Templates & Assemblies: Complete Implementation Reference
 
-**Document Purpose:** Comprehensive knowledge base for implementing roadway cross-section templates/assemblies in BlenderCivil, based on IFC 4.3 standards and industry best practices.
+**Document Purpose:** Comprehensive knowledge base for implementing roadway cross-section templates/assemblies in Saikei Civil, based on IFC 4.3 standards and industry best practices.
 
 **Last Updated:** November 24, 2025  
-**Sources:** buildingSMART IFC 4.3 documentation, IFC-ROAD WP3 examples, Civil 3D/OpenRoads analysis, BlenderCivil project decisions
+**Sources:** buildingSMART IFC 4.3 documentation, IFC-ROAD WP3 examples, Civil 3D/OpenRoads analysis, Saikei Civil project decisions
 
 ---
 
@@ -12,7 +12,7 @@
 1. [Terminology & Concepts](#terminology--concepts)
 2. [IFC 4.3 Entity Structure](#ifc-43-entity-structure)
 3. [Industry Software Analysis](#industry-software-analysis)
-4. [BlenderCivil Design Decisions](#blendercivil-design-decisions)
+4. [Saikei Civil Design Decisions](#saikei-design-decisions)
 5. [Implementation Architecture](#implementation-architecture)
 6. [Component Types & Properties](#component-types--properties)
 7. [Parametric Constraints System](#parametric-constraints-system)
@@ -35,7 +35,7 @@ Different professional software packages use different terms for the same concep
 | | **Component** | Individual section element |
 | **IFC 4.3 Standard** | **IfcCompositeProfileDef** | Collection of profile definitions |
 | | **IfcOpenCrossProfileDef** | Individual cross-section profile |
-| **BlenderCivil** | **Assembly** | Matches Civil 3D terminology |
+| **Saikei Civil** | **Assembly** | Matches Civil 3D terminology |
 | | **Component** | Individual parametric section element |
 
 **Key Insight:** These are all describing the same fundamental concept - a parametric, reusable definition of a roadway's typical cross-section that can be swept along an alignment to create a 3D corridor model.
@@ -126,7 +126,7 @@ END_ENTITY;
 **Key Characteristics:**
 
 1. **Directrix Requirements:**
-   - MUST be 3D curve (Dim = 3) ✅ Matches BlenderCivil 3D alignments
+   - MUST be 3D curve (Dim = 3) ✅ Matches Saikei Civil 3D alignments
    - Should be tangent continuous (or accept miters at discontinuities)
    - Typically an `IfcAlignmentCurve` from horizontal+vertical alignment
 
@@ -567,13 +567,13 @@ Both Civil 3D and OpenRoads share these fundamental approaches:
 
 ---
 
-## BlenderCivil Design Decisions
+## Saikei Civil Design Decisions
 
 ### Decision: Python-Based Parametric System (NOT Geometry Nodes)
 
 **Critical Architectural Decision from Sprint 0:**
 
-BlenderCivil implements parametric assemblies using Python code with a Blender UI, explicitly **NOT** using Geometry Nodes for core functionality.
+Saikei Civil implements parametric assemblies using Python code with a Blender UI, explicitly **NOT** using Geometry Nodes for core functionality.
 
 **Rationale:**
 
@@ -600,7 +600,7 @@ BlenderCivil implements parametric assemblies using Python code with a Blender U
    - Presentation/visualization mode only
    - Final generation ALWAYS uses Python for precision
 
-**From BlenderCivil Sprint 0 Documentation:**
+**From Saikei Civil Sprint 0 Documentation:**
 > "Don't assume 'parametric' means 'Geometry Nodes'. Professional software uses code backends universally. OpenRoads constraint system is more powerful than Civil 3D regions. GUI simplicity on top of code power is the winning pattern."
 
 ### User Experience Pattern
@@ -640,7 +640,7 @@ BlenderCivil implements parametric assemblies using Python code with a Blender U
 
 ### OpenRoads-Style Constraint System
 
-BlenderCivil implements OpenRoads-style parametric constraints rather than Civil 3D-style regions.
+Saikei Civil implements OpenRoads-style parametric constraints rather than Civil 3D-style regions.
 
 **Why OpenRoads Style:**
 - More powerful than Civil 3D's region-based approach
@@ -1836,7 +1836,7 @@ class LaneComponent(BaseComponent):
 10. **OpenRoads Templates:** Bentley OpenRoads Designer CONNECT Edition documentation
 11. **IfcOpenShell API:** http://docs.ifcopenshell.org/
 
-### BlenderCivil Project Files
+### Saikei Civil Project Files
 
 12. **Sprint 0 Architecture Decisions:** `/mnt/project/Template_architectureal_decision.md`
 13. **Sprint 4 Cross-Section Research:** `/mnt/project/Sprint4_Day1_IFC_CrossSection_Research.md`

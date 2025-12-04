@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,7 +32,7 @@ This package provides:
 - Native IFC IfcAlignmentVertical export
 
 Example:
-    >>> from blendercivil.core.vertical_alignment import VerticalAlignment, PVI
+    >>> from saikei.core.vertical_alignment import VerticalAlignment, PVI
     >>> valign = VerticalAlignment("Main Street Profile")
     >>> valign.add_pvi(0.0, 100.0)
     >>> valign.add_pvi(200.0, 105.0, curve_length=80.0)

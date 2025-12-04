@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil Extension Preferences
+Saikei Civil Extension Preferences
 
 Stores user preferences including API keys for external services.
 Also includes Dependencies and Validation tools.
@@ -30,8 +30,8 @@ from bpy.types import AddonPreferences
 from bpy.props import StringProperty
 
 
-class BlenderCivilPreferences(AddonPreferences):
-    """BlenderCivil extension preferences"""
+class SaikeiCivilPreferences(AddonPreferences):
+    """Saikei Civil extension preferences"""
 
     # This must match the extension name
     bl_idname = __package__
@@ -77,7 +77,7 @@ class BlenderCivilPreferences(AddonPreferences):
             col.separator()
 
             # Install button
-            col.operator("blendercivil.install_dependencies", icon='IMPORT')
+            col.operator("saikei.install_dependencies", icon='IMPORT')
 
         else:
             # All dependencies available
@@ -92,7 +92,7 @@ class BlenderCivilPreferences(AddonPreferences):
                 col.label(text=f"  ✓ {dep_info['display_name']}{version_str}")
 
         # Check status button
-        box.operator("blendercivil.check_dependencies", icon='FILE_REFRESH', text="Refresh Status")
+        box.operator("saikei.check_dependencies", icon='FILE_REFRESH', text="Refresh Status")
 
         layout.separator()
 
@@ -165,7 +165,7 @@ class BC_OT_test_maptiler_connection(bpy.types.Operator):
 
 # Registration
 classes = (
-    BlenderCivilPreferences,
+    SaikeiCivilPreferences,
     BC_OT_test_maptiler_connection,
 )
 

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Alignment Property Groups
+Saikei Civil - Alignment Property Groups
 
 Property groups for storing alignment data and tracking the active alignment
 in Blender scenes. This provides the scene-level data needed for operators
 to work with alignments.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2025
 Sprint: 5 - Interactive PI Placement
 """
@@ -417,7 +417,7 @@ def register():
     # Add alignment properties to Scene
     bpy.types.Scene.bc_alignment = PointerProperty(
         type=AlignmentProperties,
-        name="BlenderCivil Alignment",
+        name="Saikei Civil Alignment",
         description="Alignment properties for this scene"
     )
 

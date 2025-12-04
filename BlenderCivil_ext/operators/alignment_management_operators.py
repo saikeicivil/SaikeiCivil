@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,7 @@ Alignment Management Operators
 Helper operators for managing alignments, active alignment, and alignment list.
 
 This module provides Blender operators for working with IFC alignments within
-the BlenderCivil addon. These operators handle alignment list management,
+the Saikei Civil addon. These operators handle alignment list management,
 active alignment selection, and collection selection.
 
 Operators:

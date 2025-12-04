@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Georeferencing UI Panel
+Saikei Civil - Georeferencing UI Panel
 
 Main UI panel for georeferencing in Blender's 3D viewport sidebar.
 Provides a complete interface for CRS search, false origin setup,
 and coordinate transformation preview.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2025
 Sprint: 2 Day 3 - UI Integration
 """
@@ -64,7 +64,7 @@ class VIEW3D_PT_bc_georeferencing(Panel):
     """Main georeferencing panel in 3D viewport sidebar."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Georeferencing"
     bl_idname = "VIEW3D_PT_bc_georeferencing"
     bl_order = 5
@@ -97,7 +97,7 @@ class VIEW3D_PT_bc_georef_crs_search(Panel):
     """Sub-panel for CRS search."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "CRS Search"
     bl_parent_id = "VIEW3D_PT_bc_georeferencing"
     bl_options = {'DEFAULT_CLOSED'}
@@ -168,7 +168,7 @@ class VIEW3D_PT_bc_georef_false_origin(Panel):
     """Sub-panel for false origin configuration."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "False Origin"
     bl_parent_id = "VIEW3D_PT_bc_georeferencing"
     
@@ -202,7 +202,7 @@ class VIEW3D_PT_bc_georef_setup(Panel):
     """Sub-panel for georeferencing setup."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Setup"
     bl_parent_id = "VIEW3D_PT_bc_georeferencing"
     
@@ -245,7 +245,7 @@ class VIEW3D_PT_bc_georef_preview(Panel):
     """Sub-panel for coordinate transformation preview."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Coordinate Preview"
     bl_parent_id = "VIEW3D_PT_bc_georeferencing"
     bl_options = {'DEFAULT_CLOSED'}
@@ -287,7 +287,7 @@ class VIEW3D_PT_bc_georef_advanced(Panel):
     """Sub-panel for advanced georeferencing settings."""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Advanced"
     bl_parent_id = "VIEW3D_PT_bc_georeferencing"
     bl_options = {'DEFAULT_CLOSED'}

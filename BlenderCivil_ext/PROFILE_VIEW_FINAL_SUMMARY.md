@@ -162,19 +162,19 @@ When integrated, you'll see this at the bottom of your 3D viewport:
 ### What You Can Do Today
 ```python
 # Enable profile view
-bpy.ops.blendercivil.profile_view_toggle()
+bpy.ops.saikei.profile_view_toggle()
 
 # Load from Sprint 3
-bpy.ops.blendercivil.profile_view_load_from_sprint3()
+bpy.ops.saikei.profile_view_load_from_sprint3()
 
 # Add PVI
-bpy.ops.blendercivil.profile_view_add_pvi(
+bpy.ops.saikei.profile_view_add_pvi(
     station=500.0, 
     elevation=105.0
 )
 
 # Programmatic access
-from blendercivil.core.profile_view_overlay import get_profile_overlay
+from saikei.core.profile_view_overlay import get_profile_overlay
 overlay = get_profile_overlay()
 print(f"PVIs: {len(overlay.data.pvis)}")
 ```
@@ -279,7 +279,7 @@ print(f"PVIs: {len(overlay.data.pvis)}")
 
 ## 🔥 Why This Is Awesome
 
-### For BlenderCivil
+### For Saikei Civil
 - **First open-source** civil engineering software with visual profile editing
 - Matches **Civil 3D/OpenRoads** functionality
 - **Native IFC** from the ground up
@@ -310,7 +310,7 @@ print(f"PVIs: {len(overlay.data.pvis)}")
 - ✅ Comprehensive documentation
 - ✅ Clear roadmap to completion
 
-**This is a HUGE milestone for BlenderCivil!** 🚀🌉
+**This is a HUGE milestone for Saikei Civil!** 🚀🌉
 
 ---
 

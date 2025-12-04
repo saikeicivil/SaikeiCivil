@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil - IFC Relationship Manager
+Saikei Civil - IFC Relationship Manager
 Manages IFC relationships (IfcRelNests, IfcRelAggregates, etc.) and their Blender representation
 
 This module provides utilities for querying and managing IFC relationship entities,

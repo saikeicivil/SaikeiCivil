@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Georeferencing Property Groups
+Saikei Civil - Georeferencing Property Groups
 
 Property groups for storing georeferencing data in Blender scenes.
 This module defines the data structures that hold CRS information,
 false origin settings, and georeferencing status.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2025
 Sprint: 2 Day 3 - UI Integration
 """
@@ -269,7 +269,7 @@ def register():
     # Add georeferencing properties to Scene
     bpy.types.Scene.bc_georef = bpy.props.PointerProperty(
         type=GeoreferencingProperties,
-        name="BlenderCivil Georeferencing",
+        name="Saikei Civil Georeferencing",
         description="Georeferencing properties for this scene"
     )
 

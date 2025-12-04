@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,7 +39,7 @@ Operators:
     BC_OT_validate_georeferencing: Check georeferencing configuration
     BC_OT_load_georeferencing: Load existing georeferencing from IFC file
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2025
 Sprint: 2 Day 3 - UI Integration
 """
@@ -103,14 +103,14 @@ class BC_OT_search_crs(Operator):
         
         try:
             # Get API key from preferences
-            # In Blender 4.5+, extensions are registered with names like "bl_ext.user_default.blendercivil"
+            # In Blender 4.5+, extensions are registered with names like "bl_ext.user_default.saikei"
             # So we need to search for the correct addon key
             root_package = __package__.split('.')[0] if '.' in __package__ else __package__
             api_key = ""
 
             try:
                 # Blender 4.5+ extension ID from blender_manifest.toml
-                extension_id = "blendercivil_ext"
+                extension_id = "saikei_civil"
 
                 # DEBUG: Log all available addon keys
                 logger.debug("All registered addons:")
@@ -157,7 +157,7 @@ class BC_OT_search_crs(Operator):
                         return {'CANCELLED'}
                 else:
                     logger.error("Could not find extension '%s'", extension_id)
-                    self.report({'ERROR'}, f"Could not find BlenderCivil extension")
+                    self.report({'ERROR'}, f"Could not find Saikei Civil extension")
                     return {'CANCELLED'}
 
             except Exception as e:
@@ -237,7 +237,7 @@ class BC_OT_select_crs(Operator):
             # Get CRS details
             if HAS_BACKEND:
                 # Get API key from preferences (Blender 4.5+ extension)
-                extension_id = "blendercivil_ext"
+                extension_id = "saikei_civil"
                 api_key = ""
 
                 try:
@@ -342,7 +342,7 @@ class BC_OT_setup_georeferencing(Operator):
                     base_path = os.path.splitext(blend_filepath)[0]
                     georef.ifc_file_path = base_path + ".ifc"
                 else:
-                    georef.ifc_file_path = "/tmp/blendercivil_project.ifc"
+                    georef.ifc_file_path = "/tmp/saikei_project.ifc"
             
             # Create georeferencing
             georef_manager = NativeIfcGeoreferencing(georef.ifc_file_path)

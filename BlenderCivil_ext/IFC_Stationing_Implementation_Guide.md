@@ -1,9 +1,9 @@
 # IFC Stationing Implementation Guide
-## BlenderCivil Native IFC Alignment Stationing System
+## Saikei Civil Native IFC Alignment Stationing System
 
 **Document Version:** 1.0  
 **Date:** 2024-11-19  
-**Author:** BlenderCivil Development Team  
+**Author:** Saikei Civil Development Team  
 **Purpose:** Technical specification for implementing IFC 4.3 compliant stationing system
 
 ---
@@ -36,7 +36,7 @@ In metric (SI) systems:
 - `1+000` = 1,000 meters from alignment start
 - `2+345.67` = 2,345.67 meters from alignment start
 
-### Purpose in BlenderCivil
+### Purpose in Saikei Civil
 
 Stationing serves multiple critical functions:
 
@@ -172,7 +172,7 @@ IfcLinearPlacement
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     BlenderCivil Stationing System              │
+│                     Saikei Civil Stationing System              │
 └─────────────────────────────────────────────────────────────────┘
                               │
                 ┌─────────────┴─────────────┐
@@ -194,10 +194,10 @@ IfcLinearPlacement
 
 ### File Organization
 
-Based on BlenderCivil's established patterns (Bonsai BIM structure):
+Based on Saikei Civil's established patterns (Bonsai BIM structure):
 
 ```
-blendercivil/
+saikei/
 ├── core/
 │   ├── native_ifc_stationing.py          # NEW: Core stationing logic
 │   ├── native_ifc_alignment.py           # Existing: Alignment base
@@ -1854,7 +1854,7 @@ for referent in stations:
 4. **IfcRelNests**: https://ifc43-docs.standards.buildingsmart.org/IFC/RELEASE/IFC4x3/HTML/lexical/IfcRelNests.htm
 5. **IfcAlignment**: https://ifc43-docs.standards.buildingsmart.org/IFC/RELEASE/IFC4x3/HTML/lexical/IfcAlignment.htm
 
-### BlenderCivil Project Documentation
+### Saikei Civil Project Documentation
 
 1. **Section 8 - Referents and Stationing** (from project knowledge)
 2. **Sprint 1 - Alignment Systems** (horizontal/vertical integration)
@@ -1935,7 +1935,7 @@ for referent in stations:
 
 ### Code Quality Standards
 
-- Follow BlenderCivil's existing architectural patterns (Bonsai BIM style)
+- Follow Saikei Civil's existing architectural patterns (Bonsai BIM style)
 - Maintain separation: core/ for IFC, operators/ for Blender actions, ui/ for display
 - Comprehensive docstrings with examples
 - Type hints for all functions
@@ -1962,4 +1962,4 @@ for referent in stations:
 
 **End of Implementation Guide**
 
-This document provides the complete technical specification for implementing IFC 4.3 compliant stationing in BlenderCivil. Use it as the authoritative reference for all stationing-related development work.
+This document provides the complete technical specification for implementing IFC 4.3 compliant stationing in Saikei Civil. Use it as the authoritative reference for all stationing-related development work.

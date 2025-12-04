@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +26,7 @@ This module has been refactored into the templates package.
 This shim provides backwards compatibility for existing imports.
 
 New code should import from:
-    from blendercivil.core.components.templates import (
+    from saikei.core.components.templates import (
         TemplateMetadata,
         get_all_templates,
         list_templates,
@@ -59,8 +59,8 @@ from .templates import (
     create_uk_dual_carriageway,
     create_uk_motorway,
     # Operators
-    BLENDERCIVIL_OT_load_template,
-    BLENDERCIVIL_OT_template_browser,
+    SAIKEI_OT_load_template,
+    SAIKEI_OT_template_browser,
 )
 
 
@@ -108,6 +108,6 @@ __all__ = [
     "get_templates_by_category",
     "list_templates",
     "get_template_summary",
-    "BLENDERCIVIL_OT_load_template",
-    "BLENDERCIVIL_OT_template_browser",
+    "SAIKEI_OT_load_template",
+    "SAIKEI_OT_template_browser",
 ]

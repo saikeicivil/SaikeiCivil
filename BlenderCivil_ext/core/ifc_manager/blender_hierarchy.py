@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,7 @@ import ifcopenshell
 logger = logging.getLogger(__name__)
 
 # Object names used in hierarchy
-PROJECT_COLLECTION_NAME = "BlenderCivil Project"
+PROJECT_COLLECTION_NAME = "Saikei Civil Project"
 PROJECT_EMPTY_NAME = "📂 Project"
 SITE_EMPTY_NAME = "🌍 Site"
 ROAD_EMPTY_NAME = "🛣️  Road"
@@ -52,7 +52,7 @@ def create_blender_hierarchy(
     """Create Blender objects/collections mirroring IFC hierarchy.
 
     Structure created:
-        [Collection] BlenderCivil Project
+        [Collection] Saikei Civil Project
             [Empty] Project
             └── [Empty] Site
                 ├── [Empty] Road
@@ -115,7 +115,7 @@ def create_blender_hierarchy(
 
 
 def clear_blender_hierarchy() -> None:
-    """Remove BlenderCivil hierarchy from scene."""
+    """Remove Saikei Civil hierarchy from scene."""
     # Remove project collection and all its contents
     if PROJECT_COLLECTION_NAME in bpy.data.collections:
         collection = bpy.data.collections[PROJECT_COLLECTION_NAME]

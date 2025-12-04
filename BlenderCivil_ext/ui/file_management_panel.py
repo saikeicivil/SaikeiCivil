@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil File Management Panel
+Saikei Civil File Management Panel
 UI panel for managing IFC files with spatial hierarchy
 """
 
@@ -40,7 +40,7 @@ class VIEW3D_PT_file_management(Panel):
     bl_idname = "VIEW3D_PT_file_management"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "BlenderCivil"
+    bl_category = "Saikei Civil"
     bl_order = 2
     bl_options = {'DEFAULT_CLOSED'}
 

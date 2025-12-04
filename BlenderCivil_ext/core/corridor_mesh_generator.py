@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Corridor Mesh Generation System
+Saikei Civil - Corridor Mesh Generation System
 Sprint 5 Day 3 - Mesh Generation & Blender Integration
 
 This module converts corridor data into Blender mesh geometry with
 LOD (Level of Detail) support and material assignment.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 5, 2025
 Sprint: 5 of 16 - Corridor Modeling
 Day: 3 of 5 - Mesh Generation

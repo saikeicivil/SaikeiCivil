@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,28 +19,28 @@
 # ==============================================================================
 
 """
-BlenderCivil - Corridor UI Panel
+Saikei Civil - Corridor UI Panel
 Sprint 5 Day 3 - User Interface
 
 Panel for corridor generation and management in Blender's 3D View sidebar.
 Provides intuitive controls for creating 3D corridor models.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 5, 2025
 Sprint: 5 of 16 - Corridor Modeling
 Day: 3 of 5 - UI Integration
 
 Panels:
-- BLENDERCIVIL_PT_corridor_generation: Main corridor controls
-- BLENDERCIVIL_PT_corridor_settings: Advanced settings
-- BLENDERCIVIL_PT_corridor_info: Statistics and information
+- SAIKEI_PT_corridor_generation: Main corridor controls
+- SAIKEI_PT_corridor_settings: Advanced settings
+- SAIKEI_PT_corridor_info: Statistics and information
 """
 
 import bpy
 from bpy.types import Panel
 
 
-class BLENDERCIVIL_PT_corridor_generation(Panel):
+class SAIKEI_PT_corridor_generation(Panel):
     """
     Main corridor generation panel.
 
@@ -48,10 +48,10 @@ class BLENDERCIVIL_PT_corridor_generation(Panel):
     alignments and cross-sections.
     """
     bl_label = "Corridor Generation"
-    bl_idname = "BLENDERCIVIL_PT_corridor_generation"
+    bl_idname = "SAIKEI_PT_corridor_generation"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_order = 9
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -106,7 +106,7 @@ class BLENDERCIVIL_PT_corridor_generation(Panel):
         row = col.row(align=True)
         row.scale_y = 1.3
         row.operator(
-            "blendercivil.corridor_quick_preview",
+            "saikei.corridor_quick_preview",
             text="⚡ Quick Preview",
             icon='HIDE_OFF'
         )
@@ -115,7 +115,7 @@ class BLENDERCIVIL_PT_corridor_generation(Panel):
         row = col.row(align=True)
         row.scale_y = 1.5
         row.operator(
-            "blendercivil.generate_corridor",
+            "saikei.generate_corridor",
             text="🏗️ Generate Corridor",
             icon='MOD_BUILD'
         )
@@ -129,31 +129,31 @@ class BLENDERCIVIL_PT_corridor_generation(Panel):
         
         # Export
         col.operator(
-            "blendercivil.export_corridor_ifc",
+            "saikei.export_corridor_ifc",
             text="Export to IFC",
             icon='EXPORT'
         )
         
         # Clear
         col.operator(
-            "blendercivil.clear_corridor",
+            "saikei.clear_corridor",
             text="Clear Corridor",
             icon='TRASH'
         )
 
 
-class BLENDERCIVIL_PT_corridor_settings(Panel):
+class SAIKEI_PT_corridor_settings(Panel):
     """
     Corridor generation settings panel.
     
     Advanced settings and parameters for corridor generation.
     """
     bl_label = "Corridor Settings"
-    bl_idname = "BLENDERCIVIL_PT_corridor_settings"
+    bl_idname = "SAIKEI_PT_corridor_settings"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
-    bl_parent_id = "BLENDERCIVIL_PT_corridor_generation"
+    bl_category = 'Saikei Civil'
+    bl_parent_id = "SAIKEI_PT_corridor_generation"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
@@ -208,18 +208,18 @@ class BLENDERCIVIL_PT_corridor_settings(Panel):
         col.label(text="• Larger intervals = faster")
 
 
-class BLENDERCIVIL_PT_corridor_info(Panel):
+class SAIKEI_PT_corridor_info(Panel):
     """
     Corridor information and statistics panel.
     
     Shows information about the current corridor or last generation.
     """
     bl_label = "Corridor Info"
-    bl_idname = "BLENDERCIVIL_PT_corridor_info"
+    bl_idname = "SAIKEI_PT_corridor_info"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
-    bl_parent_id = "BLENDERCIVIL_PT_corridor_generation"
+    bl_category = 'Saikei Civil'
+    bl_parent_id = "SAIKEI_PT_corridor_generation"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
@@ -274,18 +274,18 @@ class BLENDERCIVIL_PT_corridor_info(Panel):
         col.label(text="IFC Standard: IfcSectionedSolidHorizontal")
 
 
-class BLENDERCIVIL_PT_corridor_workflow(Panel):
+class SAIKEI_PT_corridor_workflow(Panel):
     """
     Corridor workflow guide panel.
     
     Provides step-by-step workflow guidance for users.
     """
     bl_label = "Corridor Workflow"
-    bl_idname = "BLENDERCIVIL_PT_corridor_workflow"
+    bl_idname = "SAIKEI_PT_corridor_workflow"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
-    bl_parent_id = "BLENDERCIVIL_PT_corridor_generation"
+    bl_category = 'Saikei Civil'
+    bl_parent_id = "SAIKEI_PT_corridor_generation"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
@@ -357,10 +357,10 @@ class BLENDERCIVIL_PT_corridor_workflow(Panel):
 
 # Registration
 classes = (
-    BLENDERCIVIL_PT_corridor_generation,
-    BLENDERCIVIL_PT_corridor_settings,
-    BLENDERCIVIL_PT_corridor_info,
-    BLENDERCIVIL_PT_corridor_workflow,
+    SAIKEI_PT_corridor_generation,
+    SAIKEI_PT_corridor_settings,
+    SAIKEI_PT_corridor_info,
+    SAIKEI_PT_corridor_workflow,
 )
 
 

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,7 +42,7 @@ class VIEW3D_PT_bc_vertical_alignment(Panel):
     """Main Vertical Alignment Panel"""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Vertical Alignment"
     bl_idname = "VIEW3D_PT_bc_vertical_alignment"
     bl_order = 6
@@ -62,7 +62,7 @@ class VIEW3D_PT_bc_vertical_terrain(Panel):
     """Terrain Data Sub-Panel"""
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Terrain Data"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -156,7 +156,7 @@ class VIEW3D_PT_bc_vertical_pvi_list(Panel):
     '''PVI List Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "PVI List"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -228,7 +228,7 @@ class VIEW3D_PT_bc_vertical_grade_info(Panel):
     '''Grade Information Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Grade Analysis"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -295,7 +295,7 @@ class VIEW3D_PT_bc_vertical_curve_design(Panel):
     '''Curve Design Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Curve Design"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -378,7 +378,7 @@ class VIEW3D_PT_bc_vertical_query(Panel):
     '''Station Query Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Station Query"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -424,7 +424,7 @@ class VIEW3D_PT_bc_vertical_validation(Panel):
     '''Validation Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Validation"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -477,7 +477,7 @@ class VIEW3D_PT_bc_vertical_segments(Panel):
     '''Segments Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "Segments"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}
@@ -523,7 +523,7 @@ class VIEW3D_PT_bc_vertical_ifc_alignments(Panel):
     '''IFC Vertical Alignments Sub-Panel'''
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'BlenderCivil'
+    bl_category = 'Saikei Civil'
     bl_label = "IFC Vertical Alignments"
     bl_parent_id = "VIEW3D_PT_bc_vertical_alignment"
     bl_options = {'DEFAULT_CLOSED'}

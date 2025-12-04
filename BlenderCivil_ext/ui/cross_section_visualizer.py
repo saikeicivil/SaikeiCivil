@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - 3D Cross-Section Visualization
+Saikei Civil - 3D Cross-Section Visualization
 Sprint 4 Day 4 - Advanced Features & 3D Visualization
 
 This module provides stunning 3D visualization of road cross-sections and corridors
 in Blender, creating beautiful geometry from cross-section assemblies.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 3, 2025
 Sprint: 4 of 16 - Cross-Sections
 Day: 4 of 5 - Advanced Features

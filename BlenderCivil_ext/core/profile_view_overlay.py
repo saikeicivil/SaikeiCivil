@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +19,17 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View Overlay Manager (Core)
+Saikei Civil - Profile View Overlay Manager (Core)
 ===================================================
 
 Manages the viewport overlay system for profile view visualization.
 Handles draw handler registration and coordinates with renderer.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - Core logic for overlay management
 - Minimal Blender dependencies
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """
@@ -517,8 +517,8 @@ def sync_to_sprint3_vertical(context) -> bool:
     
     # Trigger Sprint 3 segment regeneration
     # (This operator should exist from Sprint 3)
-    if hasattr(bpy.ops.blendercivil, 'generate_vertical_segments'):
-        bpy.ops.blendercivil.generate_vertical_segments()
+    if hasattr(bpy.ops.saikei, 'generate_vertical_segments'):
+        bpy.ops.saikei.generate_vertical_segments()
     
     return True
 

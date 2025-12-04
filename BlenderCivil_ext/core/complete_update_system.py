@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil - Complete Alignment Update System (SIMPLIFIED)
+Saikei Civil - Complete Alignment Update System (SIMPLIFIED)
 
 This is a complete, working implementation that:
 1. Detects when a PI moves
@@ -83,7 +83,7 @@ _updating = False  # Reentrancy guard
 
 
 @persistent
-def blendercivil_update_handler(scene, depsgraph):
+def saikei_update_handler(scene, depsgraph):
     """
     Detects PI movements/deletions and regenerates alignments.
 
@@ -215,7 +215,7 @@ def blendercivil_update_handler(scene, depsgraph):
             # Object reference is dead - skip it
             continue
 
-        # Must be a BlenderCivil PI
+        # Must be a Saikei Civil PI
         if 'bc_pi_id' not in obj or 'bc_alignment_id' not in obj:
             continue
         
@@ -289,18 +289,18 @@ def blendercivil_update_handler(scene, depsgraph):
 
 def register_handler():
     """Register the update handler with Blender."""
-    if blendercivil_update_handler not in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.append(blendercivil_update_handler)
-        logger.info("BlenderCivil update handler REGISTERED")
+    if saikei_update_handler not in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.append(saikei_update_handler)
+        logger.info("Saikei Civil update handler REGISTERED")
         return True
     return False
 
 
 def unregister_handler():
     """Unregister the update handler."""
-    if blendercivil_update_handler in bpy.app.handlers.depsgraph_update_post:
-        bpy.app.handlers.depsgraph_update_post.remove(blendercivil_update_handler)
-        logger.info("BlenderCivil update handler UNREGISTERED")
+    if saikei_update_handler in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(saikei_update_handler)
+        logger.info("Saikei Civil update handler UNREGISTERED")
         return True
     return False
 
@@ -309,9 +309,9 @@ def unregister_handler():
 # PART 3: MANUAL UPDATE OPERATOR
 # =============================================================================
 
-class BLENDERCIVIL_OT_update_alignment(bpy.types.Operator):
+class SAIKEI_OT_update_alignment(bpy.types.Operator):
     """Manually update alignment from PI positions"""
-    bl_idname = "blendercivil.update_alignment"
+    bl_idname = "saikei.update_alignment"
     bl_label = "Update Alignment"
     bl_description = "Regenerate alignment from current PI positions"
     bl_options = {'REGISTER', 'UNDO'}
@@ -349,9 +349,9 @@ class BLENDERCIVIL_OT_update_alignment(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class BLENDERCIVIL_OT_toggle_auto_update(bpy.types.Operator):
+class SAIKEI_OT_toggle_auto_update(bpy.types.Operator):
     """Toggle auto-update on/off"""
-    bl_idname = "blendercivil.toggle_auto_update"
+    bl_idname = "saikei.toggle_auto_update"
     bl_label = "Toggle Auto-Update"
     bl_description = "Toggle automatic alignment updates"
     bl_options = {'REGISTER'}
@@ -533,8 +533,8 @@ class AlignmentVisualizer:
 # =============================================================================
 
 classes = (
-    BLENDERCIVIL_OT_update_alignment,
-    BLENDERCIVIL_OT_toggle_auto_update,
+    SAIKEI_OT_update_alignment,
+    SAIKEI_OT_toggle_auto_update,
 )
 
 
@@ -544,7 +544,7 @@ def register():
         bpy.utils.register_class(cls)
 
     register_handler()
-    logger.info("BlenderCivil update system registered")
+    logger.info("Saikei Civil update system registered")
 
 
 def unregister():
@@ -554,7 +554,7 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    logger.info("BlenderCivil update system unregistered")
+    logger.info("Saikei Civil update system unregistered")
 
 
 # =============================================================================
@@ -563,10 +563,10 @@ def unregister():
 
 def test_system():
     """Test the update system."""
-    logger.info("\n=== BlenderCivil Update System Test ===")
+    logger.info("\n=== Saikei Civil Update System Test ===")
 
     # Check handler
-    logger.info("Handler registered: %s", blendercivil_update_handler in bpy.app.handlers.depsgraph_update_post)
+    logger.info("Handler registered: %s", saikei_update_handler in bpy.app.handlers.depsgraph_update_post)
 
     # Check alignments
     logger.info("Registered alignments: %s", len(_alignment_registry))
@@ -590,5 +590,5 @@ def test_system():
 
 
 if __name__ == "__main__":
-    logger.info("BlenderCivil Update System")
+    logger.info("Saikei Civil Update System")
     logger.info("Import this module in your addon")

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,7 @@ Supported Standards:
 - UK DMRB (Design Manual for Roads and Bridges)
 
 Example:
-    >>> from blendercivil.core.components.templates import get_all_templates
+    >>> from saikei.core.components.templates import get_all_templates
     >>> templates = get_all_templates()
     >>> assembly = templates['AASHTO Two-Lane Rural']()
 """
@@ -71,8 +71,8 @@ from .uk_dmrb import (
 
 # Blender operators
 from .operators import (
-    BLENDERCIVIL_OT_load_template,
-    BLENDERCIVIL_OT_template_browser,
+    SAIKEI_OT_load_template,
+    SAIKEI_OT_template_browser,
     register,
     unregister,
 )
@@ -103,8 +103,8 @@ __all__ = [
     "create_uk_dual_carriageway",
     "create_uk_motorway",
     # Operators
-    "BLENDERCIVIL_OT_load_template",
-    "BLENDERCIVIL_OT_template_browser",
+    "SAIKEI_OT_load_template",
+    "SAIKEI_OT_template_browser",
     "register",
     "unregister",
 ]

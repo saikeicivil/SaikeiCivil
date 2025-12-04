@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View Operators
+Saikei Civil - Profile View Operators
 ======================================
 
 Blender operators for profile view interaction.
 Handles user actions: toggle, load data, edit PVIs, etc.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - operators/ = User actions and workflows
 - Imports from core/ for business logic
 
@@ -43,7 +43,7 @@ Operators:
     BC_OT_ProfileView_ClearData: Clear all profile view data
     BC_OT_ProfileView_ModalHandler: Modal event handler for profile view interaction
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """
@@ -57,7 +57,7 @@ import sys
 import os
 
 # Note: Adjust import path based on actual installation
-# from blendercivil.core.profile_view_overlay import (
+# from saikei.core.profile_view_overlay import (
 #     get_profile_overlay,
 #     load_from_sprint3_vertical,
 #     sync_to_sprint3_vertical
@@ -82,7 +82,7 @@ class BC_OT_ProfileView_Toggle(Operator):
     Usage context: Primary toggle button in the UI panel for showing/hiding
     the profile view overlay.
     """
-    bl_idname = "blendercivil.profile_view_toggle"
+    bl_idname = "saikei.profile_view_toggle"
     bl_label = "Toggle Profile View"
     bl_description = "Show/hide the profile view overlay at bottom of viewport"
     bl_options = {'REGISTER'}
@@ -98,7 +98,7 @@ class BC_OT_ProfileView_Toggle(Operator):
         # Start or stop the modal event handler
         if overlay.enabled and not was_enabled:
             # Start the modal event handler
-            bpy.ops.blendercivil.profile_view_modal_handler('INVOKE_DEFAULT')
+            bpy.ops.saikei.profile_view_modal_handler('INVOKE_DEFAULT')
             self.report({'INFO'}, "Profile view enabled")
         else:
             self.report({'INFO'}, "Profile view disabled")
@@ -120,7 +120,7 @@ class BC_OT_ProfileView_Enable(Operator):
     Usage context: Called programmatically when loading data or when
     explicit enable is needed (e.g., after loading vertical alignment data).
     """
-    bl_idname = "blendercivil.profile_view_enable"
+    bl_idname = "saikei.profile_view_enable"
     bl_label = "Enable Profile View"
     bl_description = "Show the profile view overlay"
     bl_options = {'REGISTER'}
@@ -134,7 +134,7 @@ class BC_OT_ProfileView_Enable(Operator):
 
         # Start the modal event handler if not already running
         if not was_enabled:
-            bpy.ops.blendercivil.profile_view_modal_handler('INVOKE_DEFAULT')
+            bpy.ops.saikei.profile_view_modal_handler('INVOKE_DEFAULT')
 
         self.report({'INFO'}, "Profile view enabled")
         return {'FINISHED'}
@@ -154,7 +154,7 @@ class BC_OT_ProfileView_Disable(Operator):
     Usage context: Called when user wants to explicitly hide the overlay
     or when cleaning up the viewport.
     """
-    bl_idname = "blendercivil.profile_view_disable"
+    bl_idname = "saikei.profile_view_disable"
     bl_label = "Disable Profile View"
     bl_description = "Hide the profile view overlay"
     bl_options = {'REGISTER'}
@@ -187,7 +187,7 @@ class BC_OT_ProfileView_LoadFromSprint3(Operator):
     Usage context: Called when migrating existing projects or when working
     with Sprint 3 vertical alignment data.
     """
-    bl_idname = "blendercivil.profile_view_load_from_sprint3"
+    bl_idname = "saikei.profile_view_load_from_sprint3"
     bl_label = "Load from Sprint 3"
     bl_description = "Load vertical alignment data from Sprint 3 bc_vertical properties"
     bl_options = {'REGISTER', 'UNDO'}
@@ -232,7 +232,7 @@ class BC_OT_ProfileView_SyncToSprint3(Operator):
     Usage context: Called after editing vertical alignment in profile view
     to persist changes to Sprint 3 storage.
     """
-    bl_idname = "blendercivil.profile_view_sync_to_sprint3"
+    bl_idname = "saikei.profile_view_sync_to_sprint3"
     bl_label = "Sync to Sprint 3"
     bl_description = "Write profile view changes back to Sprint 3 vertical alignment"
     bl_options = {'REGISTER', 'UNDO'}
@@ -272,7 +272,7 @@ class BC_OT_ProfileView_LoadTerrain(Operator):
     Usage context: Called when user wants to display existing ground
     elevations in the profile view for design comparison.
     """
-    bl_idname = "blendercivil.profile_view_load_terrain"
+    bl_idname = "saikei.profile_view_load_terrain"
     bl_label = "Load Terrain"
     bl_description = "Sample terrain elevations from selected mesh along alignment"
     bl_options = {'REGISTER', 'UNDO'}
@@ -336,7 +336,7 @@ class BC_OT_ProfileView_AddPVI(Operator):
     Usage context: Called when user needs to add a new control point
     to the vertical alignment design.
     """
-    bl_idname = "blendercivil.profile_view_add_pvi"
+    bl_idname = "saikei.profile_view_add_pvi"
     bl_label = "Add PVI"
     bl_description = "Add a new Point of Vertical Intersection"
     bl_options = {'REGISTER', 'UNDO'}
@@ -397,7 +397,7 @@ class BC_OT_ProfileView_DeleteSelectedPVI(Operator):
     from the vertical alignment. Typically bound to keyboard shortcuts
     or delete buttons in the UI.
     """
-    bl_idname = "blendercivil.profile_view_delete_selected_pvi"
+    bl_idname = "saikei.profile_view_delete_selected_pvi"
     bl_label = "Delete PVI"
     bl_description = "Delete the currently selected PVI"
     bl_options = {'REGISTER', 'UNDO'}
@@ -438,7 +438,7 @@ class BC_OT_ProfileView_SelectPVI(Operator):
     Usage context: Called internally by profile view mouse interactions
     or when programmatically selecting a PVI for editing.
     """
-    bl_idname = "blendercivil.profile_view_select_pvi"
+    bl_idname = "saikei.profile_view_select_pvi"
     bl_label = "Select PVI"
     bl_description = "Select a PVI for editing"
     bl_options = {'REGISTER', 'UNDO'}
@@ -484,7 +484,7 @@ class BC_OT_ProfileView_FitToData(Operator):
     Usage context: Called when user wants to quickly frame all profile
     data or after loading new data that may be outside current view.
     """
-    bl_idname = "blendercivil.profile_view_fit_to_data"
+    bl_idname = "saikei.profile_view_fit_to_data"
     bl_label = "Fit to Data"
     bl_description = "Automatically adjust view extents to fit all data"
     bl_options = {'REGISTER', 'UNDO'}
@@ -561,7 +561,7 @@ class BC_OT_ProfileView_ClearData(Operator):
     Usage context: Called when resetting the profile view or starting
     a new vertical alignment design from scratch.
     """
-    bl_idname = "blendercivil.profile_view_clear_data"
+    bl_idname = "saikei.profile_view_clear_data"
     bl_label = "Clear All Data"
     bl_description = "Clear all terrain, alignment, and PVI data"
     bl_options = {'REGISTER', 'UNDO'}
@@ -602,7 +602,7 @@ class BC_OT_ProfileView_ModalHandler(Operator):
     Usage context: Automatically invoked when profile view is enabled.
     Should not be called directly by users.
     """
-    bl_idname = "blendercivil.profile_view_modal_handler"
+    bl_idname = "saikei.profile_view_modal_handler"
     bl_label = "Profile View Modal Handler"
     bl_description = "Handle mouse events for profile view resize and interaction"
     bl_options = {'INTERNAL'}

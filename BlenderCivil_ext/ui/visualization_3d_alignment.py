@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,13 +19,13 @@
 # ==============================================================================
 
 """
-BlenderCivil - 3D Alignment Visualization
+Saikei Civil - 3D Alignment Visualization
 Sprint 3 Day 4 - 3D Visualization in Blender
 
 This module provides tools to visualize complete 3D alignments (H+V) 
 in Blender, creating beautiful curves, profiles, and cross-sections.
 
-Author: BlenderCivil Team
+Author: Saikei Civil Team
 Date: November 2, 2025
 Sprint: 3 of 16 - Vertical Alignments
 Day: 4 of 5 - 3D Visualization
@@ -635,7 +635,7 @@ def demo_visualization():
 
     This creates sample visualizations to show what's possible.
     """
-    logger.info("=== BlenderCivil 3D Visualization Demo ===")
+    logger.info("=== Saikei Civil 3D Visualization Demo ===")
     logger.info("")
     logger.info("Visualization Capabilities:")
     logger.info("  [+] 3D alignment curves")

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,18 +19,18 @@
 # ==============================================================================
 
 """
-BlenderCivil - Profile View Data Model (Core)
+Saikei Civil - Profile View Data Model (Core)
 ==============================================
 
 Pure Python data structures for profile view visualization.
 No Blender dependencies - just data and business logic.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - core/ = Business logic, IFC operations, pure Python
 - operators/ = Blender operators (user actions)
 - ui/ = Blender UI panels and properties
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: November 2025
 License: GPL v3
 """

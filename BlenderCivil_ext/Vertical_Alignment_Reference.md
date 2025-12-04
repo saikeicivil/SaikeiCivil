@@ -1,7 +1,7 @@
-# BlenderCivil Vertical Alignment Reference
+# Saikei Civil Vertical Alignment Reference
 ## Complete Guide for IFC 4.3 Vertical Alignment Creation and Handling
 
-**Document Purpose:** This is a comprehensive reference for understanding and maintaining BlenderCivil's vertical alignment system. Use this when making edits or debugging vertical alignment code.
+**Document Purpose:** This is a comprehensive reference for understanding and maintaining Saikei Civil's vertical alignment system. Use this when making edits or debugging vertical alignment code.
 
 **Last Updated:** November 19, 2025  
 **Sprint:** Phase 1 Complete - Sprint 3 (Vertical Alignments)  
@@ -36,7 +36,7 @@ A **vertical alignment** defines the elevation profile of a road, railway, or ot
 
 ### 1.2 Design Philosophy: PVI-Based Approach
 
-BlenderCivil uses a **PVI-based** design methodology, matching professional tools like Civil 3D and OpenRoads:
+Saikei Civil uses a **PVI-based** design methodology, matching professional tools like Civil 3D and OpenRoads:
 
 ```
 User places PVIs → System calculates grades → System generates segments
@@ -48,7 +48,7 @@ User places PVIs → System calculates grades → System generates segments
 
 ### 1.3 Native IFC Implementation
 
-BlenderCivil creates **native IFC 4.3** vertical alignments:
+Saikei Civil creates **native IFC 4.3** vertical alignments:
 
 - **Not a converter:** We create IFC entities directly, not export to IFC
 - **Single source of truth:** The IFC file IS the alignment, not a Blender object
@@ -724,7 +724,7 @@ IfcProject
 
 ### 4.2 Segment Type Mapping
 
-| BlenderCivil Class | IFC PredefinedType | Geometric Representation |
+| Saikei Civil Class | IFC PredefinedType | Geometric Representation |
 |-------------------|-------------------|-------------------------|
 | TangentSegment | CONSTANTGRADIENT | IfcLine (2D in distance-elevation space) |
 | ParabolicSegment | PARABOLICARC | IfcPolynomialCurve (degree 2) |
@@ -1296,7 +1296,7 @@ K = 80 / 4.3 = 18.6 m/%
 
 ### 8.8 Missing Geometric Layer (IFC Compliance)
 
-**CURRENT ISSUE:** BlenderCivil creates the semantic layer (IfcAlignmentVerticalSegment) but NOT the geometric layer (IfcCurveSegment with ParentCurve).
+**CURRENT ISSUE:** Saikei Civil creates the semantic layer (IfcAlignmentVerticalSegment) but NOT the geometric layer (IfcCurveSegment with ParentCurve).
 
 **What's missing:**
 ```python
@@ -1349,7 +1349,7 @@ gradient_curve = ifc.create_entity("IfcGradientCurve",
 Complete example: Create vertical alignment, validate, export to IFC.
 """
 import ifcopenshell
-from blendercivil.core.native_ifc_vertical_alignment import (
+from saikei.core.native_ifc_vertical_alignment import (
     VerticalAlignment, PVI
 )
 
@@ -1448,7 +1448,7 @@ print("\nExported to highway_101_profile.ifc")
 """
 Design a vertical curve using K-value method.
 """
-from blendercivil.core.native_ifc_vertical_alignment import calculate_required_curve_length
+from saikei.core.native_ifc_vertical_alignment import calculate_required_curve_length
 
 # Design parameters
 design_speed_kmh = 80
@@ -1496,7 +1496,7 @@ va.add_pvi(
 """
 Iterate through segments and process each type differently.
 """
-from blendercivil.core.native_ifc_vertical_alignment import (
+from saikei.core.native_ifc_vertical_alignment import (
     TangentSegment, ParabolicSegment
 )
 
@@ -1587,7 +1587,7 @@ for p in profile:
 
 ```python
 import unittest
-from blendercivil.core.native_ifc_vertical_alignment import (
+from saikei.core.native_ifc_vertical_alignment import (
     PVI, TangentSegment, ParabolicSegment, VerticalAlignment
 )
 
@@ -1839,7 +1839,7 @@ grade_stored = 0.025  # NOT 2.5
 ## Appendix B: File Locations
 
 ```
-blendercivil/
+saikei/
 ├── core/
 │   ├── native_ifc_vertical_alignment.py    # MAIN MODULE
 │   └── alignment_3d.py                     # H+V Integration
@@ -1901,4 +1901,4 @@ SEGMENT_TYPE_CIRCULARARC = "CIRCULARARC"  # Future
 
 **END OF REFERENCE DOCUMENT**
 
-This document captures all essential knowledge about BlenderCivil's vertical alignment system. Use it as a reference when debugging, extending, or maintaining the codebase.
+This document captures all essential knowledge about Saikei Civil's vertical alignment system. Use it as a reference when debugging, extending, or maintaining the codebase.

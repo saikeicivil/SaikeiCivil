@@ -1,6 +1,6 @@
-# BlenderCivil Horizontal Alignment - Complete Reference Guide
+# Saikei Civil Horizontal Alignment - Complete Reference Guide
 
-**Document Purpose:** Comprehensive reference for Claude Code when editing, debugging, or extending horizontal alignment functionality in BlenderCivil.
+**Document Purpose:** Comprehensive reference for Claude Code when editing, debugging, or extending horizontal alignment functionality in Saikei Civil.
 
 **Last Updated:** November 19, 2025  
 **Status:** Production Reference  
@@ -27,7 +27,7 @@
 
 ### 1. Native IFC Authoring Paradigm
 
-**CRITICAL:** BlenderCivil is NOT an IFC exporter. It is a native IFC authoring tool.
+**CRITICAL:** Saikei Civil is NOT an IFC exporter. It is a native IFC authoring tool.
 
 ```
 ❌ WRONG: Create data in memory → Export to IFC on save
@@ -456,7 +456,7 @@ segment = self.ifc.create_entity("IfcAlignmentSegment",
 
 **Impact:**
 - ✅ Works for viewing in IFC viewers (they use DesignParameters)
-- ✅ Works for BlenderCivil visualization
+- ✅ Works for Saikei Civil visualization
 - ❌ May not work for advanced IFC operations that expect geometric representation
 - 📋 TODO for Phase 2: Add full geometric representation
 
@@ -605,7 +605,7 @@ turn_direction = 'LEFT' if cross > 0 else 'RIGHT'
 ### File Locations
 
 ```
-blendercivil/
+saikei/
 ├── core/
 │   ├── native_ifc_alignment.py      ← Main alignment logic (625 lines)
 │   │   ├── NativeIfcManager
@@ -809,7 +809,7 @@ def create_pi_object(self, pi_data):
 ```python
 class BC_OT_add_pi_interactive(bpy.types.Operator):
     """Interactive PI placement operator"""
-    bl_idname = "blendercivil.add_pi_interactive"
+    bl_idname = "saikei.add_pi_interactive"
     bl_label = "Click to Place PIs"
     
     def invoke(self, context, event):
@@ -978,7 +978,7 @@ class BC_OT_add_curve_interactive(bpy.types.Operator):
                     # Check adjacency
                     if self.are_adjacent(self.first_segment, self.second_segment):
                         # Open radius dialog
-                        bpy.ops.blendercivil.enter_curve_radius('INVOKE_DEFAULT')
+                        bpy.ops.saikei.enter_curve_radius('INVOKE_DEFAULT')
                     else:
                         self.report({'ERROR'}, "Segments must be adjacent!")
             
@@ -1232,7 +1232,7 @@ pi_data = {
 
 ```python
 # Check if handler is registered
-from blendercivil.core.alignment_update_handler import AlignmentUpdateHandler
+from saikei.core.alignment_update_handler import AlignmentUpdateHandler
 
 if alignment_update_handler not in bpy.app.handlers.depsgraph_update_post:
     AlignmentUpdateHandler.register()
@@ -1262,7 +1262,7 @@ class BC_OT_save_ifc(bpy.types.Operator):
         filepath = context.scene.get('ifc_filepath')
         if not filepath:
             # Open file browser
-            bpy.ops.blendercivil.save_ifc_as('INVOKE_DEFAULT')
+            bpy.ops.saikei.save_ifc_as('INVOKE_DEFAULT')
             return {'FINISHED'}
         
         # Write IFC file
@@ -1360,7 +1360,7 @@ def update_ifc_nesting(self):
 ```python
 import unittest
 import ifcopenshell
-from blendercivil.core.native_ifc_alignment import NativeIfcAlignment
+from saikei.core.native_ifc_alignment import NativeIfcAlignment
 
 class TestHorizontalAlignment(unittest.TestCase):
     
@@ -1403,20 +1403,20 @@ class TestHorizontalAlignment(unittest.TestCase):
 
 1. **Fresh Start**
    - File → New → General
-   - Install BlenderCivil addon
+   - Install Saikei Civil addon
    - Open Python Console
 
 2. **Create Alignment**
    ```python
    import bpy
-   bpy.ops.blendercivil.create_horizontal_alignment(name="Test")
+   bpy.ops.saikei.create_horizontal_alignment(name="Test")
    ```
    - ✅ Check: Alignment appears in outliner
    - ✅ Check: IFC file created (scene property)
 
 3. **Place PIs**
    ```python
-   bpy.ops.blendercivil.add_pi_interactive('INVOKE_DEFAULT')
+   bpy.ops.saikei.add_pi_interactive('INVOKE_DEFAULT')
    ```
    - Click 4 points in viewport
    - ✅ Check: Green sphere appears at each click
@@ -1425,7 +1425,7 @@ class TestHorizontalAlignment(unittest.TestCase):
 
 4. **Add Curve**
    ```python
-   bpy.ops.blendercivil.add_curve_interactive('INVOKE_DEFAULT')
+   bpy.ops.saikei.add_curve_interactive('INVOKE_DEFAULT')
    ```
    - Click first tangent
    - Click adjacent tangent
@@ -1441,7 +1441,7 @@ class TestHorizontalAlignment(unittest.TestCase):
 
 6. **Save IFC**
    ```python
-   bpy.ops.blendercivil.save_ifc_file()
+   bpy.ops.saikei.save_ifc_file()
    ```
    - ✅ Check: .ifc file written to disk
    - Open in IFC viewer (e.g., BlenderBIM)
@@ -1634,7 +1634,7 @@ if alignment:
 
 ### 4. Update Handler
 ```python
-from blendercivil.core.alignment_update_handler import alignment_update_handler
+from saikei.core.alignment_update_handler import alignment_update_handler
 
 handlers = bpy.app.handlers.depsgraph_update_post
 is_registered = alignment_update_handler in handlers
@@ -1741,7 +1741,7 @@ seg['ifc_segment']   # IfcAlignmentSegment
 4. Add cross-references if needed
 5. Update Table of Contents if structure changed
 
-**Document Owner:** Michael (BlenderCivil project lead)
+**Document Owner:** Michael (Saikei Civil project lead)
 
 **Review Frequency:** After each sprint or major feature addition
 
@@ -1754,7 +1754,7 @@ seg['ifc_segment']   # IfcAlignmentSegment
 - [buildingSMART Alignment Guide](https://github.com/buildingSMART/ProductData-IFC)
 - Project file: `/mnt/project/1_Introduction.md` through `/mnt/project/9_Precision_and_Tolerance.md`
 
-**BlenderCivil Documentation:**
+**Saikei Civil Documentation:**
 - Sprint summaries in `/mnt/project/Sprint1_*_Summary.md`
 - Architecture decisions in `/mnt/project/*_Architecture.md`
 - Professional patterns in `/mnt/project/Professional_*.md`
@@ -1764,11 +1764,11 @@ seg['ifc_segment']   # IfcAlignmentSegment
 - `/mnt/project/Integration_Guide.md`
 
 **Related Systems:**
-- Vertical Alignments: `/mnt/project/BlenderCivil_Developer_API_Vertical_Alignments.md`
-- Georeferencing: `/mnt/project/BlenderCivil_Georeferencing_Developer_API.md`
+- Vertical Alignments: `/mnt/project/Saikei Civil_Developer_API_Vertical_Alignments.md`
+- Georeferencing: `/mnt/project/Saikei Civil_Georeferencing_Developer_API.md`
 
 ---
 
 **End of Reference Document**
 
-*This document captures the knowledge built over Sprint 0 and Sprint 1 of the BlenderCivil Native IFC implementation. Use it as your primary reference when working with horizontal alignment code.*
+*This document captures the knowledge built over Sprint 0 and Sprint 1 of the Saikei Civil Native IFC implementation. Use it as your primary reference when working with horizontal alignment code.*

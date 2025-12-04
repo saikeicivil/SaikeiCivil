@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,11 +25,11 @@ File Operations
 IFC file creation and management operators.
 
 This module provides Blender operators for creating and managing IFC files
-within the BlenderCivil addon. These operators handle fundamental file
+within the Saikei Civil addon. These operators handle fundamental file
 operations like creating new IFC projects with proper initialization.
 
 Operators:
-    BC_OT_new_ifc_file: Create a new IFC file with BlenderCivil schema
+    BC_OT_new_ifc_file: Create a new IFC file with Saikei Civil schema
 """
 
 import bpy
@@ -50,7 +50,7 @@ class BC_OT_new_ifc_file(bpy.types.Operator):
     The new file uses IFC 4.3 schema which supports civil infrastructure
     entities and is managed through the NativeIfcManager.
 
-    Usage context: Called when starting a new BlenderCivil project or
+    Usage context: Called when starting a new Saikei Civil project or
     when the user needs a fresh IFC file to work with.
     """
     bl_idname = "bc.new_ifc_file"

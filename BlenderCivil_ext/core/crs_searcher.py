@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil - CRS Searcher Module
+Saikei Civil - CRS Searcher Module
 Provides coordinate reference system search and metadata retrieval.
 
 Uses EPSG.io API as primary source, with PyProj fallback for offline/validation.

@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,7 @@ Cross-Section Assembly Operators
 =================================
 
 Comprehensive operators for creating, editing, and managing cross-section
-assemblies in BlenderCivil. These operators handle the full lifecycle of
+assemblies in Saikei Civil. These operators handle the full lifecycle of
 cross-section definitions used for corridor modeling.
 
 Operators:

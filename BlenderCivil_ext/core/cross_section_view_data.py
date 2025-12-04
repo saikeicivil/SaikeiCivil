@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,19 +19,19 @@
 # ==============================================================================
 
 """
-BlenderCivil - Cross-Section View Data Model (Core)
+Saikei Civil - Cross-Section View Data Model (Core)
 =====================================================
 
 Data structures for cross-section view visualization.
 Following the OpenRoads approach where cross-sections are visualized
 in a dedicated viewer, not in the 3D model space.
 
-This follows BlenderCivil's architecture pattern:
+This follows Saikei Civil's architecture pattern:
 - Pure Python data structures
 - No Blender dependencies
 - Easy to test independently
 
-Author: BlenderCivil Development Team
+Author: Saikei Civil Development Team
 Date: December 2025
 """
 

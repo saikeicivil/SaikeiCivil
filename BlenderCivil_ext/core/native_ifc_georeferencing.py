@@ -1,5 +1,5 @@
 # ==============================================================================
-# BlenderCivil - Civil Engineering Tools for Blender
+# Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,7 +19,7 @@
 # ==============================================================================
 
 """
-BlenderCivil - Native IFC Georeferencing Module
+Saikei Civil - Native IFC Georeferencing Module
 Implements IFC 4.3 georeferencing using IfcProjectedCRS and IfcMapConversion.
 
 This module enables proper georeferencing storage in IFC files so they can be
