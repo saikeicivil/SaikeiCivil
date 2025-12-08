@@ -36,6 +36,7 @@ def _reload_modules():
     # List of submodules in dependency order
     module_names = [
         "core",
+        "tool",  # Tool layer (Blender implementations of core interfaces)
         "operators",
         "ui",
     ]
@@ -53,6 +54,7 @@ if "bpy" in locals():
 # Import submodules after reload
 from . import preferences
 from . import core
+from . import tool  # Tool layer (Blender implementations of core interfaces)
 from . import operators
 from . import ui
 
@@ -78,6 +80,7 @@ def register():
     logger.info("Loading modules...")
     preferences.register()  # Register preferences FIRST (for API keys, etc.)
     core.register()
+    tool.register()       # Tool layer (Blender implementations)
     ui.register()         # Register UI properties FIRST (operators depend on them)
     operators.register()  # Then operators can use the properties
 
@@ -100,6 +103,7 @@ def unregister():
     # Unregister modules in reverse order
     operators.unregister()  # Unregister operators first (they use properties)
     ui.unregister()         # Then UI properties
+    tool.unregister()       # Tool layer
     core.unregister()
     preferences.unregister()  # Unregister preferences last
 

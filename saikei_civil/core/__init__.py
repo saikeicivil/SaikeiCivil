@@ -22,13 +22,35 @@
 Saikei Civil Core Module
 
 Core functionality and data structures for Saikei Civil.
-This will contain IFC utilities, geometry helpers, and core algorithms.
+This module contains:
+- Interface definitions (tool.py) for the three-layer architecture
+- IFC utilities and managers
+- Geometry helpers and core algorithms
+
+Architecture:
+    Layer 1: Core (this module) - Pure Python interfaces and business logic
+    Layer 2: Tool (saikei_civil.tool) - Blender-specific implementations
+    Layer 3: BIM Modules - UI, operators, and properties
 """
 
 import bpy
 
 # Import logging configuration first (no dependencies)
 from .logging_config import get_logger, setup_logging
+
+# Import interface definitions (no external dependencies)
+from .tool import (
+    interface,
+    Ifc,
+    Blender,
+    Alignment,
+    VerticalAlignment,
+    Georeference,
+    CrossSection,
+    Corridor,
+    Spatial,
+    Visualizer,
+)
 
 logger = get_logger(__name__)
 
