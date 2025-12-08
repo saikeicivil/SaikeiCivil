@@ -934,7 +934,8 @@ class BC_OT_TraceTerrainAsVertical(Operator):
             vertical_ifc = valign.to_ifc(ifc, horizontal_alignment=active_alignment_ifc)
 
             # Create Blender Empty to represent vertical alignment in Outliner
-            valign.create_blender_empty(vertical_ifc, horizontal_alignment=active_alignment_ifc)
+            from .. import tool
+            tool.VerticalAlignment.create_blender_empty(vertical_ifc, active_alignment_ifc)
 
             # Add vertical alignment to profile view
             if overlay:

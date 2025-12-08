@@ -56,6 +56,14 @@ class OverlayPosition(Enum):
     FLOATING = "FLOATING"  # Free-floating, draggable
 
 
+class ResizeEdge(Enum):
+    """Which edge is being resized (for floating mode)"""
+    NONE = "NONE"          # Not resizing
+    RIGHT = "RIGHT"        # Right edge (horizontal resize)
+    BOTTOM = "BOTTOM"      # Bottom edge (vertical resize)
+    CORNER = "CORNER"      # Bottom-right corner (both dimensions)
+
+
 class CrossSectionViewOverlay:
     """
     Manages the cross-section view as an overlay in the 3D viewport.
@@ -92,11 +100,14 @@ class CrossSectionViewOverlay:
         # Resize interaction state
         self.is_resizing = False
         self.hover_resize_border = False
+        self.resize_edge = ResizeEdge.NONE      # Which edge is being hovered/resized
+        self.active_resize_edge = ResizeEdge.NONE  # Edge being actively resized
         self.resize_start_width = 0
         self.resize_start_height = 0
         self.resize_start_mouse_x = 0
         self.resize_start_mouse_y = 0
         self.resize_border_thickness = 8  # pixels to detect hover
+        self.corner_size = 16  # Corner detection area size
         self.min_width = 300
         self.min_height = 150
         self.max_width = 1200
@@ -389,6 +400,7 @@ class CrossSectionViewOverlay:
     def is_mouse_over_resize_border(self, context, mouse_x: int, mouse_y: int) -> bool:
         """
         Check if mouse is hovering over the resize border.
+        Also sets self.resize_edge to indicate which edge is being hovered.
 
         Args:
             context: Blender context
@@ -399,10 +411,12 @@ class CrossSectionViewOverlay:
             True if mouse is over resize border
         """
         if not self.enabled:
+            self.resize_edge = ResizeEdge.NONE
             return False
 
         region = context.region
         if not region:
+            self.resize_edge = ResizeEdge.NONE
             return False
 
         x, y, width, height = self.get_overlay_rect(region)
@@ -411,43 +425,65 @@ class CrossSectionViewOverlay:
         if self.position == OverlayPosition.BOTTOM:
             # Resize border at top edge
             border_y = y + height
-            return (0 <= mouse_x <= region.width and
-                    abs(mouse_y - border_y) <= self.resize_border_thickness)
+            if (0 <= mouse_x <= region.width and
+                    abs(mouse_y - border_y) <= self.resize_border_thickness):
+                self.resize_edge = ResizeEdge.BOTTOM  # Vertical resize
+                return True
 
         elif self.position == OverlayPosition.TOP:
             # Resize border at bottom edge
             border_y = y
-            return (0 <= mouse_x <= region.width and
-                    abs(mouse_y - border_y) <= self.resize_border_thickness)
+            if (0 <= mouse_x <= region.width and
+                    abs(mouse_y - border_y) <= self.resize_border_thickness):
+                self.resize_edge = ResizeEdge.BOTTOM  # Vertical resize
+                return True
 
         elif self.position == OverlayPosition.LEFT:
             # Resize border at right edge
             border_x = x + width
-            return (0 <= mouse_y <= region.height and
-                    abs(mouse_x - border_x) <= self.resize_border_thickness)
+            if (0 <= mouse_y <= region.height and
+                    abs(mouse_x - border_x) <= self.resize_border_thickness):
+                self.resize_edge = ResizeEdge.RIGHT  # Horizontal resize
+                return True
 
         elif self.position == OverlayPosition.RIGHT:
             # Resize border at left edge
             border_x = x
-            return (0 <= mouse_y <= region.height and
-                    abs(mouse_x - border_x) <= self.resize_border_thickness)
+            if (0 <= mouse_y <= region.height and
+                    abs(mouse_x - border_x) <= self.resize_border_thickness):
+                self.resize_edge = ResizeEdge.RIGHT  # Horizontal resize
+                return True
 
         elif self.position == OverlayPosition.FLOATING:
-            # Resize borders on right and bottom edges
+            # Resize borders on right and bottom edges, plus corner
             right_border = x + width
             bottom_border = y
-            top_border = y + height
 
-            # Check right edge
-            if (y <= mouse_y <= top_border and
-                abs(mouse_x - right_border) <= self.resize_border_thickness):
+            # Check distances to edges
+            dist_to_right = abs(mouse_x - right_border)
+            dist_to_bottom = abs(mouse_y - bottom_border)
+
+            near_right = dist_to_right <= self.resize_border_thickness
+            near_bottom = dist_to_bottom <= self.resize_border_thickness
+
+            # Check if in corner region (near both edges)
+            in_corner_x = mouse_x >= right_border - self.corner_size
+            in_corner_y = mouse_y <= bottom_border + self.corner_size
+
+            if near_right and near_bottom and in_corner_x and in_corner_y:
+                # Corner - resize both dimensions
+                self.resize_edge = ResizeEdge.CORNER
+                return True
+            elif near_right and y <= mouse_y <= y + height:
+                # Right edge only
+                self.resize_edge = ResizeEdge.RIGHT
+                return True
+            elif near_bottom and x <= mouse_x <= right_border:
+                # Bottom edge only
+                self.resize_edge = ResizeEdge.BOTTOM
                 return True
 
-            # Check bottom edge
-            if (x <= mouse_x <= right_border and
-                abs(mouse_y - bottom_border) <= self.resize_border_thickness):
-                return True
-
+        self.resize_edge = ResizeEdge.NONE
         return False
 
     def is_mouse_over_title_bar(self, context, mouse_x: int, mouse_y: int) -> bool:
@@ -548,15 +584,48 @@ class CrossSectionViewOverlay:
 
         # Handle active resizing
         if self.is_resizing:
-            if self.position in (OverlayPosition.BOTTOM, OverlayPosition.TOP, OverlayPosition.FLOATING):
+            # Resize height (BOTTOM edge or CORNER)
+            if self.active_resize_edge in (ResizeEdge.BOTTOM, ResizeEdge.CORNER):
                 delta_y = mouse_y - self.resize_start_mouse_y
-                if self.position == OverlayPosition.TOP:
-                    delta_y = -delta_y  # Invert for top position
-                new_height = self.resize_start_height + delta_y
-                new_height = max(self.min_height, min(self.max_height, new_height))
-                self.overlay_height = new_height
 
-            if self.position in (OverlayPosition.LEFT, OverlayPosition.RIGHT, OverlayPosition.FLOATING):
+                if self.position == OverlayPosition.TOP:
+                    # TOP anchor: bottom edge moves, top stays fixed
+                    delta_y = -delta_y
+                    new_height = self.resize_start_height + delta_y
+                    new_height = max(self.min_height, min(self.max_height, new_height))
+                    self.overlay_height = new_height
+
+                elif self.position == OverlayPosition.FLOATING:
+                    # FLOATING: bottom edge follows mouse, top stays fixed
+                    # delta_y is negative when dragging down (Y=0 at bottom)
+                    # We need to move floating_y AND adjust height to keep top fixed
+                    new_floating_y = self.drag_start_overlay_y + delta_y
+                    height_change = -delta_y  # Opposite: height increases when y decreases
+
+                    new_height = self.resize_start_height + height_change
+                    new_height = max(self.min_height, min(self.max_height, new_height))
+
+                    # Calculate actual height change after clamping
+                    actual_height_change = new_height - self.resize_start_height
+                    # Adjust floating_y by the opposite to keep top fixed
+                    new_floating_y = self.drag_start_overlay_y - actual_height_change
+
+                    # Clamp floating_y to viewport bounds
+                    if region:
+                        new_floating_y = max(0, min(new_floating_y,
+                            region.height - new_height - self.TITLE_BAR_HEIGHT))
+
+                    self.overlay_height = new_height
+                    self.floating_y = new_floating_y
+
+                else:
+                    # BOTTOM anchor: top edge moves, bottom stays fixed
+                    new_height = self.resize_start_height + delta_y
+                    new_height = max(self.min_height, min(self.max_height, new_height))
+                    self.overlay_height = new_height
+
+            # Resize width (RIGHT edge or CORNER)
+            if self.active_resize_edge in (ResizeEdge.RIGHT, ResizeEdge.CORNER):
                 delta_x = mouse_x - self.resize_start_mouse_x
                 if self.position == OverlayPosition.RIGHT:
                     delta_x = -delta_x  # Invert for right position
@@ -594,10 +663,15 @@ class CrossSectionViewOverlay:
                 context.area.tag_redraw()
             return True
         elif self.hover_resize_border:
-            if self.position in (OverlayPosition.LEFT, OverlayPosition.RIGHT):
-                context.window.cursor_set('MOVE_X')
+            # Set cursor based on which edge is being hovered
+            if self.resize_edge == ResizeEdge.CORNER:
+                context.window.cursor_set('SCROLL_XY')  # Diagonal resize
+            elif self.resize_edge == ResizeEdge.RIGHT:
+                context.window.cursor_set('MOVE_X')     # Horizontal resize
+            elif self.resize_edge == ResizeEdge.BOTTOM:
+                context.window.cursor_set('MOVE_Y')     # Vertical resize
             else:
-                context.window.cursor_set('MOVE_Y')
+                context.window.cursor_set('DEFAULT')
             if context.area:
                 context.area.tag_redraw()
             return True
@@ -636,10 +710,14 @@ class CrossSectionViewOverlay:
             # Check for resize
             if self.hover_resize_border:
                 self.is_resizing = True
+                self.active_resize_edge = self.resize_edge  # Capture which edge is being resized
                 self.resize_start_width = self.overlay_width
                 self.resize_start_height = self.overlay_height
                 self.resize_start_mouse_x = mouse_x
                 self.resize_start_mouse_y = mouse_y
+                # For floating mode, also capture starting position
+                self.drag_start_overlay_x = self.floating_x
+                self.drag_start_overlay_y = self.floating_y
                 return True
 
             # Check for component selection
@@ -675,6 +753,7 @@ class CrossSectionViewOverlay:
 
             if self.is_resizing:
                 self.is_resizing = False
+                self.active_resize_edge = ResizeEdge.NONE  # Clear active resize edge
                 handled = True
 
             if self.is_dragging:

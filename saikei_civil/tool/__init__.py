@@ -31,26 +31,24 @@ Usage:
 
 from .ifc import Ifc
 from .blender import Blender
-
-# These will be added as modules are migrated:
-# from .alignment import Alignment
-# from .vertical_alignment import VerticalAlignment
-# from .georeference import Georeference
-# from .cross_section import CrossSection
-# from .corridor import Corridor
-# from .spatial import Spatial
-# from .visualizer import Visualizer
+from .alignment import Alignment
+from .vertical_alignment import VerticalAlignment
+from .georeference import Georeference
+from .cross_section import CrossSection
+from .corridor import Corridor
+from .spatial import Spatial
+from .visualizer import Visualizer
 
 __all__ = [
     "Ifc",
     "Blender",
-    # "Alignment",
-    # "VerticalAlignment",
-    # "Georeference",
-    # "CrossSection",
-    # "Corridor",
-    # "Spatial",
-    # "Visualizer",
+    "Alignment",
+    "VerticalAlignment",
+    "Georeference",
+    "CrossSection",
+    "Corridor",
+    "Spatial",
+    "Visualizer",
 ]
 
 

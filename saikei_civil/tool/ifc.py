@@ -41,10 +41,10 @@ try:
 except ImportError:
     HAS_IFCOPENSHELL = False
 
-import saikei_civil.core.tool
+from ..core import tool as core_tool
 
 
-class Ifc(saikei_civil.core.tool.Ifc):
+class Ifc(core_tool.Ifc):
     """
     Blender-specific IFC operations.
 
@@ -68,7 +68,7 @@ class Ifc(saikei_civil.core.tool.Ifc):
             pass
 
         # Fall back to Saikei's own manager
-        from saikei_civil.core.ifc_manager import NativeIfcManager
+        from ..core.ifc_manager import NativeIfcManager
         return NativeIfcManager.get_file()
 
     @classmethod
@@ -77,7 +77,7 @@ class Ifc(saikei_civil.core.tool.Ifc):
         if not HAS_IFCOPENSHELL:
             raise RuntimeError("ifcopenshell not installed")
 
-        from saikei_civil.core.ifc_manager import NativeIfcManager
+        from ..core.ifc_manager import NativeIfcManager
         NativeIfcManager.file = ifc_file
 
     @classmethod
@@ -297,5 +297,5 @@ class Ifc(saikei_civil.core.tool.Ifc):
     @classmethod
     def get_filepath(cls) -> Optional[str]:
         """Get the filepath of the current IFC file."""
-        from saikei_civil.core.ifc_manager import NativeIfcManager
+        from ..core.ifc_manager import NativeIfcManager
         return NativeIfcManager.filepath

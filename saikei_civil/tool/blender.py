@@ -32,10 +32,10 @@ from typing import TYPE_CHECKING, Optional, List, Any
 
 import bpy
 
-import saikei_civil.core.tool
+from ..core import tool as core_tool
 
 
-class Blender(saikei_civil.core.tool.Blender):
+class Blender(core_tool.Blender):
     """
     Blender-specific utilities.
 

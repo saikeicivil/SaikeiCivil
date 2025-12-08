@@ -24,6 +24,9 @@ IFC Vertical Alignment Loader Module
 
 Functions for loading vertical alignments from IFC files and integrating
 them with Blender's scene and the profile view system.
+
+Note: This module uses the tool layer for Blender-specific operations
+(creating empties) while keeping pure IFC loading logic here.
 """
 
 import logging
@@ -34,6 +37,22 @@ import ifcopenshell
 from .manager import VerticalAlignment
 
 logger = logging.getLogger(__name__)
+
+
+def _create_blender_empty(
+    vertical_entity: ifcopenshell.entity_instance,
+    horizontal_alignment: Optional[ifcopenshell.entity_instance] = None
+) -> None:
+    """Create Blender empty using tool layer.
+
+    This is a wrapper that imports the tool layer on demand to avoid
+    circular imports and keep core logic pure.
+    """
+    try:
+        from ...tool import VerticalAlignment as VerticalAlignmentTool
+        VerticalAlignmentTool.create_blender_empty(vertical_entity, horizontal_alignment)
+    except ImportError:
+        logger.warning("Tool layer not available - skipping Blender empty creation")
 
 
 def load_vertical_alignments_from_ifc(
@@ -101,10 +120,8 @@ def _load_nested_verticals(
                     vertical_alignments.append(valign)
                     logger.info(f"Loaded vertical alignment: {valign.name}")
 
-                    # Create Blender Empty for visualization
-                    valign.create_blender_empty(
-                        obj, horizontal_alignment=horizontal_alignment
-                    )
+                    # Create Blender Empty for visualization (via tool layer)
+                    _create_blender_empty(obj, horizontal_alignment)
 
                 except Exception as e:
                     logger.warning(
@@ -139,10 +156,8 @@ def _load_all_verticals(ifc_file: ifcopenshell.file) -> List[VerticalAlignment]:
             # Find parent horizontal alignment
             parent_horizontal = _find_parent_alignment(ifc_vertical)
 
-            # Create Blender Empty
-            valign.create_blender_empty(
-                ifc_vertical, horizontal_alignment=parent_horizontal
-            )
+            # Create Blender Empty (via tool layer)
+            _create_blender_empty(ifc_vertical, parent_horizontal)
 
         except Exception as e:
             logger.error(

@@ -30,10 +30,13 @@ Creates and manages the IFC spatial hierarchy:
         └── IfcRoad
 
 And visualizes it in Blender with organizational empties.
+
+This module now uses ifc_api wrappers where possible for consistent
+patterns and better API compatibility.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import bpy
 import ifcopenshell
@@ -46,6 +49,7 @@ from .ifc_entities import (
     find_geometric_context,
     find_axis_subcontext,
 )
+from .. import ifc_api
 from .blender_hierarchy import (
     create_blender_hierarchy,
     clear_blender_hierarchy,
@@ -106,6 +110,8 @@ class NativeIfcManager:
             Project (Empty) → Site (Empty) → Road (Empty)
             + Alignments, Geomodels empties
 
+        Uses ifc_api wrappers for consistent patterns and API compatibility.
+
         Args:
             schema: IFC schema version (default: IFC4X3)
 
@@ -114,12 +120,12 @@ class NativeIfcManager:
         """
         cls.clear()
 
-        # Create IFC file and core entities
+        # Create IFC file and core entities (units/context need manual handling)
         cls.file = ifcopenshell.file(schema=schema)
         cls.unit_assignment = create_units(cls.file)
         cls.geometric_context, cls.axis_subcontext = create_geometric_context(cls.file)
 
-        # Create IfcProject
+        # Create IfcProject (manual - needs UnitsInContext and RepresentationContexts)
         cls.project = cls.file.create_entity(
             "IfcProject",
             GlobalId=ifcopenshell.guid.new(),
@@ -129,41 +135,20 @@ class NativeIfcManager:
             RepresentationContexts=[cls.geometric_context]
         )
 
-        # Create IfcSite with placement
-        site_placement = create_local_placement(cls.file)
-        cls.site = cls.file.create_entity(
-            "IfcSite",
-            GlobalId=ifcopenshell.guid.new(),
-            Name="Site",
-            Description="Project site",
-            ObjectPlacement=site_placement
+        # Create IfcSite and IfcRoad using ifc_api wrappers
+        # These handle placement and aggregation relationships automatically
+        cls.site = ifc_api.create_site(
+            cls.file,
+            cls.project,
+            name="Site",
+            description="Project site"
         )
 
-        # Create IfcRoad with placement (relative to site)
-        road_placement = create_local_placement(cls.file, relative_to=site_placement)
-        cls.road = cls.file.create_entity(
-            "IfcRoad",
-            GlobalId=ifcopenshell.guid.new(),
-            Name="Road",
-            Description="Road facility",
-            ObjectPlacement=road_placement
-        )
-
-        # Establish relationships
-        cls.file.create_entity(
-            "IfcRelAggregates",
-            GlobalId=ifcopenshell.guid.new(),
-            Name="ProjectContainsSite",
-            RelatingObject=cls.project,
-            RelatedObjects=[cls.site]
-        )
-
-        cls.file.create_entity(
-            "IfcRelAggregates",
-            GlobalId=ifcopenshell.guid.new(),
-            Name="SiteContainsRoad",
-            RelatingObject=cls.site,
-            RelatedObjects=[cls.road]
+        cls.road = ifc_api.create_road(
+            cls.file,
+            cls.site,
+            name="Road",
+            description="Road facility"
         )
 
         # Create Blender visualization
@@ -445,6 +430,8 @@ class NativeIfcManager:
     ) -> Optional[ifcopenshell.entity_instance]:
         """Add spatial containment for alignment within road.
 
+        Uses ifc_api.contain_in_spatial() for consistent relationship handling.
+
         Args:
             alignment: IfcAlignment entity to contain
 
@@ -455,25 +442,11 @@ class NativeIfcManager:
             logger.warning("No road entity to contain alignment in")
             return None
 
-        # Check if already contained
-        for rel in cls.file.by_type("IfcRelContainedInSpatialStructure"):
-            if rel.RelatingStructure == cls.road:
-                if alignment in (rel.RelatedElements or []):
-                    return rel
-                existing = list(rel.RelatedElements or [])
-                existing.append(alignment)
-                rel.RelatedElements = existing
-                return rel
+        if not cls.file:
+            logger.warning("No IFC file loaded")
+            return None
 
-        # Create new containment
-        containment = cls.file.create_entity(
-            "IfcRelContainedInSpatialStructure",
-            GlobalId=ifcopenshell.guid.new(),
-            Name="RoadContainsAlignments",
-            RelatedElements=[alignment],
-            RelatingStructure=cls.road
-        )
-        return containment
+        return ifc_api.contain_in_spatial(cls.file, alignment, cls.road)
 
     @classmethod
     def create_alignment_placement(cls) -> ifcopenshell.entity_instance:
@@ -585,13 +558,12 @@ class NativeIfcManager:
             PredefinedType=road_part_type
         )
 
-        # Create aggregation relationship (Road contains RoadPart)
-        cls.file.create_entity(
-            "IfcRelAggregates",
-            GlobalId=ifcopenshell.guid.new(),
-            Name=f"RoadContains{road_part_type}",
-            RelatingObject=cls.road,
-            RelatedObjects=[road_part]
+        # Create aggregation relationship (Road contains RoadPart) using ifc_api
+        ifc_api.aggregate_objects(
+            cls.file,
+            parent=cls.road,
+            children=[road_part],
+            name=f"RoadContains{road_part_type}"
         )
 
         # Store reference
@@ -680,6 +652,8 @@ class NativeIfcManager:
         """
         Add spatial containment for an element within a road part.
 
+        Uses ifc_api.contain_in_spatial() for consistent relationship handling.
+
         Args:
             element: IFC element to contain
             road_part: IfcRoadPart to contain it in
@@ -690,27 +664,7 @@ class NativeIfcManager:
         if not cls.file or not road_part:
             return None
 
-        # Check if already contained in this road part
-        for rel in cls.file.by_type("IfcRelContainedInSpatialStructure"):
-            if rel.RelatingStructure == road_part:
-                if element in (rel.RelatedElements or []):
-                    return rel
-                # Add to existing relationship
-                existing = list(rel.RelatedElements or [])
-                existing.append(element)
-                rel.RelatedElements = existing
-                return rel
-
-        # Create new containment
-        containment = cls.file.create_entity(
-            "IfcRelContainedInSpatialStructure",
-            GlobalId=ifcopenshell.guid.new(),
-            Name=f"RoadPartContains{element.is_a()}",
-            RelatedElements=[element],
-            RelatingStructure=road_part
-        )
-
-        return containment
+        return ifc_api.contain_in_spatial(cls.file, element, road_part)
 
     @classmethod
     def get_road_part_empty(
@@ -727,6 +681,394 @@ class NativeIfcManager:
             Blender empty object or None
         """
         return cls.road_part_empties.get(road_part_type)
+
+    # =========================================================================
+    # Cross-Section Component Management (IFC 4.3 Native)
+    # =========================================================================
+
+    # Component type to IFC entity type mapping
+    COMPONENT_TO_IFC_CLASS = {
+        'LANE': 'IfcPavement',           # Pavement for lanes
+        'SHOULDER': 'IfcPavement',        # Pavement for shoulders
+        'CURB': 'IfcKerb',                # IFC 4.3 has specific kerb entity
+        'DITCH': 'IfcBuildingElementProxy',  # No specific ditch entity
+        'MEDIAN': 'IfcBuildingElementProxy',
+        'SIDEWALK': 'IfcPavement',
+        'CUSTOM': 'IfcBuildingElementProxy',
+    }
+
+    # Display icons for component types in Blender
+    COMPONENT_ICONS = {
+        'LANE': '🛣️',
+        'SHOULDER': '🛤️',
+        'CURB': '🧱',
+        'DITCH': '🌊',
+        'MEDIAN': '🚧',
+        'SIDEWALK': '🚶',
+        'CUSTOM': '📐',
+    }
+
+    @classmethod
+    def create_cross_section_component(
+        cls,
+        name: str,
+        component_type: str,
+        side: str,
+        width: float,
+        cross_slope: float = 0.0,
+        offset: float = 0.0,
+        assembly_name: str = None
+    ) -> Optional[Tuple[ifcopenshell.entity_instance, bpy.types.Object]]:
+        """
+        Create an IFC entity and Blender object for a cross-section component.
+
+        This implements the Native IFC pattern: component data lives in IFC,
+        Blender object is just visualization linked via ifc_definition_id.
+
+        Args:
+            name: Component name (e.g., "Right Travel Lane")
+            component_type: Type of component (LANE, SHOULDER, CURB, etc.)
+            side: Side of alignment (LEFT, RIGHT)
+            width: Component width in meters
+            cross_slope: Cross slope as decimal (e.g., 0.02 for 2%)
+            offset: Offset from centerline in meters
+            assembly_name: Optional parent assembly name
+
+        Returns:
+            Tuple of (IFC entity, Blender object) or None if no file loaded
+        """
+        if not cls.file or not cls.road:
+            logger.warning("Cannot create component - no IFC file or road loaded")
+            return None
+
+        # Get or create the appropriate IfcRoadPart for this component type
+        road_part = cls.get_road_part_for_component(component_type)
+        if not road_part:
+            logger.error(f"Failed to get/create road part for {component_type}")
+            return None
+
+        # Determine IFC class for this component type
+        ifc_class = cls.COMPONENT_TO_IFC_CLASS.get(component_type, 'IfcBuildingElementProxy')
+
+        # Create placement relative to road part
+        road_part_placement = None
+        if hasattr(road_part, 'ObjectPlacement') and road_part.ObjectPlacement:
+            road_part_placement = road_part.ObjectPlacement
+        component_placement = create_local_placement(cls.file, relative_to=road_part_placement)
+
+        # Create the IFC entity
+        global_id = ifcopenshell.guid.new()
+
+        # Build description with metadata
+        description = f"{component_type} component | Side: {side} | Width: {width:.2f}m | Slope: {cross_slope*100:.1f}%"
+        if assembly_name:
+            description = f"[{assembly_name}] {description}"
+
+        try:
+            if ifc_class == 'IfcKerb':
+                # IfcKerb is specific to IFC 4.3
+                component_entity = cls.file.create_entity(
+                    ifc_class,
+                    GlobalId=global_id,
+                    Name=name,
+                    Description=description,
+                    ObjectPlacement=component_placement,
+                )
+            elif ifc_class == 'IfcPavement':
+                # IfcPavement for lanes, shoulders, sidewalks
+                component_entity = cls.file.create_entity(
+                    ifc_class,
+                    GlobalId=global_id,
+                    Name=name,
+                    Description=description,
+                    ObjectPlacement=component_placement,
+                )
+            else:
+                # Fallback to IfcBuildingElementProxy
+                component_entity = cls.file.create_entity(
+                    "IfcBuildingElementProxy",
+                    GlobalId=global_id,
+                    Name=name,
+                    Description=description,
+                    ObjectPlacement=component_placement,
+                    PredefinedType="USERDEFINED",
+                    ObjectType=f"CrossSection_{component_type}"
+                )
+        except Exception as e:
+            # Fallback if IFC 4.3 entities aren't available
+            logger.warning(f"Failed to create {ifc_class}, falling back to proxy: {e}")
+            component_entity = cls.file.create_entity(
+                "IfcBuildingElementProxy",
+                GlobalId=global_id,
+                Name=name,
+                Description=description,
+                ObjectPlacement=component_placement,
+                PredefinedType="USERDEFINED",
+                ObjectType=f"CrossSection_{component_type}"
+            )
+
+        # Create spatial containment in the road part
+        cls.contain_in_road_part(component_entity, road_part)
+
+        # Store component properties as property set
+        cls._create_component_property_set(
+            component_entity, component_type, side, width, cross_slope, offset
+        )
+
+        # Create Blender visualization object
+        blender_obj = cls._create_component_blender_object(
+            name, component_type, side, road_part
+        )
+
+        # Link Blender object to IFC entity
+        if blender_obj:
+            cls.link_object(blender_obj, component_entity)
+
+        logger.info(f"Created cross-section component: {name} ({component_type}, {side})")
+
+        return (component_entity, blender_obj)
+
+    @classmethod
+    def _create_component_property_set(
+        cls,
+        component_entity: ifcopenshell.entity_instance,
+        component_type: str,
+        side: str,
+        width: float,
+        cross_slope: float,
+        offset: float
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Create an IfcPropertySet with component properties.
+
+        Args:
+            component_entity: The IFC component entity
+            component_type: Type of component
+            side: LEFT or RIGHT
+            width: Width in meters
+            cross_slope: Cross slope as decimal
+            offset: Offset from centerline
+
+        Returns:
+            IfcPropertySet entity or None
+        """
+        if not cls.file:
+            return None
+
+        # Create property values
+        props = []
+
+        # Component type
+        props.append(cls.file.create_entity(
+            "IfcPropertySingleValue",
+            Name="ComponentType",
+            NominalValue=cls.file.create_entity("IfcLabel", component_type)
+        ))
+
+        # Side
+        props.append(cls.file.create_entity(
+            "IfcPropertySingleValue",
+            Name="Side",
+            NominalValue=cls.file.create_entity("IfcLabel", side)
+        ))
+
+        # Width
+        props.append(cls.file.create_entity(
+            "IfcPropertySingleValue",
+            Name="Width",
+            NominalValue=cls.file.create_entity("IfcLengthMeasure", width)
+        ))
+
+        # Cross slope (as percentage for clarity)
+        props.append(cls.file.create_entity(
+            "IfcPropertySingleValue",
+            Name="CrossSlope",
+            NominalValue=cls.file.create_entity("IfcRatioMeasure", cross_slope)
+        ))
+
+        # Offset
+        props.append(cls.file.create_entity(
+            "IfcPropertySingleValue",
+            Name="Offset",
+            NominalValue=cls.file.create_entity("IfcLengthMeasure", offset)
+        ))
+
+        # Create property set
+        pset = cls.file.create_entity(
+            "IfcPropertySet",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="Pset_SaikeiCrossSection",
+            HasProperties=props
+        )
+
+        # Create relationship
+        cls.file.create_entity(
+            "IfcRelDefinesByProperties",
+            GlobalId=ifcopenshell.guid.new(),
+            RelatedObjects=[component_entity],
+            RelatingPropertyDefinition=pset
+        )
+
+        return pset
+
+    @classmethod
+    def _create_component_blender_object(
+        cls,
+        name: str,
+        component_type: str,
+        side: str,
+        road_part: ifcopenshell.entity_instance
+    ) -> Optional[bpy.types.Object]:
+        """
+        Create a Blender empty to represent the component in the outliner.
+
+        Args:
+            name: Component name
+            component_type: Type of component
+            side: LEFT or RIGHT
+            road_part: Parent road part entity
+
+        Returns:
+            Created Blender object or None
+        """
+        # Get the road part empty to parent to
+        road_part_type = cls.COMPONENT_TO_ROAD_PART_TYPE.get(component_type, 'ROADSEGMENT')
+        parent_empty = cls.get_road_part_empty(road_part_type)
+
+        if not parent_empty:
+            logger.warning(f"No parent empty found for {road_part_type}")
+            # Try to create it
+            cls._create_road_part_empty(road_part_type, road_part)
+            parent_empty = cls.get_road_part_empty(road_part_type)
+
+        # Create display name with icon and side indicator
+        icon = cls.COMPONENT_ICONS.get(component_type, '📐')
+        side_indicator = "◀" if side == "LEFT" else "▶"
+        display_name = f"{icon} {name} {side_indicator}"
+
+        # Create empty
+        component_empty = bpy.data.objects.new(display_name, None)
+        component_empty.empty_display_type = 'PLAIN_AXES'
+        component_empty.empty_display_size = 1.0
+
+        # Parent to road part empty
+        if parent_empty:
+            component_empty.parent = parent_empty
+
+        # Link to project collection
+        collection = cls.get_project_collection()
+        if collection:
+            collection.objects.link(component_empty)
+
+        return component_empty
+
+    @classmethod
+    def delete_cross_section_component(
+        cls,
+        ifc_id: int,
+        blender_obj: bpy.types.Object = None
+    ) -> bool:
+        """
+        Delete a cross-section component from IFC and Blender.
+
+        Args:
+            ifc_id: ID of the IFC entity to delete
+            blender_obj: Optional Blender object to delete
+
+        Returns:
+            True if successful
+        """
+        if not cls.file:
+            return False
+
+        try:
+            # Delete IFC entity
+            if ifc_id > 0:
+                entity = cls.file.by_id(ifc_id)
+                if entity:
+                    # Remove from spatial containment
+                    for rel in cls.file.by_type("IfcRelContainedInSpatialStructure"):
+                        if entity in (rel.RelatedElements or []):
+                            elements = list(rel.RelatedElements)
+                            elements.remove(entity)
+                            if elements:
+                                rel.RelatedElements = elements
+                            else:
+                                cls.file.remove(rel)
+                            break
+
+                    # Remove property set relationships
+                    for rel in cls.file.by_type("IfcRelDefinesByProperties"):
+                        if entity in (rel.RelatedObjects or []):
+                            cls.file.remove(rel)
+                            break
+
+                    # Remove the entity
+                    cls.file.remove(entity)
+                    logger.info(f"Deleted IFC entity #{ifc_id}")
+
+            # Delete Blender object
+            if blender_obj:
+                bpy.data.objects.remove(blender_obj, do_unlink=True)
+                logger.info(f"Deleted Blender object")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting component: {e}")
+            return False
+
+    @classmethod
+    def get_component_from_ifc(
+        cls,
+        ifc_id: int
+    ) -> Optional[Dict]:
+        """
+        Retrieve component properties from IFC entity.
+
+        Args:
+            ifc_id: ID of the IFC entity
+
+        Returns:
+            Dictionary with component properties or None
+        """
+        if not cls.file or ifc_id <= 0:
+            return None
+
+        try:
+            entity = cls.file.by_id(ifc_id)
+            if not entity:
+                return None
+
+            result = {
+                'name': entity.Name,
+                'global_id': entity.GlobalId,
+                'ifc_class': entity.is_a(),
+            }
+
+            # Find property set
+            for rel in cls.file.by_type("IfcRelDefinesByProperties"):
+                if entity in (rel.RelatedObjects or []):
+                    pset = rel.RelatingPropertyDefinition
+                    if hasattr(pset, 'Name') and pset.Name == "Pset_SaikeiCrossSection":
+                        for prop in pset.HasProperties:
+                            if prop.Name == "ComponentType":
+                                result['component_type'] = prop.NominalValue.wrappedValue
+                            elif prop.Name == "Side":
+                                result['side'] = prop.NominalValue.wrappedValue
+                            elif prop.Name == "Width":
+                                result['width'] = prop.NominalValue.wrappedValue
+                            elif prop.Name == "CrossSlope":
+                                result['cross_slope'] = prop.NominalValue.wrappedValue
+                            elif prop.Name == "Offset":
+                                result['offset'] = prop.NominalValue.wrappedValue
+                        break
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error retrieving component from IFC: {e}")
+            return None
 
     # =========================================================================
     # Cleanup

@@ -82,6 +82,65 @@ def update_assembly_total_width(assembly):
     assembly.total_width = left_width + right_width
 
 
+def _add_component_with_ifc(assembly, name, component_type, side, width,
+                            cross_slope=0.0, offset=0.0, **kwargs):
+    """
+    Helper function to add a component with optional IFC entity creation.
+
+    This implements the Native IFC pattern: when an IFC file is loaded,
+    components are created as IFC entities. Otherwise, they're stored
+    only in PropertyGroups.
+
+    Args:
+        assembly: BC_AssemblyProperties instance
+        name: Component name
+        component_type: LANE, SHOULDER, CURB, DITCH, etc.
+        side: LEFT or RIGHT
+        width: Component width in meters
+        cross_slope: Cross slope as decimal (e.g., 0.02)
+        offset: Offset from centerline
+        **kwargs: Additional component-specific properties
+
+    Returns:
+        The created BC_ComponentProperties instance
+    """
+    from ..core.ifc_manager.manager import NativeIfcManager
+
+    # Add to PropertyGroup
+    comp = assembly.components.add()
+    comp.name = name
+    comp.component_type = component_type
+    comp.side = side
+    comp.width = width
+    comp.cross_slope = cross_slope
+    comp.offset = offset
+
+    # Apply additional properties
+    for key, value in kwargs.items():
+        if hasattr(comp, key):
+            setattr(comp, key, value)
+
+    # === NATIVE IFC: Create IFC entity if file is loaded ===
+    ifc_file = NativeIfcManager.get_file()
+    if ifc_file:
+        result = NativeIfcManager.create_cross_section_component(
+            name=name,
+            component_type=component_type,
+            side=side,
+            width=width,
+            cross_slope=cross_slope,
+            offset=offset,
+            assembly_name=assembly.name
+        )
+
+        if result:
+            ifc_entity, blender_obj = result
+            comp.ifc_definition_id = ifc_entity.id()
+            comp.global_id = ifc_entity.GlobalId
+
+    return comp
+
+
 class BC_OT_CreateAssembly(Operator):
     """
     Create a new cross-section assembly.
@@ -156,129 +215,82 @@ class BC_OT_CreateAssembly(Operator):
         return {'FINISHED'}
     
     def _create_two_lane_rural(self, assembly):
-        """Populate assembly with two-lane rural template"""
+        """Populate assembly with two-lane rural template (with Native IFC)"""
         # Right lane
-        comp = assembly.components.add()
-        comp.name = "Right Travel Lane"
-        comp.component_type = 'LANE'
-        comp.lane_type = 'TRAVEL'
-        comp.side = 'RIGHT'
-        comp.width = 3.6
-        comp.cross_slope = 0.02
-        comp.offset = 0.0
-        
+        _add_component_with_ifc(
+            assembly, "Right Travel Lane", 'LANE', 'RIGHT',
+            width=3.6, cross_slope=0.02, offset=0.0, lane_type='TRAVEL'
+        )
+
         # Right shoulder
-        comp = assembly.components.add()
-        comp.name = "Right Shoulder"
-        comp.component_type = 'SHOULDER'
-        comp.shoulder_type = 'PAVED'
-        comp.side = 'RIGHT'
-        comp.width = 2.4
-        comp.cross_slope = 0.04
-        comp.offset = 3.6
-        
+        _add_component_with_ifc(
+            assembly, "Right Shoulder", 'SHOULDER', 'RIGHT',
+            width=2.4, cross_slope=0.04, offset=3.6, shoulder_type='PAVED'
+        )
+
         # Right ditch
-        comp = assembly.components.add()
-        comp.name = "Right Ditch"
-        comp.component_type = 'DITCH'
-        comp.side = 'RIGHT'
-        comp.width = 6.0
-        comp.offset = 6.0
-        comp.foreslope = 4.0
-        comp.backslope = 3.0
-        comp.bottom_width = 1.2
-        comp.depth = 0.45
-        
+        _add_component_with_ifc(
+            assembly, "Right Ditch", 'DITCH', 'RIGHT',
+            width=6.0, offset=6.0,
+            foreslope=4.0, backslope=3.0, bottom_width=1.2, depth=0.45
+        )
+
         # Left lane
-        comp = assembly.components.add()
-        comp.name = "Left Travel Lane"
-        comp.component_type = 'LANE'
-        comp.lane_type = 'TRAVEL'
-        comp.side = 'LEFT'
-        comp.width = 3.6
-        comp.cross_slope = 0.02
-        comp.offset = 0.0
-        
+        _add_component_with_ifc(
+            assembly, "Left Travel Lane", 'LANE', 'LEFT',
+            width=3.6, cross_slope=0.02, offset=0.0, lane_type='TRAVEL'
+        )
+
         # Left shoulder
-        comp = assembly.components.add()
-        comp.name = "Left Shoulder"
-        comp.component_type = 'SHOULDER'
-        comp.shoulder_type = 'PAVED'
-        comp.side = 'LEFT'
-        comp.width = 1.8
-        comp.cross_slope = 0.04
-        comp.offset = -3.6
-        
+        _add_component_with_ifc(
+            assembly, "Left Shoulder", 'SHOULDER', 'LEFT',
+            width=1.8, cross_slope=0.04, offset=-3.6, shoulder_type='PAVED'
+        )
+
         # Left ditch
-        comp = assembly.components.add()
-        comp.name = "Left Ditch"
-        comp.component_type = 'DITCH'
-        comp.side = 'LEFT'
-        comp.width = 6.0
-        comp.offset = -5.4
-        comp.foreslope = 4.0
-        comp.backslope = 3.0
-        comp.bottom_width = 1.2
-        comp.depth = 0.45
-        
+        _add_component_with_ifc(
+            assembly, "Left Ditch", 'DITCH', 'LEFT',
+            width=6.0, offset=-5.4,
+            foreslope=4.0, backslope=3.0, bottom_width=1.2, depth=0.45
+        )
+
         assembly.is_valid = True
         assembly.validation_message = "Template created successfully"
         update_assembly_total_width(assembly)
 
     def _create_four_lane_divided(self, assembly):
-        """Populate assembly with four-lane divided template"""
+        """Populate assembly with four-lane divided template (with Native IFC)"""
         # Inside shoulder
-        comp = assembly.components.add()
-        comp.name = "Inside Shoulder"
-        comp.component_type = 'SHOULDER'
-        comp.shoulder_type = 'PAVED'
-        comp.side = 'LEFT'
-        comp.width = 1.2
-        comp.cross_slope = 0.04
-        comp.offset = 0.0
-        
+        _add_component_with_ifc(
+            assembly, "Inside Shoulder", 'SHOULDER', 'LEFT',
+            width=1.2, cross_slope=0.04, offset=0.0, shoulder_type='PAVED'
+        )
+
         # Lane 1
-        comp = assembly.components.add()
-        comp.name = "Lane 1"
-        comp.component_type = 'LANE'
-        comp.lane_type = 'TRAVEL'
-        comp.side = 'RIGHT'
-        comp.width = 3.6
-        comp.cross_slope = 0.02
-        comp.offset = 1.2
-        
+        _add_component_with_ifc(
+            assembly, "Lane 1", 'LANE', 'RIGHT',
+            width=3.6, cross_slope=0.02, offset=1.2, lane_type='TRAVEL'
+        )
+
         # Lane 2
-        comp = assembly.components.add()
-        comp.name = "Lane 2"
-        comp.component_type = 'LANE'
-        comp.lane_type = 'TRAVEL'
-        comp.side = 'RIGHT'
-        comp.width = 3.6
-        comp.cross_slope = 0.02
-        comp.offset = 4.8
-        
+        _add_component_with_ifc(
+            assembly, "Lane 2", 'LANE', 'RIGHT',
+            width=3.6, cross_slope=0.02, offset=4.8, lane_type='TRAVEL'
+        )
+
         # Outside shoulder
-        comp = assembly.components.add()
-        comp.name = "Outside Shoulder"
-        comp.component_type = 'SHOULDER'
-        comp.shoulder_type = 'PAVED'
-        comp.side = 'RIGHT'
-        comp.width = 3.0
-        comp.cross_slope = 0.04
-        comp.offset = 8.4
-        
+        _add_component_with_ifc(
+            assembly, "Outside Shoulder", 'SHOULDER', 'RIGHT',
+            width=3.0, cross_slope=0.04, offset=8.4, shoulder_type='PAVED'
+        )
+
         # Outside ditch
-        comp = assembly.components.add()
-        comp.name = "Outside Ditch"
-        comp.component_type = 'DITCH'
-        comp.side = 'RIGHT'
-        comp.width = 6.0
-        comp.offset = 11.4
-        comp.foreslope = 4.0
-        comp.backslope = 3.0
-        comp.bottom_width = 1.2
-        comp.depth = 0.45
-        
+        _add_component_with_ifc(
+            assembly, "Outside Ditch", 'DITCH', 'RIGHT',
+            width=6.0, offset=11.4,
+            foreslope=4.0, backslope=3.0, bottom_width=1.2, depth=0.45
+        )
+
         assembly.is_valid = True
         assembly.validation_message = "Template created successfully"
         update_assembly_total_width(assembly)
@@ -381,23 +393,25 @@ class BC_OT_AddComponent(Operator):
         return len(cs.assemblies) > 0
     
     def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+
         cs = context.scene.bc_cross_section
-        
+
         if cs.active_assembly_index >= len(cs.assemblies):
             self.report({'ERROR'}, "No active assembly")
             return {'CANCELLED'}
-        
+
         assembly = cs.assemblies[cs.active_assembly_index]
-        
-        # Add new component
+
+        # Add new component to PropertyGroup
         comp = assembly.components.add()
         comp.component_type = self.component_type
         comp.side = self.side
-        
+
         # Set default name
         count = sum(1 for c in assembly.components if c.component_type == self.component_type)
         comp.name = f"{self.component_type.title()} {count}"
-        
+
         # Set default properties based on type
         if self.component_type == 'LANE':
             comp.lane_type = 'TRAVEL'
@@ -417,7 +431,31 @@ class BC_OT_AddComponent(Operator):
             comp.backslope = 3.0
             comp.bottom_width = 1.2
             comp.depth = 0.45
-        
+
+        # === NATIVE IFC: Create IFC entity and Blender object ===
+        ifc_file = NativeIfcManager.get_file()
+        if ifc_file:
+            result = NativeIfcManager.create_cross_section_component(
+                name=comp.name,
+                component_type=self.component_type,
+                side=self.side,
+                width=comp.width,
+                cross_slope=comp.cross_slope,
+                offset=comp.offset,
+                assembly_name=assembly.name
+            )
+
+            if result:
+                ifc_entity, blender_obj = result
+                # Store IFC link in PropertyGroup
+                comp.ifc_definition_id = ifc_entity.id()
+                comp.global_id = ifc_entity.GlobalId
+                logger.info(f"Created IFC entity #{comp.ifc_definition_id} for {comp.name}")
+            else:
+                logger.warning(f"Failed to create IFC entity for {comp.name}")
+        else:
+            logger.debug("No IFC file loaded - component stored in PropertyGroup only")
+
         # Set as active
         assembly.active_component_index = len(assembly.components) - 1
 
@@ -456,11 +494,30 @@ class BC_OT_RemoveComponent(Operator):
         return len(assembly.components) > 0
     
     def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+
         cs = context.scene.bc_cross_section
         assembly = cs.assemblies[cs.active_assembly_index]
 
         if assembly.active_component_index < len(assembly.components):
-            name = assembly.components[assembly.active_component_index].name
+            comp = assembly.components[assembly.active_component_index]
+            name = comp.name
+            ifc_id = comp.ifc_definition_id
+
+            # === NATIVE IFC: Delete IFC entity and Blender object ===
+            if ifc_id > 0:
+                # Find the Blender object linked to this IFC entity
+                blender_obj = None
+                for obj in bpy.data.objects:
+                    if obj.get("ifc_definition_id") == ifc_id:
+                        blender_obj = obj
+                        break
+
+                # Delete from IFC and Blender
+                NativeIfcManager.delete_cross_section_component(ifc_id, blender_obj)
+                logger.info(f"Deleted IFC entity #{ifc_id} for {name}")
+
+            # Remove from PropertyGroup
             assembly.components.remove(assembly.active_component_index)
 
             # Adjust active index

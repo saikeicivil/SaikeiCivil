@@ -42,7 +42,21 @@ logger = get_logger(__name__)
 
 class BC_ComponentProperties(PropertyGroup):
     """Properties for a single cross-section component (lane, shoulder, etc.)"""
-    
+
+    # IFC linkage (Native IFC pattern)
+    ifc_definition_id: IntProperty(
+        name="IFC ID",
+        description="ID of linked IFC entity",
+        default=0,
+    )
+
+    global_id: StringProperty(
+        name="GlobalId",
+        description="IFC GlobalId",
+        default="",
+        maxlen=64,
+    )
+
     # Component identification
     name: StringProperty(
         name="Name",
@@ -257,7 +271,21 @@ class BC_ConstraintProperties(PropertyGroup):
 
 class BC_AssemblyProperties(PropertyGroup):
     """Properties for a cross-section assembly"""
-    
+
+    # IFC linkage (Native IFC pattern)
+    ifc_definition_id: IntProperty(
+        name="IFC ID",
+        description="ID of linked IFC entity (IfcElementAssembly)",
+        default=0,
+    )
+
+    global_id: StringProperty(
+        name="GlobalId",
+        description="IFC GlobalId",
+        default="",
+        maxlen=64,
+    )
+
     # Assembly identification
     name: StringProperty(
         name="Name",

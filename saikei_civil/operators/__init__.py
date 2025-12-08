@@ -64,6 +64,7 @@ if core.has_ifc_support():
     from . import profile_view_operators
     from . import stationing_operators
     from . import terrain_sampling_operators
+    from . import alignment_operators_v2  # New three-layer architecture
 
     _operator_modules = [
         alignment_management_operators,
@@ -82,6 +83,7 @@ if core.has_ifc_support():
         profile_view_operators,
         stationing_operators,
         terrain_sampling_operators,
+        alignment_operators_v2,  # New three-layer architecture
     ]
 
 

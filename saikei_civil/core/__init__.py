@@ -65,6 +65,7 @@ try:
     import ifcopenshell
 
     # Import IFC-dependent modules
+    from . import ifc_api  # API wrappers for ifcopenshell.api
     from . import ifc_manager  # Refactored package
     from . import native_ifc_manager  # Backwards compatibility shim
     from . import ifc_relationship_manager

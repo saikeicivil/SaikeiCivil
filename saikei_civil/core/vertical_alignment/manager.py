@@ -920,6 +920,10 @@ class VerticalAlignment:
     ):
         """Create a Blender Empty object to represent the vertical alignment.
 
+        .. deprecated::
+            Use ``tool.VerticalAlignment.create_blender_empty()`` instead.
+            This method is kept for backwards compatibility.
+
         Args:
             ifc_entity: The IFC IfcAlignmentVertical entity
             horizontal_alignment: Optional parent horizontal alignment IFC entity
@@ -927,38 +931,49 @@ class VerticalAlignment:
         Returns:
             Blender Empty object
         """
-        import bpy
-        from ..native_ifc_manager import NativeIfcManager
+        import warnings
+        warnings.warn(
+            "VerticalAlignment.create_blender_empty() is deprecated. "
+            "Use tool.VerticalAlignment.create_blender_empty() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
-        logger.debug(f"Creating Empty for vertical alignment: {self.name}")
+        # Delegate to tool layer
+        try:
+            from ...tool import VerticalAlignment as VerticalAlignmentTool
+            return VerticalAlignmentTool.create_blender_empty(
+                ifc_entity, horizontal_alignment
+            )
+        except ImportError:
+            # Fallback to legacy implementation if tool layer not available
+            import bpy
+            from ..native_ifc_manager import NativeIfcManager
 
-        # Create Empty object
-        empty_name = f"V: {self.name}"
-        empty = bpy.data.objects.new(empty_name, None)
-        empty.empty_display_type = 'SINGLE_ARROW'
-        empty.empty_display_size = 1.0
+            logger.debug(f"Creating Empty for vertical alignment: {self.name}")
 
-        # Link to IFC entity
-        NativeIfcManager.link_object(empty, ifc_entity)
+            empty_name = f"V: {self.name}"
+            empty = bpy.data.objects.new(empty_name, None)
+            empty.empty_display_type = 'SINGLE_ARROW'
+            empty.empty_display_size = 1.0
 
-        # Add to project collection
-        project_collection = NativeIfcManager.get_project_collection()
-        if project_collection:
-            project_collection.objects.link(empty)
+            NativeIfcManager.link_object(empty, ifc_entity)
 
-        # Parent to horizontal alignment if it exists
-        if horizontal_alignment:
-            horizontal_ifc_id = horizontal_alignment.id()
+            project_collection = NativeIfcManager.get_project_collection()
+            if project_collection:
+                project_collection.objects.link(empty)
 
-            for obj in bpy.data.objects:
-                obj_ifc_id = obj.get("ifc_definition_id")
-                obj_ifc_class = obj.get("ifc_class")
-                if obj_ifc_id == horizontal_ifc_id and obj_ifc_class == "IfcAlignment":
-                    empty.parent = obj
-                    logger.debug(f"Parented to horizontal alignment: {obj.name}")
-                    break
+            if horizontal_alignment:
+                horizontal_ifc_id = horizontal_alignment.id()
+                for obj in bpy.data.objects:
+                    obj_ifc_id = obj.get("ifc_definition_id")
+                    obj_ifc_class = obj.get("ifc_class")
+                    if obj_ifc_id == horizontal_ifc_id and obj_ifc_class == "IfcAlignment":
+                        empty.parent = obj
+                        logger.debug(f"Parented to horizontal alignment: {obj.name}")
+                        break
 
-        return empty
+            return empty
 
     # ========================================================================
     # UTILITIES
