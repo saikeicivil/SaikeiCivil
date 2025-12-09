@@ -1,22 +1,13 @@
 # Migration Session Summary
 
 **Date:** December 8, 2025
-**Session:** Architecture Migration - Phase 1 Complete
+**Session:** Architecture Migration - Phase 2 Complete
 
 ---
 
 ## What We Did
 
-### 1. Created Architecture Report
-- Reviewed [SAIKEI_ARCHITECTURE_REPORT.md](SAIKEI_ARCHITECTURE_REPORT.md) analyzing Bonsai's three-layer architecture
-- Identified key patterns Saikei Civil should adopt
-
-### 2. Created Migration Plan
-- Full plan documented in [MIGRATION_PLAN.md](MIGRATION_PLAN.md)
-- 7 phases, priority-ordered
-- Detailed implementation steps for each phase
-
-### 3. Completed Phase 1: Foundation
+### Session 1 (Laptop): Phase 1 - Foundation
 
 Created the interface definitions and tool layer:
 
@@ -27,66 +18,182 @@ Created the interface definitions and tool layer:
 | `saikei_civil/tool/ifc.py` | IFC operations (wraps NativeIfcManager) |
 | `saikei_civil/tool/blender.py` | Blender utilities |
 
-#### Interfaces Defined:
-1. **Ifc** - IFC file operations (`get()`, `run()`, `get_entity()`, `link()`, etc.)
-2. **Blender** - Blender utilities (`create_object()`, `get_active_object()`, etc.)
-3. **Alignment** - Horizontal alignment operations
-4. **VerticalAlignment** - Vertical alignment operations
-5. **Georeference** - CRS and coordinate transformations
-6. **CrossSection** - Road assembly and components
-7. **Corridor** - 3D corridor generation
-8. **Spatial** - IFC spatial hierarchy
-9. **Visualizer** - IFC → Blender visualization
+### Session 2 (Desktop): Phase 2 - Alignment Module (Proof of Concept)
 
-#### Key Features:
-- `tool.Ifc.run()` - Executes ifcopenshell.api commands
-- `tool.Ifc.Operator` - Base mixin for operators
-- Bonsai compatibility - Uses Bonsai's IFC file if available
+Refactored the Alignment module to demonstrate the three-layer pattern:
+
+| File | Purpose |
+|------|---------|
+| `saikei_civil/core/alignment.py` | **NEW** - Pure business logic (no Blender imports) |
+| `saikei_civil/tool/alignment.py` | **NEW** - Blender-specific Alignment interface implementation |
+| `saikei_civil/operators/alignment_operators_v2.py` | **NEW** - v2 operators using new pattern |
+| `saikei_civil/tests/core/test_alignment_core.py` | **NEW** - Core tests (run without Blender) |
+
+---
+
+## Phase 2 Implementation Details
+
+### core/alignment.py - Pure Business Logic
+
+Contains pure Python functions with NO Blender imports:
+
+**Data Structures:**
+- `create_pi_data()` - Create PI data dictionaries
+- `format_pi_for_ifc()` - Format for IFC compatibility
+- `pis_from_coordinates()` - Create PIs from coordinate list
+
+**Geometry Calculations:**
+- `calculate_tangent_direction()` / `calculate_tangent_length()`
+- `calculate_deflection_angle()` - Signed deflection at PI
+- `interpolate_position_on_line()` / `interpolate_position_on_arc()`
+- `get_point_at_station()` - Query position at station
+- `get_station_at_point()` - Find station nearest to point
+
+**Segment Generation:**
+- `compute_tangent_segments()` - Generate tangent-only segments
+- `compute_segments_with_curves()` - Generate full T-C-T sequences
+- `insert_curve()` / `remove_curve()` - Curve management
+
+**High-Level Operations:**
+- `create_alignment()` - Create alignment using tool interfaces
+- `update_alignment_pis()` - Update existing alignment
+- `get_alignment_info()` - Get comprehensive alignment data
+
+### tool/alignment.py - Blender Implementation
+
+Implements the `Alignment` interface from `core/tool.py`:
+
+- `Alignment.create()` - Create IFC + Blender visualization
+- `Alignment.get_pis()` - Extract PI data from IFC
+- `Alignment.set_pis()` - Update IFC from PI data
+- `Alignment.get_horizontal_segments()` - Get segment list
+- `Alignment.get_length()` - Total alignment length
+- `Alignment.get_point_at_station()` - Query position
+- `Alignment.get_station_at_point()` - Reverse query
+- `Alignment.update_visualization()` - Refresh Blender objects
+
+### alignment_operators_v2.py - New Operators
+
+Four new operators demonstrating the pattern:
+
+1. **SAIKEI_OT_create_alignment_v2** - Create alignment from selection
+2. **SAIKEI_OT_query_alignment_v2** - Query position at station
+3. **SAIKEI_OT_insert_curve_v2** - Insert curve at PI
+4. **SAIKEI_OT_get_alignment_info_v2** - Display alignment info
+
+Key pattern:
+```python
+class SAIKEI_OT_example_v2(bpy.types.Operator, tool.Ifc.Operator):
+    def _execute(self, context):
+        # Use tool interfaces
+        alignment = tool.Alignment.create("Name", pis)
+        info = core_alignment.get_alignment_info(tool.Alignment, alignment)
+        return {'FINISHED'}
+```
+
+### test_alignment_core.py - Pure Python Tests
+
+~50 test cases covering:
+- `SimpleVector` operations
+- PI data structures
+- Geometry calculations
+- Curve geometry
+- Segment generation
+- Station queries
+
+**Run without Blender:**
+```bash
+pytest saikei_civil/tests/core/test_alignment_core.py -v
+```
 
 ---
 
 ## Files Modified
 
-- `saikei_civil/__init__.py` - Added tool module to registration
-- `saikei_civil/core/__init__.py` - Added interface exports
+| File | Change |
+|------|--------|
+| `saikei_civil/tool/__init__.py` | Added `Alignment` export |
+| `saikei_civil/operators/__init__.py` | Added v2 operators module |
 
 ---
 
-## Next Steps (Phase 2)
+## Phase 2 Checklist: COMPLETE
 
-Phase 2 will refactor the **Alignment module** as a proof-of-concept:
-
-1. Create `core/alignment.py` with pure business logic (no Blender imports)
-2. Create `tool/alignment.py` with Blender-specific implementation
-3. Create new operators using the `tool.Ifc.Operator` pattern
-4. Write tests that can run without Blender
-
-### Phase 2 Checklist:
-- [ ] Extract pure logic from `NativeIfcAlignment` into `core/alignment.py`
-- [ ] Create `tool/alignment.py` implementing the `Alignment` interface
-- [ ] Create v2 operators demonstrating the pattern
-- [ ] Update `tool/__init__.py` to export Alignment
-- [ ] Verify visualization still works
-- [ ] Write core tests (no Blender required)
+- [x] Extract pure logic from `NativeIfcAlignment` into `core/alignment.py`
+- [x] Create `tool/alignment.py` implementing the `Alignment` interface
+- [x] Create v2 operators demonstrating the pattern
+- [x] Update `tool/__init__.py` to export Alignment
+- [x] Write core tests (no Blender required)
+- [ ] Verify visualization still works (needs Blender testing)
 
 ---
 
-## Testing Notes
+## Architecture Summary
 
-- Testing requires Blender environment (bpy module)
-- Current tests are in `saikei_civil/tests/`
-- Existing test infrastructure supports both mock and real IFC testing
-- Phase 2 will add tests that run without Blender
+```
+Three-Layer Architecture
+========================
+
+Layer 3: BIM Modules (operators/alignment_operators_v2.py)
+    |
+    | calls
+    v
+Layer 2: Tool (tool/alignment.py)
+    |
+    | uses
+    v
+Layer 1: Core (core/alignment.py)
+
+Key Benefits:
+- Core logic testable without Blender
+- Clean separation of concerns
+- Tool interfaces enable dependency injection
+- Parallel operation with existing code
+```
 
 ---
 
-## How to Continue
+## Next Steps (Phase 3)
 
-1. Open the project in Blender on the desktop machine
-2. Test that the extension still loads correctly
-3. Review `MIGRATION_PLAN.md` for Phase 2 details
-4. Start with creating `core/alignment.py`
+Phase 3: **Adopt ifcopenshell.api** throughout:
+
+1. Audit direct IFC entity creation (`ifc.create_entity()`)
+2. Replace with `ifcopenshell.api` calls where available
+3. Create wrapper functions for missing operations
+4. Update NativeIfcAlignment to use API
+
+### Phase 3 Checklist:
+- [ ] Audit direct IFC usage across codebase
+- [ ] Replace in NativeIfcAlignment
+- [ ] Replace in NativeIfcManager
+- [ ] Replace in georeferencing
+- [ ] Verify external viewer compatibility
 
 ---
 
-*Session paused for machine transfer*
+## Testing the Migration
+
+### In Blender:
+```python
+# Test v2 operators
+bpy.ops.saikei.create_alignment_v2()  # Create from selection
+bpy.ops.saikei.query_alignment_v2()   # Query at station
+bpy.ops.saikei.get_alignment_info_v2() # Show info
+
+# Test tool layer directly
+import saikei_civil.tool as tool
+
+pis = [{'x': 0, 'y': 0}, {'x': 100, 'y': 0}, {'x': 100, 'y': 100}]
+alignment = tool.Alignment.create("Test Road", pis)
+```
+
+### Without Blender:
+```bash
+cd saikei_civil
+pytest tests/core/test_alignment_core.py -v
+```
+
+---
+
+*Phase 2 Complete - December 8, 2025*
+*Saikei Civil - Cultivating Open Infrastructure*
