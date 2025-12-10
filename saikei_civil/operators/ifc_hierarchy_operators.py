@@ -151,10 +151,13 @@ class BC_OT_open_ifc(Operator, ImportHelper):
             # Get info
             info = NativeIfcManager.get_info()
             
+            # Load cross-section assemblies from IFC
+            assembly_count = self._load_cross_sections_from_ifc(context, ifc_file)
+
             # Report success
-            self.report({'INFO'}, 
+            self.report({'INFO'},
                 f"Loaded: {info['project']} ({info['entities']} entities)")
-            
+
             # Show info in console
             logger.info("="*60)
             logger.info("IFC FILE LOADED")
@@ -164,15 +167,153 @@ class BC_OT_open_ifc(Operator, ImportHelper):
             logger.info("Entities: %s", info['entities'])
             logger.info("Alignments: %s", info['alignments'])
             logger.info("Geomodels: %s", info['geomodels'])
+            if assembly_count > 0:
+                logger.info("Cross-Section Assemblies: %s", assembly_count)
             logger.info("Check Blender outliner for visual hierarchy")
             logger.info("="*60)
-            
+
             return {'FINISHED'}
             
         except Exception as e:
             self.report({'ERROR'}, f"Failed to open IFC file: {str(e)}")
             logger.error("Error opening IFC: %s", str(e))
             return {'CANCELLED'}
+
+    def _load_cross_sections_from_ifc(self, context, ifc_file):
+        """
+        Load cross-section assemblies from IFC file into Blender PropertyGroups.
+
+        Searches for IfcElementAssembly entities with Pset_SaikeiCrossSectionAssembly
+        and recreates them in the scene's bc_cross_section property.
+
+        Args:
+            context: Blender context
+            ifc_file: The loaded IFC file
+
+        Returns:
+            Number of assemblies loaded
+        """
+        try:
+            cs = context.scene.bc_cross_section
+
+            # Clear existing assemblies
+            cs.assemblies.clear()
+
+            # Find all IfcElementAssembly entities
+            assemblies = ifc_file.by_type("IfcElementAssembly")
+            loaded_count = 0
+
+            for ifc_assembly in assemblies:
+                # Check if it has our custom property set
+                pset_data = self._get_cross_section_pset(ifc_assembly)
+                if pset_data is None:
+                    continue
+
+                # Create PropertyGroup assembly
+                new_assembly = cs.assemblies.add()
+                new_assembly.name = ifc_assembly.Name or "Unnamed Assembly"
+                new_assembly.description = ifc_assembly.Description or ""
+                new_assembly.ifc_definition_id = ifc_assembly.id()
+                new_assembly.global_id = ifc_assembly.GlobalId or ""
+
+                # Load properties from pset
+                if 'AssemblyType' in pset_data:
+                    new_assembly.assembly_type = pset_data['AssemblyType']
+                if 'DesignSpeed' in pset_data:
+                    new_assembly.design_speed = float(pset_data['DesignSpeed'])
+                if 'TotalWidth' in pset_data:
+                    new_assembly.total_width = float(pset_data['TotalWidth'])
+
+                # Parse component data
+                if 'ComponentData' in pset_data:
+                    self._parse_component_data(new_assembly, pset_data['ComponentData'])
+
+                # Mark as valid if it has components
+                new_assembly.is_valid = len(new_assembly.components) > 0
+                new_assembly.validation_message = (
+                    "Loaded from IFC" if new_assembly.is_valid
+                    else "No components found"
+                )
+
+                loaded_count += 1
+                logger.info(f"Loaded cross-section assembly: {new_assembly.name}")
+
+            return loaded_count
+
+        except Exception as e:
+            logger.warning(f"Error loading cross-sections from IFC: {e}")
+            return 0
+
+    def _get_cross_section_pset(self, ifc_assembly):
+        """
+        Get cross-section property set data from an IFC assembly.
+
+        Args:
+            ifc_assembly: IfcElementAssembly entity
+
+        Returns:
+            Dictionary of property values, or None if not a cross-section
+        """
+        try:
+            for rel in ifc_assembly.IsDefinedBy or []:
+                if not rel.is_a("IfcRelDefinesByProperties"):
+                    continue
+
+                pset = rel.RelatingPropertyDefinition
+                if not pset or not pset.is_a("IfcPropertySet"):
+                    continue
+
+                if pset.Name != "Pset_SaikeiCrossSectionAssembly":
+                    continue
+
+                # Extract property values
+                data = {}
+                for prop in pset.HasProperties or []:
+                    if prop.is_a("IfcPropertySingleValue"):
+                        value = prop.NominalValue
+                        if value:
+                            # Get the wrapped value
+                            data[prop.Name] = value.wrappedValue
+                return data
+
+        except Exception as e:
+            logger.warning(f"Error reading pset: {e}")
+
+        return None
+
+    def _parse_component_data(self, assembly, comp_string):
+        """
+        Parse component data string and add components to assembly.
+
+        Args:
+            assembly: BC_AssemblyProperties instance
+            comp_string: Semicolon-separated component data string
+        """
+        try:
+            if not comp_string:
+                return
+
+            # Format: name|type|side|width|slope|offset;name|type|side|...
+            comp_entries = comp_string.split(";")
+
+            for entry in comp_entries:
+                if not entry.strip():
+                    continue
+
+                parts = entry.split("|")
+                if len(parts) < 6:
+                    continue
+
+                comp = assembly.components.add()
+                comp.name = parts[0]
+                comp.component_type = parts[1]
+                comp.side = parts[2]
+                comp.width = float(parts[3])
+                comp.cross_slope = float(parts[4])
+                comp.offset = float(parts[5])
+
+        except Exception as e:
+            logger.warning(f"Error parsing component data: {e}")
 
 
 class BC_OT_save_ifc(Operator, ExportHelper):

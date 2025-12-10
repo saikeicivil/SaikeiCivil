@@ -119,24 +119,33 @@ class SAIKEI_OT_generate_corridor(Operator):
     @classmethod
     def poll(cls, context):
         """Check if operator can run."""
-        props = context.scene.bc_alignment
-        
-        # Need active alignment and cross-section
-        has_alignment = hasattr(props, 'active_alignment') and props.active_alignment
-        has_cross_section = hasattr(props, 'active_assembly') and props.active_assembly
-        
-        return has_alignment and has_cross_section
-    
+        # Check for IFC file with alignments
+        from ..core.ifc_manager import NativeIfcManager
+        ifc_file = NativeIfcManager.file
+        if not ifc_file:
+            return False
+
+        alignments = ifc_file.by_type("IfcAlignment")
+        if not alignments:
+            return False
+
+        # Check for cross-section assembly
+        if not hasattr(context.scene, 'bc_cross_section'):
+            return False
+
+        cs_props = context.scene.bc_cross_section
+        if not cs_props.assemblies:
+            return False
+
+        return True
+
     def invoke(self, context, event):
         """Show dialog before executing."""
-        # Set default start/end from alignment
-        props = context.scene.bc_alignment
-        
-        if hasattr(props, 'alignment_start_station'):
-            self.start_station = props.alignment_start_station
-        if hasattr(props, 'alignment_end_station'):
-            self.end_station = props.alignment_end_station
-        
+        # Set default start/end based on alignment length
+        # For now, use reasonable defaults
+        self.start_station = 0.0
+        self.end_station = 100.0  # Default 100m corridor
+
         return context.window_manager.invoke_props_dialog(self, width=400)
     
     def draw(self, context):
@@ -183,49 +192,372 @@ class SAIKEI_OT_generate_corridor(Operator):
     def execute(self, context):
         """Generate the corridor."""
         start_time = time.time()
-        
+
         try:
             # Get scene properties
-            props = context.scene.bc_alignment
-            
+            props = context.scene.bc_corridor
+
             # Import modules
-            from .native_ifc_corridor import CorridorModeler
-            from .corridor_mesh_generator import CorridorMeshGenerator
-            from .native_ifc_alignment import Alignment3D
-            
-            # Get alignment and cross-section
-            alignment = props.active_alignment  # Alignment3D instance
-            assembly = props.active_assembly  # RoadAssembly instance
-            
+            from ..core.native_ifc_corridor import CorridorModeler
+            from ..core.corridor_mesh_generator import CorridorMeshGenerator
+            from ..core.ifc_manager import NativeIfcManager
+
+            # Get alignment and cross-section from corridor properties
+            alignment_index = props.active_alignment_index
+            assembly_index = props.active_assembly_index
+
+            # Get alignments from IFC file
+            ifc_file = NativeIfcManager.get_file()
+            if not ifc_file:
+                self.report({'ERROR'}, "No IFC file loaded. Create a project first.")
+                return {'CANCELLED'}
+
+            alignments = ifc_file.by_type("IfcAlignment")
+            if alignment_index < 0 or alignment_index >= len(alignments):
+                self.report({'ERROR'}, "No alignment selected")
+                return {'CANCELLED'}
+
+            # Get cross-section assembly
+            cs_props = context.scene.bc_cross_section
+            if assembly_index < 0 or assembly_index >= len(cs_props.assemblies):
+                self.report({'ERROR'}, "No cross-section assembly selected")
+                return {'CANCELLED'}
+
+            alignment = alignments[alignment_index]
+            assembly = cs_props.assemblies[assembly_index]
+
+            # Create a simple Alignment3D-like wrapper for the IFC alignment
+            from ..core.native_ifc_corridor import StationPoint
+            import math
+
+            class SimpleAlignment3D:
+                """Wrapper for IFC alignment that provides 3D position sampling."""
+
+                def __init__(self, ifc_alignment, start_sta, end_sta):
+                    self.ifc_alignment = ifc_alignment
+                    self._start = start_sta
+                    self._end = end_sta
+                    self.horizontal = None
+                    self.vertical = None
+                    self.segments = []
+                    self.starting_station = 10000.0  # Default starting station
+                    self._load_alignment_data()
+
+                def _load_alignment_data(self):
+                    """Load horizontal segments and vertical data from IFC alignment."""
+                    # Find horizontal alignment
+                    for rel in self.ifc_alignment.IsNestedBy or []:
+                        for obj in rel.RelatedObjects:
+                            if obj.is_a("IfcAlignmentHorizontal"):
+                                self.horizontal = obj
+                                self._load_horizontal_segments(obj)
+                            elif obj.is_a("IfcAlignmentVertical"):
+                                self.vertical = obj
+
+                    # Get starting station from referents if available
+                    for rel in self.ifc_alignment.ReferencedBy or []:
+                        if rel.is_a("IfcRelAssociatesProduct"):
+                            for ref in rel.RelatedObjects or []:
+                                if hasattr(ref, 'is_a') and ref.is_a("IfcReferent"):
+                                    if hasattr(ref, 'PredefinedType') and ref.PredefinedType == "STATION":
+                                        # Get starting station
+                                        if hasattr(ref, 'Position') and ref.Position:
+                                            # IfcDistanceExpression
+                                            dist_along = ref.Position.DistanceAlong if hasattr(ref.Position, 'DistanceAlong') else 0
+                                            # The Name often contains station value like "10+000"
+                                            if ref.Name:
+                                                try:
+                                                    # Parse station string like "10+000"
+                                                    parts = ref.Name.replace('+', '').replace(',', '')
+                                                    self.starting_station = float(parts)
+                                                except (ValueError, TypeError):
+                                                    pass
+
+                def _load_horizontal_segments(self, horizontal):
+                    """Load segment data from IfcAlignmentHorizontal."""
+                    self.segments = []
+                    for rel in horizontal.IsNestedBy or []:
+                        for obj in rel.RelatedObjects:
+                            if obj.is_a("IfcAlignmentSegment"):
+                                self.segments.append(obj)
+
+                def get_start_station(self):
+                    return self._start
+
+                def get_end_station(self):
+                    return self._end
+
+                def _station_to_distance(self, station):
+                    """Convert station value to distance along alignment."""
+                    return station - self.starting_station
+
+                def get_3d_position(self, station):
+                    """Get 3D position (x, y, z) at a given station."""
+                    distance_along = self._station_to_distance(station)
+
+                    # Get horizontal position (x, y)
+                    x, y = 0.0, 0.0
+                    cumulative_distance = 0.0
+
+                    for segment in self.segments:
+                        params = segment.DesignParameters
+                        if not params:
+                            continue
+
+                        segment_length = params.SegmentLength
+
+                        if cumulative_distance + segment_length >= distance_along:
+                            # Position is in this segment
+                            local_distance = distance_along - cumulative_distance
+
+                            if params.PredefinedType == "LINE":
+                                start_point = params.StartPoint.Coordinates
+                                direction_angle = params.StartDirection
+
+                                x = start_point[0] + local_distance * math.cos(direction_angle)
+                                y = start_point[1] + local_distance * math.sin(direction_angle)
+                                break
+
+                            elif params.PredefinedType == "CIRCULARARC":
+                                start_point = params.StartPoint.Coordinates
+                                radius = abs(params.StartRadiusOfCurvature)
+                                start_direction = params.StartDirection
+                                signed_radius = params.StartRadiusOfCurvature
+
+                                # Calculate center of circle
+                                if signed_radius > 0:  # LEFT turn (CCW)
+                                    center_angle = start_direction + math.pi / 2
+                                else:  # RIGHT turn (CW)
+                                    center_angle = start_direction - math.pi / 2
+
+                                center_x = start_point[0] + radius * math.cos(center_angle)
+                                center_y = start_point[1] + radius * math.sin(center_angle)
+
+                                # Calculate angle traveled along arc
+                                arc_angle = local_distance / radius
+                                if signed_radius < 0:  # CW turn
+                                    arc_angle = -arc_angle
+
+                                # Current angle on circle
+                                current_angle = start_direction + arc_angle
+                                if signed_radius > 0:  # LEFT
+                                    current_angle -= math.pi / 2
+                                else:  # RIGHT
+                                    current_angle += math.pi / 2
+
+                                x = center_x + radius * math.cos(current_angle)
+                                y = center_y + radius * math.sin(current_angle)
+                                break
+
+                        cumulative_distance += segment_length
+
+                    # Get vertical elevation (z)
+                    z = self._get_elevation(station)
+
+                    return x, y, z
+
+                def _get_elevation(self, station):
+                    """Get elevation at station from vertical alignment."""
+                    if not self.vertical:
+                        return 0.0
+
+                    # Get vertical segments
+                    v_segments = []
+                    for rel in self.vertical.IsNestedBy or []:
+                        for obj in rel.RelatedObjects:
+                            if obj.is_a("IfcAlignmentSegment"):
+                                if hasattr(obj, 'DesignParameters') and obj.DesignParameters:
+                                    if obj.DesignParameters.is_a("IfcAlignmentVerticalSegment"):
+                                        v_segments.append(obj.DesignParameters)
+
+                    if not v_segments:
+                        return 0.0
+
+                    # Sort by StartDistAlong
+                    v_segments.sort(key=lambda s: s.StartDistAlong)
+
+                    # Find segment containing this station
+                    for seg in v_segments:
+                        start_sta = seg.StartDistAlong
+                        end_sta = start_sta + seg.HorizontalLength
+
+                        if start_sta <= station <= end_sta:
+                            local_dist = station - start_sta
+
+                            if seg.PredefinedType == "CONSTANTGRADIENT":
+                                return seg.StartHeight + seg.StartGradient * local_dist
+
+                            elif seg.PredefinedType == "PARABOLICARC":
+                                g1 = seg.StartGradient
+                                g2 = seg.EndGradient
+                                L = seg.HorizontalLength
+                                A = (g2 - g1) / (2.0 * L)
+                                return seg.StartHeight + g1 * local_dist + A * (local_dist ** 2)
+
+                    # Default to first segment's start height
+                    if v_segments:
+                        return v_segments[0].StartHeight
+                    return 0.0
+
+                def get_direction(self, station):
+                    """Get direction (bearing) at station."""
+                    distance_along = self._station_to_distance(station)
+                    cumulative_distance = 0.0
+
+                    for segment in self.segments:
+                        params = segment.DesignParameters
+                        if not params:
+                            continue
+
+                        segment_length = params.SegmentLength
+
+                        if cumulative_distance + segment_length >= distance_along:
+                            local_distance = distance_along - cumulative_distance
+
+                            if params.PredefinedType == "LINE":
+                                return params.StartDirection
+
+                            elif params.PredefinedType == "CIRCULARARC":
+                                radius = abs(params.StartRadiusOfCurvature)
+                                signed_radius = params.StartRadiusOfCurvature
+                                start_direction = params.StartDirection
+
+                                arc_angle = local_distance / radius
+                                if signed_radius < 0:
+                                    arc_angle = -arc_angle
+
+                                return start_direction + arc_angle
+
+                        cumulative_distance += segment_length
+
+                    return 0.0
+
+                def get_grade(self, station):
+                    """Get grade at station from vertical alignment."""
+                    if not self.vertical:
+                        return 0.0
+
+                    v_segments = []
+                    for rel in self.vertical.IsNestedBy or []:
+                        for obj in rel.RelatedObjects:
+                            if obj.is_a("IfcAlignmentSegment"):
+                                if hasattr(obj, 'DesignParameters') and obj.DesignParameters:
+                                    if obj.DesignParameters.is_a("IfcAlignmentVerticalSegment"):
+                                        v_segments.append(obj.DesignParameters)
+
+                    if not v_segments:
+                        return 0.0
+
+                    v_segments.sort(key=lambda s: s.StartDistAlong)
+
+                    for seg in v_segments:
+                        start_sta = seg.StartDistAlong
+                        end_sta = start_sta + seg.HorizontalLength
+
+                        if start_sta <= station <= end_sta:
+                            if seg.PredefinedType == "CONSTANTGRADIENT":
+                                return seg.StartGradient
+
+                            elif seg.PredefinedType == "PARABOLICARC":
+                                local_dist = station - start_sta
+                                g1 = seg.StartGradient
+                                g2 = seg.EndGradient
+                                L = seg.HorizontalLength
+                                return g1 + (g2 - g1) * (local_dist / L)
+
+                    return 0.0
+
+            # Create alignment wrapper
+            alignment_3d = SimpleAlignment3D(
+                alignment,
+                self.start_station,
+                self.end_station
+            )
+
+            # Create simple assembly wrapper for cross-section
+            class SimpleAssembly:
+                """Simplified wrapper for cross-section assembly."""
+
+                def __init__(self, assembly_props):
+                    self.name = assembly_props.name
+                    self.components = []
+
+                    # Track cumulative offset for each side (like cross_section_view_data.py)
+                    left_offset = 0.0
+                    left_elev = 0.0
+                    right_offset = 0.0
+                    right_elev = 0.0
+
+                    # Convert Blender properties to simple objects with proper offsets
+                    # The mesh generator expects: offset = left edge, then adds width
+                    for comp in assembly_props.components:
+                        side = comp.side
+                        width = comp.width
+                        slope = comp.cross_slope
+
+                        if side == "LEFT":
+                            # Left side: negative offsets, going left from centerline
+                            # Start at current left_offset, extend further left
+                            comp_offset = -(left_offset + width)  # Left edge of component
+                            comp_elev = left_elev
+                            # Update for next component
+                            left_offset += width
+                            left_elev = left_elev - (width * slope)
+                        else:
+                            # Right side: positive offsets, going right from centerline
+                            comp_offset = right_offset  # Left edge of component (starts here)
+                            comp_elev = right_elev
+                            # Update for next component
+                            right_offset += width
+                            right_elev = right_elev - (width * slope)
+
+                        self.components.append(SimpleComponent(
+                            comp, comp_offset, comp_elev
+                        ))
+
+            class SimpleComponent:
+                """Simplified component wrapper with calculated offset."""
+
+                def __init__(self, comp_props, calculated_offset, calculated_elev):
+                    self.name = comp_props.name
+                    self.component_type = comp_props.component_type
+                    self.width = comp_props.width
+                    self.slope = comp_props.cross_slope
+                    self.offset = calculated_offset
+                    self.elevation = calculated_elev
+                    self.material = getattr(comp_props, 'surface_material', 'Asphalt')
+
+            assembly_wrapper = SimpleAssembly(assembly)
+
             # Create corridor modeler
             modeler = CorridorModeler(
-                alignment_3d=alignment,
-                assembly=assembly,
+                alignment_3d=alignment_3d,
+                assembly=assembly_wrapper,
                 name=f"Corridor_{self.start_station:.0f}_{self.end_station:.0f}"
             )
-            
+
             # Generate stations
             modeler.generate_stations(
                 interval=self.interval,
                 curve_densification=self.curve_densification
             )
-            
+
             # Create mesh generator
             generator = CorridorMeshGenerator(
                 modeler=modeler,
                 name=f"Corridor_{self.start_station:.0f}_{self.end_station:.0f}"
             )
-            
+
             # Generate mesh
             mesh_obj = generator.generate_mesh(
                 lod=self.lod,
                 apply_materials=self.apply_materials,
                 create_collection=self.create_collection
             )
-            
+
             # Get statistics
             stats = generator.get_statistics()
-            
+
             # Report success
             elapsed_time = time.time() - start_time
             self.report(
@@ -233,15 +565,17 @@ class SAIKEI_OT_generate_corridor(Operator):
                 f"Corridor generated: {stats['vertex_count']:,} vertices, "
                 f"{stats['face_count']:,} faces in {elapsed_time:.2f}s"
             )
-            
+
             # Select the generated object
             bpy.ops.object.select_all(action='DESELECT')
             mesh_obj.select_set(True)
             context.view_layer.objects.active = mesh_obj
-            
+
             return {'FINISHED'}
-            
+
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.report({'ERROR'}, f"Corridor generation failed: {str(e)}")
             return {'CANCELLED'}
 
@@ -249,14 +583,14 @@ class SAIKEI_OT_generate_corridor(Operator):
 class SAIKEI_OT_corridor_quick_preview(Operator):
     """
     Quick corridor preview at current station.
-    
+
     Generates a short section of corridor for rapid design validation.
     """
     bl_idname = "saikei.corridor_quick_preview"
     bl_label = "Quick Corridor Preview"
     bl_description = "Generate quick preview of corridor at current station"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     preview_length: FloatProperty(
         name="Preview Length",
         description="Length of preview section (m)",
@@ -264,74 +598,50 @@ class SAIKEI_OT_corridor_quick_preview(Operator):
         min=10.0,
         max=200.0
     )
-    
+
     @classmethod
     def poll(cls, context):
         """Check if operator can run."""
-        props = context.scene.bc_alignment
-        return (
-            hasattr(props, 'active_alignment') and props.active_alignment and
-            hasattr(props, 'active_assembly') and props.active_assembly and
-            hasattr(props, 'current_station')
-        )
-    
+        # Same check as generate corridor
+        from ..core.ifc_manager import NativeIfcManager
+        ifc_file = NativeIfcManager.file
+        if not ifc_file:
+            return False
+
+        alignments = ifc_file.by_type("IfcAlignment")
+        if not alignments:
+            return False
+
+        if not hasattr(context.scene, 'bc_cross_section'):
+            return False
+
+        cs_props = context.scene.bc_cross_section
+        return bool(cs_props.assemblies)
+
     def execute(self, context):
         """Generate quick preview."""
         try:
-            props = context.scene.bc_alignment
-            current_station = props.current_station
-            
-            # Calculate preview range
-            start = max(0, current_station - self.preview_length / 2)
-            end = current_station + self.preview_length / 2
-            
-            # Import modules
-            from .native_ifc_corridor import CorridorModeler
-            from .corridor_mesh_generator import CorridorMeshGenerator
-            
-            # Get alignment and assembly
-            alignment = props.active_alignment
-            assembly = props.active_assembly
-            
-            # Create modeler
-            modeler = CorridorModeler(
-                alignment_3d=alignment,
-                assembly=assembly,
-                name="Corridor_Preview"
-            )
-            
-            # Generate stations (denser for preview)
-            modeler.generate_stations(interval=5.0)
-            
-            # Filter to preview range
-            modeler.stations = [
-                s for s in modeler.stations
-                if start <= s.station <= end
-            ]
-            
-            # Generate preview mesh
-            generator = CorridorMeshGenerator(
-                modeler=modeler,
-                name="Corridor_Preview"
-            )
-            
-            mesh_obj = generator.generate_mesh(
-                lod='high',  # High quality for preview
+            corridor_props = context.scene.bc_corridor
+
+            # Calculate preview range centered on start_station
+            center = corridor_props.start_station
+            start = max(0, center - self.preview_length / 2)
+            end = center + self.preview_length / 2
+
+            # Use the main generate corridor operator with limited range
+            bpy.ops.saikei.generate_corridor(
+                'EXEC_DEFAULT',
+                start_station=start,
+                end_station=end,
+                interval=5.0,
+                lod='high',
                 apply_materials=True,
                 create_collection=False
             )
-            
-            # Add to scene
-            bpy.context.collection.objects.link(mesh_obj)
-            
-            # Report success
-            self.report(
-                {'INFO'},
-                f"Preview generated at station {current_station:.2f}m"
-            )
-            
+
+            self.report({'INFO'}, f"Preview generated: {start:.0f}m to {end:.0f}m")
             return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Preview failed: {str(e)}")
             return {'CANCELLED'}
@@ -420,31 +730,20 @@ class SAIKEI_OT_export_corridor_ifc(Operator):
     def execute(self, context):
         """Export corridor to IFC."""
         try:
-            # Import corridor modeler
-            from .native_ifc_corridor import CorridorModeler
-            
-            # Get corridor data from scene
-            props = context.scene.bc_alignment
-            
-            if not hasattr(props, 'active_corridor_modeler'):
-                self.report(
-                    {'WARNING'},
-                    "No corridor data found. Generate corridor first."
-                )
+            # Export current IFC file (which includes corridor data)
+            from ..core.ifc_manager import NativeIfcManager
+
+            ifc_file = NativeIfcManager.file
+            if not ifc_file:
+                self.report({'ERROR'}, "No IFC file loaded")
                 return {'CANCELLED'}
-            
-            modeler = props.active_corridor_modeler
-            
-            # Export to IFC
-            ifc_file = modeler.export_to_ifc()
+
+            # Write to specified path
             ifc_file.write(self.filepath)
-            
-            self.report(
-                {'INFO'},
-                f"Corridor exported to: {self.filepath}"
-            )
+
+            self.report({'INFO'}, f"Corridor exported to: {self.filepath}")
             return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Export failed: {str(e)}")
             return {'CANCELLED'}

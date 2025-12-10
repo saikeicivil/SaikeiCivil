@@ -202,6 +202,10 @@ class CrossSectionViewData:
         """
         Load cross-section data from Blender assembly properties.
 
+        Components are connected by tracking the current offset and elevation
+        for each side. Each component starts where the previous one ended,
+        ensuring shared vertices at connection points.
+
         Args:
             assembly_props: BC_AssemblyProperties from Blender
 
@@ -215,9 +219,10 @@ class CrossSectionViewData:
 
         self.assembly_name = assembly_props.name
 
-        # Track position for each side
-        left_offset = 0.0
-        right_offset = 0.0
+        # Track attachment point for each side (offset, elevation)
+        # Components connect at these points - they share vertices
+        left_attachment = (0.0, 0.0)   # (offset, elevation)
+        right_attachment = (0.0, 0.0)  # (offset, elevation)
 
         # Process components
         for comp_prop in assembly_props.components:
@@ -231,22 +236,24 @@ class CrossSectionViewData:
             width = comp_prop.width
             cross_slope = comp_prop.cross_slope
 
-            # Calculate points based on component type and position
+            # Get current attachment point for this side
             if side == "LEFT":
-                start_offset = -left_offset
-                end_offset = start_offset - width
-                left_offset += width
+                start_offset, start_elev = left_attachment
                 direction = -1
             else:  # RIGHT or CENTER
-                start_offset = right_offset
-                end_offset = start_offset + width
-                right_offset += width
+                start_offset, start_elev = right_attachment
                 direction = 1
 
-            # Generate points based on component type
-            points = self._generate_component_points(
-                comp_type, comp_prop, start_offset, end_offset, direction
+            # Generate points based on component type, starting from attachment point
+            points, end_point = self._generate_component_points(
+                comp_type, comp_prop, start_offset, start_elev, direction
             )
+
+            # Update attachment point for next component on this side
+            if side == "LEFT":
+                left_attachment = end_point
+            else:
+                right_attachment = end_point
 
             # Get surface thickness (default 150mm / 6")
             thickness = getattr(comp_prop, 'surface_thickness', 0.15)
@@ -262,8 +269,8 @@ class CrossSectionViewData:
                 material=getattr(comp_prop, 'surface_material', '')
             )
 
-        # Update total width
-        self.total_width = left_offset + right_offset
+        # Calculate total width from attachment points
+        self.total_width = abs(left_attachment[0]) + abs(right_attachment[0])
 
         # Update view extents
         self.update_view_extents()
@@ -272,53 +279,68 @@ class CrossSectionViewData:
 
     def _generate_component_points(self, comp_type: ComponentType,
                                     comp_prop, start_offset: float,
-                                    end_offset: float,
-                                    direction: int) -> List[Tuple[float, float]]:
+                                    start_elev: float,
+                                    direction: int) -> Tuple[List[Tuple[float, float]], Tuple[float, float]]:
         """
-        Generate profile points for a component.
+        Generate profile points for a component, starting from attachment point.
+
+        Components connect to each other at shared vertices. The start point
+        is provided (from previous component's end), and this method returns
+        the end point for the next component to attach to.
 
         Args:
             comp_type: Component type
             comp_prop: Component properties
-            start_offset: Starting offset
-            end_offset: Ending offset
+            start_offset: Starting offset (from previous component)
+            start_elev: Starting elevation (from previous component)
             direction: 1 for right, -1 for left
 
         Returns:
-            List of (offset, elevation) tuples
+            Tuple of:
+                - List of (offset, elevation) tuples for this component
+                - End point (offset, elevation) for next component attachment
         """
         points = []
+        width = comp_prop.width
 
         if comp_type == ComponentType.LANE:
-            # Simple sloped surface
-            start_elev = 0.0
-            end_elev = comp_prop.width * comp_prop.cross_slope * direction
+            # Simple sloped surface - starts at attachment point
+            end_offset = start_offset + (width * direction)
+            # Cross slope causes elevation change across the width
+            elev_change = width * comp_prop.cross_slope * direction
+            end_elev = start_elev + elev_change
             points = [
                 (start_offset, start_elev),
                 (end_offset, end_elev)
             ]
+            end_point = (end_offset, end_elev)
 
         elif comp_type == ComponentType.SHOULDER:
-            # Similar to lane
-            start_elev = 0.0
-            end_elev = comp_prop.width * comp_prop.cross_slope * direction
+            # Similar to lane - continues from attachment point
+            end_offset = start_offset + (width * direction)
+            elev_change = width * comp_prop.cross_slope * direction
+            end_elev = start_elev + elev_change
             points = [
                 (start_offset, start_elev),
                 (end_offset, end_elev)
             ]
+            end_point = (end_offset, end_elev)
 
         elif comp_type == ComponentType.CURB:
-            # Curb with vertical face
+            # Curb with vertical face - starts at attachment point
             curb_height = getattr(comp_prop, 'curb_height', 0.15)
+            end_offset = start_offset + (width * direction)
             points = [
-                (start_offset, 0.0),
-                (start_offset, curb_height),
-                (end_offset, curb_height),
-                (end_offset, 0.0)
+                (start_offset, start_elev),
+                (start_offset, start_elev + curb_height),
+                (end_offset, start_elev + curb_height),
+                (end_offset, start_elev)
             ]
+            # Next component attaches at end, same elevation as start
+            end_point = (end_offset, start_elev)
 
         elif comp_type == ComponentType.DITCH:
-            # Trapezoidal ditch
+            # Trapezoidal ditch - starts at attachment point
             foreslope = getattr(comp_prop, 'foreslope', 4.0)
             backslope = getattr(comp_prop, 'backslope', 3.0)
             bottom_width = getattr(comp_prop, 'bottom_width', 1.2)
@@ -329,46 +351,52 @@ class CrossSectionViewData:
             back_dist = depth * backslope
 
             if direction == 1:  # Right side
-                points = [
-                    (start_offset, 0.0),
-                    (start_offset + fore_dist, -depth),
-                    (start_offset + fore_dist + bottom_width, -depth),
-                    (start_offset + fore_dist + bottom_width + back_dist, 0.0)
-                ]
+                p1 = (start_offset, start_elev)
+                p2 = (start_offset + fore_dist, start_elev - depth)
+                p3 = (start_offset + fore_dist + bottom_width, start_elev - depth)
+                p4 = (start_offset + fore_dist + bottom_width + back_dist, start_elev)
+                points = [p1, p2, p3, p4]
+                end_point = p4
             else:  # Left side
-                points = [
-                    (start_offset, 0.0),
-                    (start_offset - fore_dist, -depth),
-                    (start_offset - fore_dist - bottom_width, -depth),
-                    (start_offset - fore_dist - bottom_width - back_dist, 0.0)
-                ]
+                p1 = (start_offset, start_elev)
+                p2 = (start_offset - fore_dist, start_elev - depth)
+                p3 = (start_offset - fore_dist - bottom_width, start_elev - depth)
+                p4 = (start_offset - fore_dist - bottom_width - back_dist, start_elev)
+                points = [p1, p2, p3, p4]
+                end_point = p4
 
         elif comp_type == ComponentType.MEDIAN:
-            # Raised median
+            # Raised median - starts at attachment point
+            end_offset = start_offset + (width * direction)
             points = [
-                (start_offset, 0.0),
-                (start_offset, 0.15),
-                (end_offset, 0.15),
-                (end_offset, 0.0)
+                (start_offset, start_elev),
+                (start_offset, start_elev + 0.15),
+                (end_offset, start_elev + 0.15),
+                (end_offset, start_elev)
             ]
+            end_point = (end_offset, start_elev)
 
         elif comp_type == ComponentType.SIDEWALK:
             # Flat sidewalk with slight slope
-            start_elev = 0.0
-            end_elev = comp_prop.width * comp_prop.cross_slope * direction
+            end_offset = start_offset + (width * direction)
+            elev_change = width * comp_prop.cross_slope * direction
+            end_elev = start_elev + elev_change
             points = [
                 (start_offset, start_elev),
                 (end_offset, end_elev)
             ]
+            end_point = (end_offset, end_elev)
 
         else:
             # Generic flat component
+            end_offset = start_offset + (width * direction)
             points = [
-                (start_offset, 0.0),
-                (end_offset, 0.0)
+                (start_offset, start_elev),
+                (end_offset, start_elev)
             ]
+            end_point = (end_offset, start_elev)
 
-        return points
+        return points, end_point
 
     def update_view_extents(self, padding: float = 2.0):
         """
@@ -464,31 +492,50 @@ class CrossSectionViewData:
 
 
 if __name__ == "__main__":
-    # Test the data model
+    # Test the data model with connected components
     data = CrossSectionViewData()
 
-    # Add some test components
+    # Add test components that connect to each other
+    # Lane 1 starts at centerline (0, 0)
     data.add_component(
-        name="Right Lane",
+        name="Right Lane 1",
         component_type=ComponentType.LANE,
         side="RIGHT",
-        points=[(0, 0), (3.6, -0.072)],
+        points=[(0, 0), (3.6, -0.072)],  # 2% slope over 3.6m
         width=3.6,
         cross_slope=0.02
     )
 
+    # Lane 2 CONNECTS at (3.6, -0.072) - shared vertex!
+    data.add_component(
+        name="Right Lane 2",
+        component_type=ComponentType.LANE,
+        side="RIGHT",
+        points=[(3.6, -0.072), (7.2, -0.144)],  # Continues from Lane 1's end
+        width=3.6,
+        cross_slope=0.02
+    )
+
+    # Shoulder CONNECTS at (7.2, -0.144)
     data.add_component(
         name="Right Shoulder",
         component_type=ComponentType.SHOULDER,
         side="RIGHT",
-        points=[(3.6, -0.072), (6.0, -0.168)],
+        points=[(7.2, -0.144), (9.6, -0.240)],  # 4% slope
         width=2.4,
         cross_slope=0.04
     )
 
     data.update_view_extents()
 
-    print("CrossSectionViewData Test")
+    print("CrossSectionViewData Test - Connected Components")
     print(f"Components: {len(data.components)}")
     print(f"View extents: {data.offset_min:.1f} to {data.offset_max:.1f}")
     print(f"Status: {data.get_status_text()}")
+
+    # Verify components connect
+    print("\nComponent connection points:")
+    for i, comp in enumerate(data.components):
+        start = comp.points[0]
+        end = comp.points[-1]
+        print(f"  {comp.name}: ({start.offset:.2f}, {start.elevation:.3f}) -> ({end.offset:.2f}, {end.elevation:.3f})")

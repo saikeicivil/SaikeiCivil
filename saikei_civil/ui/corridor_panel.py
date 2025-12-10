@@ -54,92 +54,151 @@ class SAIKEI_PT_corridor_generation(Panel):
     bl_category = 'Saikei Civil'
     bl_order = 9
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     def draw(self, context):
         """Draw the panel."""
         layout = self.layout
-        props = context.scene.bc_alignment
-        
+
+        # Get corridor properties
+        corridor_props = context.scene.bc_corridor if hasattr(context.scene, 'bc_corridor') else None
+
         # Header with icon
         box = layout.box()
         row = box.row()
         row.label(text="3D Corridor Modeling", icon='OUTLINER_OB_CURVE')
-        
+
+        # Check for IFC file and alignments
+        from ..core.ifc_manager import NativeIfcManager
+        ifc_file = NativeIfcManager.file
+        alignments = ifc_file.by_type("IfcAlignment") if ifc_file else []
+
+        # Check for cross-section assemblies
+        cs_props = context.scene.bc_cross_section if hasattr(context.scene, 'bc_cross_section') else None
+        assemblies = cs_props.assemblies if cs_props else []
+
+        has_alignment = len(alignments) > 0
+        has_assembly = len(assemblies) > 0
+
         # Prerequisites check
-        has_alignment = hasattr(props, 'active_alignment') and props.active_alignment
-        has_assembly = hasattr(props, 'active_assembly') and props.active_assembly
-        
         if not has_alignment or not has_assembly:
             box = layout.box()
             box.label(text="Prerequisites Required:", icon='ERROR')
-            
+
             if not has_alignment:
-                box.label(text="[-] Create Alignment (H+V)", icon='BLANK1')
+                box.label(text="• Create Alignment (Horizontal + Vertical)")
             else:
-                box.label(text="[+] Alignment Ready", icon='BLANK1')
-            
+                box.label(text="✓ Alignment Ready", icon='CHECKMARK')
+
             if not has_assembly:
-                box.label(text="[-] Design Cross-Section", icon='BLANK1')
+                box.label(text="• Design Cross-Section Assembly")
             else:
-                box.label(text="[+] Cross-Section Ready", icon='BLANK1')
-            
+                box.label(text="✓ Cross-Section Ready", icon='CHECKMARK')
+
             return
-        
-        # Status - all ready
+
+        # Input Selection
         box = layout.box()
-        box.label(text="[+] Ready to Generate", icon='CHECKMARK')
+        box.label(text="Input Selection", icon='IMPORT')
         col = box.column(align=True)
-        
-        if hasattr(props, 'alignment_name'):
-            col.label(text=f"Alignment: {props.alignment_name}", icon='CURVE_PATH')
-        if hasattr(props, 'assembly_name'):
-            col.label(text=f"Assembly: {props.assembly_name}", icon='MESH_DATA')
-        
+
+        # Alignment selector
+        row = col.row(align=True)
+        row.label(text="Alignment:", icon='CURVE_PATH')
+        if corridor_props and len(alignments) > 0:
+            # Show alignment name
+            idx = min(corridor_props.active_alignment_index, len(alignments) - 1)
+            align_name = alignments[idx].Name if idx >= 0 else "None"
+            row.label(text=align_name)
+
+            # Navigation buttons if multiple alignments
+            if len(alignments) > 1:
+                row = col.row(align=True)
+                row.prop(corridor_props, "active_alignment_index", text="Index")
+
+        # Assembly selector
+        row = col.row(align=True)
+        row.label(text="Assembly:", icon='MESH_DATA')
+        if corridor_props and len(assemblies) > 0:
+            idx = min(corridor_props.active_assembly_index, len(assemblies) - 1)
+            asm_name = assemblies[idx].name if idx >= 0 else "None"
+            row.label(text=asm_name)
+
+            if len(assemblies) > 1:
+                row = col.row(align=True)
+                row.prop(corridor_props, "active_assembly_index", text="Index")
+
         layout.separator()
-        
-        # Quick actions
+
+        # Station Range
         box = layout.box()
-        box.label(text="Quick Actions", icon='PLAY')
+        box.label(text="Station Range", icon='DRIVER_DISTANCE')
         col = box.column(align=True)
-        
-        # Quick preview
+
+        if corridor_props:
+            col.prop(corridor_props, "start_station")
+            col.prop(corridor_props, "end_station")
+
+            # Show length
+            length = corridor_props.end_station - corridor_props.start_station
+            col.label(text=f"Length: {length:.1f}m")
+
+        layout.separator()
+
+        # Generation Settings
+        box = layout.box()
+        box.label(text="Generation Settings", icon='SETTINGS')
+        col = box.column(align=True)
+
+        if corridor_props:
+            col.prop(corridor_props, "station_interval")
+            col.prop(corridor_props, "curve_densification")
+            col.prop(corridor_props, "lod")
+            col.separator()
+            col.prop(corridor_props, "apply_materials")
+            col.prop(corridor_props, "create_collection")
+
+        layout.separator()
+
+        # Generate Button
+        box = layout.box()
+        col = box.column(align=True)
+
         row = col.row(align=True)
-        row.scale_y = 1.3
-        row.operator(
-            "saikei.corridor_quick_preview",
-            text="⚡ Quick Preview",
-            icon='HIDE_OFF'
-        )
-        
-        # Main generation
-        row = col.row(align=True)
-        row.scale_y = 1.5
+        row.scale_y = 1.8
         row.operator(
             "saikei.generate_corridor",
-            text="🏗️ Generate Corridor",
+            text="Generate Corridor",
             icon='MOD_BUILD'
         )
-        
+
         layout.separator()
-        
+
         # Management
         box = layout.box()
         box.label(text="Management", icon='TOOL_SETTINGS')
         col = box.column(align=True)
-        
-        # Export
+
         col.operator(
             "saikei.export_corridor_ifc",
             text="Export to IFC",
             icon='EXPORT'
         )
-        
-        # Clear
+
         col.operator(
             "saikei.clear_corridor",
             text="Clear Corridor",
             icon='TRASH'
         )
+
+        # Show last generation stats if available
+        if corridor_props and corridor_props.last_vertex_count > 0:
+            layout.separator()
+            box = layout.box()
+            box.label(text="Last Generation", icon='INFO')
+            col = box.column(align=True)
+            col.label(text=f"Vertices: {corridor_props.last_vertex_count:,}")
+            col.label(text=f"Faces: {corridor_props.last_face_count:,}")
+            col.label(text=f"Time: {corridor_props.last_generation_time:.2f}s")
 
 
 class SAIKEI_PT_corridor_settings(Panel):

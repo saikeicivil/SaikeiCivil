@@ -290,12 +290,12 @@ class CorridorMeshGenerator:
     def _get_profile_points(self, assembly: Any) -> List[Dict[str, Any]]:
         """
         Extract cross-section profile points from assembly.
-        
+
         Returns list of component definitions with their geometry.
-        
+
         Args:
             assembly: RoadAssembly instance
-            
+
         Returns:
             List of dicts with component data:
             {
@@ -306,27 +306,43 @@ class CorridorMeshGenerator:
             }
         """
         profile_points = []
-        
+
         for component in assembly.components:
             # Get component points (offset, elevation pairs)
             points = []
-            
-            # Left side point
-            points.append((component.offset, component.elevation))
-            
-            # Right side point
-            points.append((
-                component.offset + component.width,
-                component.elevation - component.slope * component.width
-            ))
-            
+
+            # Check which side this component is on
+            # Negative offset = left side, positive = right side
+            is_left_side = component.offset < 0
+
+            if is_left_side:
+                # Left side: offset is already negative, width extends further left (more negative)
+                # Start point (closer to centerline)
+                start_offset = component.offset + component.width  # Less negative
+                start_elev = component.elevation - component.slope * component.width
+                # End point (further from centerline)
+                end_offset = component.offset  # More negative
+                end_elev = component.elevation
+                points.append((start_offset, start_elev))
+                points.append((end_offset, end_elev))
+            else:
+                # Right side: offset is positive or zero, width extends further right
+                # Start point (closer to centerline)
+                start_offset = component.offset
+                start_elev = component.elevation
+                # End point (further from centerline)
+                end_offset = component.offset + component.width
+                end_elev = component.elevation - component.slope * component.width
+                points.append((start_offset, start_elev))
+                points.append((end_offset, end_elev))
+
             profile_points.append({
                 'name': component.name,
                 'type': component.component_type,
                 'points': points,
                 'material': component.material
             })
-        
+
         return profile_points
     
     def _create_station_vertices(

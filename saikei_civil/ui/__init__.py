@@ -50,6 +50,9 @@ from . import cross_section_properties
 # Import profile view properties (no IFC dependency for properties)
 from . import profile_view_properties
 
+# Import corridor properties (no IFC dependency for properties)
+from . import corridor_properties
+
 # List of UI modules
 _ui_modules = [dependency_panel]
 
@@ -93,6 +96,7 @@ def register():
     vertical_properties.register()
     cross_section_properties.register()
     profile_view_properties.register()
+    corridor_properties.register()
 
     # Register UI panel modules
     for module in _ui_modules:
@@ -108,6 +112,7 @@ def unregister():
         module.unregister()
 
     # Unregister properties in reverse order
+    corridor_properties.unregister()
     profile_view_properties.unregister()
     cross_section_properties.unregister()
     vertical_properties.unregister()

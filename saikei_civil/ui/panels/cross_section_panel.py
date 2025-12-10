@@ -207,7 +207,23 @@ class BC_PT_CrossSection_Assembly(Panel):
         
         row = box.row()
         row.operator("bc.validate_assembly", text="Validate", icon='CHECKMARK')
-        
+
+        # IFC Save section
+        box = layout.box()
+        box.label(text="IFC Storage", icon='FILE_3D')
+        col = box.column(align=True)
+
+        # Show IFC linkage status
+        if assembly.ifc_definition_id > 0:
+            col.label(text=f"IFC ID: {assembly.ifc_definition_id}", icon='CHECKMARK')
+        else:
+            col.label(text="Not saved to IFC", icon='INFO')
+
+        # Save to IFC button
+        row = col.row()
+        row.scale_y = 1.2
+        row.operator("bc.save_assembly_to_ifc", text="Save to IFC", icon='EXPORT')
+
         # Statistics
         box = layout.box()
         box.label(text="Statistics", icon='INFO')

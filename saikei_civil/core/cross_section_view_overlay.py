@@ -931,18 +931,18 @@ def load_assembly_to_overlay(context, assembly_index: int) -> bool:
 
     Args:
         context: Blender context
-        assembly_index: Index of assembly in scene.bc_assemblies
+        assembly_index: Index of assembly in scene.bc_cross_section.assemblies
 
     Returns:
         True if loaded successfully
     """
     overlay = get_cross_section_overlay()
 
-    if not hasattr(context.scene, 'bc_assemblies'):
-        logger.warning("No bc_assemblies in scene")
+    if not hasattr(context.scene, 'bc_cross_section'):
+        logger.warning("No bc_cross_section in scene")
         return False
 
-    assemblies = context.scene.bc_assemblies
+    assemblies = context.scene.bc_cross_section.assemblies
     if assembly_index < 0 or assembly_index >= len(assemblies):
         logger.warning("Invalid assembly index: %d", assembly_index)
         return False

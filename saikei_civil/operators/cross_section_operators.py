@@ -1641,6 +1641,304 @@ class BC_OT_CrossSectionViewInteraction(Operator):
         logger.info("Cross-section view interaction cancelled")
 
 
+class BC_OT_SaveAssemblyToIFC(Operator):
+    """
+    Save the active assembly to the currently loaded IFC file.
+
+    Converts the Blender PropertyGroup assembly to IFC entities and adds
+    them to the IFC file in memory. Use 'Save IFC File' to persist to disk.
+
+    Creates:
+    - IfcElementAssembly for the cross-section assembly
+    - IfcOpenCrossProfileDef for each component
+    - Links assembly to the IfcRoad in the spatial hierarchy
+    """
+    bl_idname = "bc.save_assembly_to_ifc"
+    bl_label = "Save Assembly to IFC"
+    bl_description = "Save cross-section assembly to the currently loaded IFC file"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        """Check if operator can run."""
+        from ..core.ifc_manager import NativeIfcManager
+
+        # Need an IFC file loaded
+        if not NativeIfcManager.file:
+            return False
+
+        # Need an assembly with components
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+
+        assembly = cs.assemblies[cs.active_assembly_index]
+        return len(assembly.components) > 0
+
+    def execute(self, context):
+        """Save assembly to IFC file."""
+        import ifcopenshell
+        import ifcopenshell.guid
+        from ..core.ifc_manager import NativeIfcManager
+
+        try:
+            ifc_file = NativeIfcManager.file
+            if not ifc_file:
+                self.report({'ERROR'}, "No IFC file loaded. Create or open a project first.")
+                return {'CANCELLED'}
+
+            cs = context.scene.bc_cross_section
+            assembly = cs.assemblies[cs.active_assembly_index]
+
+            # Check if assembly already exists in IFC (update vs create)
+            existing_entity = None
+            if assembly.ifc_definition_id > 0:
+                try:
+                    existing_entity = ifc_file.by_id(assembly.ifc_definition_id)
+                except RuntimeError:
+                    existing_entity = None
+
+            if existing_entity:
+                # Update existing - remove old and recreate
+                # (IFC doesn't support in-place modification well)
+                self._remove_assembly_from_ifc(ifc_file, existing_entity)
+
+            # Create new IFC entities for the assembly
+            ifc_assembly = self._create_ifc_assembly(ifc_file, assembly)
+
+            # Update PropertyGroup with IFC linkage
+            assembly.ifc_definition_id = ifc_assembly.id()
+            assembly.global_id = ifc_assembly.GlobalId
+
+            # Link to IfcRoad
+            self._link_to_road(ifc_file, ifc_assembly)
+
+            self.report({'INFO'},
+                f"Saved assembly '{assembly.name}' to IFC (ID: {ifc_assembly.id()})")
+
+            logger.info(f"Saved cross-section assembly to IFC: {assembly.name}")
+            return {'FINISHED'}
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.report({'ERROR'}, f"Failed to save assembly: {str(e)}")
+            return {'CANCELLED'}
+
+    def _create_ifc_assembly(self, ifc_file, assembly):
+        """Create IFC entities for the assembly."""
+        import ifcopenshell.guid
+
+        # Create IfcElementAssembly for the cross-section
+        ifc_assembly = ifc_file.create_entity(
+            "IfcElementAssembly",
+            GlobalId=ifcopenshell.guid.new(),
+            Name=assembly.name,
+            Description=assembly.description or f"Cross-section assembly: {assembly.name}",
+            ObjectType="CROSS_SECTION_ASSEMBLY",
+            PredefinedType="USERDEFINED",
+            AssemblyPlace="FACTORY"
+        )
+
+        # Create profile definitions for each component
+        profiles = []
+        for comp in assembly.components:
+            profile = self._create_component_profile(ifc_file, comp)
+            profiles.append(profile)
+
+            # Update component IFC linkage
+            comp.ifc_definition_id = profile.id()
+            comp.global_id = ifcopenshell.guid.new()
+
+        # Create composite profile combining all components
+        if profiles:
+            composite = ifc_file.create_entity(
+                "IfcCompositeProfileDef",
+                ProfileType="AREA",
+                ProfileName=f"{assembly.name}_Profile",
+                Profiles=profiles
+            )
+
+            # Create property set with assembly metadata
+            self._create_assembly_pset(ifc_file, ifc_assembly, assembly, composite)
+
+        return ifc_assembly
+
+    def _create_component_profile(self, ifc_file, component):
+        """Create IfcOpenCrossProfileDef for a component."""
+        # Calculate profile points based on component type and geometry
+        # Points are (offset, elevation) pairs from centerline
+
+        width = component.width
+        slope = component.cross_slope
+        offset = component.offset
+        side = component.side
+
+        # Calculate start and end points
+        if side == "LEFT":
+            # Left side: negative offsets
+            start_offset = -abs(offset)
+            end_offset = start_offset - width
+            start_elev = 0.0
+            end_elev = -width * slope
+        elif side == "RIGHT":
+            # Right side: positive offsets
+            start_offset = abs(offset)
+            end_offset = start_offset + width
+            start_elev = 0.0
+            end_elev = -width * slope
+        else:
+            # Center: spans both sides
+            start_offset = -width / 2
+            end_offset = width / 2
+            start_elev = 0.0
+            end_elev = 0.0
+
+        # Create IfcOpenCrossProfileDef
+        # Tags are the distance values, depths are elevations
+        profile = ifc_file.create_entity(
+            "IfcOpenCrossProfileDef",
+            ProfileType="CURVE",
+            ProfileName=f"{component.name}_{component.component_type}",
+            HorizontalWidths=False,  # Using full distances, not half-widths
+            Tags=[str(start_offset), str(end_offset)],
+            Widths=None,
+            OffsetPoint=ifc_file.create_entity(
+                "IfcCartesianPoint",
+                Coordinates=(0.0, 0.0)
+            )
+        )
+
+        return profile
+
+    def _create_assembly_pset(self, ifc_file, ifc_assembly, assembly, composite_profile):
+        """Create property set with assembly metadata."""
+        import ifcopenshell.guid
+
+        # Create property values
+        properties = []
+
+        # Assembly type
+        properties.append(ifc_file.create_entity(
+            "IfcPropertySingleValue",
+            Name="AssemblyType",
+            NominalValue=ifc_file.create_entity("IfcLabel", assembly.assembly_type)
+        ))
+
+        # Design speed
+        properties.append(ifc_file.create_entity(
+            "IfcPropertySingleValue",
+            Name="DesignSpeed",
+            NominalValue=ifc_file.create_entity("IfcReal", assembly.design_speed)
+        ))
+
+        # Total width
+        properties.append(ifc_file.create_entity(
+            "IfcPropertySingleValue",
+            Name="TotalWidth",
+            NominalValue=ifc_file.create_entity("IfcLengthMeasure", assembly.total_width)
+        ))
+
+        # Component count
+        properties.append(ifc_file.create_entity(
+            "IfcPropertySingleValue",
+            Name="ComponentCount",
+            NominalValue=ifc_file.create_entity("IfcInteger", len(assembly.components))
+        ))
+
+        # Component data as JSON-like string
+        comp_data = []
+        for comp in assembly.components:
+            comp_data.append(
+                f"{comp.name}|{comp.component_type}|{comp.side}|"
+                f"{comp.width:.4f}|{comp.cross_slope:.4f}|{comp.offset:.4f}"
+            )
+        comp_string = ";".join(comp_data)
+
+        properties.append(ifc_file.create_entity(
+            "IfcPropertySingleValue",
+            Name="ComponentData",
+            NominalValue=ifc_file.create_entity("IfcText", comp_string)
+        ))
+
+        # Create property set
+        pset = ifc_file.create_entity(
+            "IfcPropertySet",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="Pset_SaikeiCrossSectionAssembly",
+            HasProperties=properties
+        )
+
+        # Link property set to assembly
+        ifc_file.create_entity(
+            "IfcRelDefinesByProperties",
+            GlobalId=ifcopenshell.guid.new(),
+            RelatedObjects=[ifc_assembly],
+            RelatingPropertyDefinition=pset
+        )
+
+    def _link_to_road(self, ifc_file, ifc_assembly):
+        """Link assembly to IfcRoad in spatial hierarchy."""
+        # Find IfcRoad
+        roads = ifc_file.by_type("IfcRoad")
+        if not roads:
+            logger.warning("No IfcRoad found - assembly not spatially contained")
+            return
+
+        road = roads[0]
+
+        # Create IfcRelContainedInSpatialStructure
+        import ifcopenshell.guid
+
+        # Check if relationship already exists
+        for rel in road.ContainsElements or []:
+            if ifc_assembly in (rel.RelatedElements or []):
+                return  # Already linked
+
+        # Create new containment relationship
+        ifc_file.create_entity(
+            "IfcRelContainedInSpatialStructure",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="RoadToCrossSection",
+            RelatingStructure=road,
+            RelatedElements=[ifc_assembly]
+        )
+
+    def _remove_assembly_from_ifc(self, ifc_file, entity):
+        """Remove an existing assembly from IFC file."""
+        try:
+            # Remove related property sets
+            for rel in entity.IsDefinedBy or []:
+                if rel.is_a("IfcRelDefinesByProperties"):
+                    pset = rel.RelatingPropertyDefinition
+                    if pset:
+                        for prop in pset.HasProperties or []:
+                            try:
+                                ifc_file.remove(prop)
+                            except RuntimeError:
+                                pass
+                        try:
+                            ifc_file.remove(pset)
+                        except RuntimeError:
+                            pass
+                    try:
+                        ifc_file.remove(rel)
+                    except RuntimeError:
+                        pass
+
+            # Remove spatial containment
+            for rel in entity.ContainedInStructure or []:
+                try:
+                    ifc_file.remove(rel)
+                except RuntimeError:
+                    pass
+
+            # Remove the entity itself
+            ifc_file.remove(entity)
+        except RuntimeError:
+            pass
+
+
 # Registration
 classes = (
     BC_OT_CreateAssembly,
@@ -1654,6 +1952,7 @@ classes = (
     BC_OT_ValidateAssembly,
     BC_OT_CalculateSection,
     BC_OT_ExportAssemblyIFC,
+    BC_OT_SaveAssemblyToIFC,
     BC_OT_SaveAssemblyTemplate,
     BC_OT_GenerateCrossSectionPreview,
     BC_OT_ClearCrossSectionPreview,

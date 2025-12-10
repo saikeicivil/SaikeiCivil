@@ -92,16 +92,14 @@ def _validate_project(ifc_file: ifcopenshell.file) -> List[str]:
 
 
 def _validate_spatial_containment(ifc_file: ifcopenshell.file) -> List[str]:
-    """Validate spatial containment relationships."""
-    containments = ifc_file.by_type("IfcRelContainedInSpatialStructure")
-    contained_ids = set()
+    """Validate spatial containment relationships.
 
-    for rel in containments:
-        if rel.RelatedElements:
-            for elem in rel.RelatedElements:
-                contained_ids.add(elem.id())
-
-    return contained_ids  # Return for use by alignment validation
+    Note: This function currently only collects data for _validate_alignments.
+    The actual containment validation is done there.
+    """
+    # This function doesn't produce issues directly - the containment
+    # check is handled by _validate_alignments which has its own logic
+    return []
 
 
 def _validate_alignments(ifc_file: ifcopenshell.file) -> List[str]:
