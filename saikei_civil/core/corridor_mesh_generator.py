@@ -545,23 +545,74 @@ class CorridorMeshGenerator:
     
     def _add_to_collection(self):
         """
-        Add mesh object to organized collection structure.
-        
-        Creates/uses a "Corridor Visualization" collection.
-        """
-        # Get or create collection
-        coll_name = "Corridor Visualization"
-        
-        if coll_name in bpy.data.collections:
-            collection = bpy.data.collections[coll_name]
-        else:
-            collection = bpy.data.collections.new(coll_name)
-            bpy.context.scene.collection.children.link(collection)
-        
-        # Link object to collection
-        collection.objects.link(self.mesh_obj)
+        Add mesh object to IFC project hierarchy.
 
-        logger.info("Added mesh to collection: %s", coll_name)
+        Adds the corridor to the "Saikei Civil Project" collection and
+        parents it to the Road empty for proper IFC integration.
+        Also creates an IFC entity and links the Blender object to it.
+        """
+        from .ifc_manager import NativeIfcManager
+        import ifcopenshell.guid
+
+        # Try to add to IFC project collection
+        project_coll_name = "Saikei Civil Project"
+
+        if project_coll_name in bpy.data.collections:
+            collection = bpy.data.collections[project_coll_name]
+            collection.objects.link(self.mesh_obj)
+
+            # Parent to Road empty if it exists
+            road_empty = bpy.data.objects.get("Road")
+            if road_empty:
+                self.mesh_obj.parent = road_empty
+                logger.info("Parented corridor to Road empty")
+
+            # Create IFC entity for the corridor
+            ifc_file = NativeIfcManager.file
+            if ifc_file:
+                try:
+                    # Create IfcCourse entity for the corridor solid
+                    corridor_entity = ifc_file.create_entity(
+                        "IfcCourse",
+                        GlobalId=ifcopenshell.guid.new(),
+                        Name=self.mesh_obj.name,
+                        Description="Corridor solid generated from cross-section assembly",
+                        ObjectType="CORRIDOR",
+                        PredefinedType="USERDEFINED"
+                    )
+
+                    # Link Blender object to IFC entity
+                    NativeIfcManager.link_object(self.mesh_obj, corridor_entity)
+
+                    # Contain in IfcRoad
+                    road = NativeIfcManager.get_road()
+                    if road:
+                        ifc_file.create_entity(
+                            "IfcRelContainedInSpatialStructure",
+                            GlobalId=ifcopenshell.guid.new(),
+                            Name="CorridorToRoad",
+                            RelatingStructure=road,
+                            RelatedElements=[corridor_entity]
+                        )
+                        logger.info("Linked corridor to IFC Road")
+
+                except Exception as e:
+                    logger.warning(f"Could not create IFC entity for corridor: {e}")
+
+            logger.info("Added corridor to IFC project collection: %s", project_coll_name)
+
+        else:
+            # Fallback: create standalone collection if no IFC project
+            coll_name = "Corridor Visualization"
+
+            if coll_name in bpy.data.collections:
+                collection = bpy.data.collections[coll_name]
+            else:
+                collection = bpy.data.collections.new(coll_name)
+                bpy.context.scene.collection.children.link(collection)
+
+            collection.objects.link(self.mesh_obj)
+            logger.info("Added mesh to fallback collection: %s", coll_name)
     
     def generate_with_materials(self, lod: str = 'medium') -> bpy.types.Object:
         """
