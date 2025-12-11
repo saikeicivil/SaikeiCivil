@@ -261,18 +261,19 @@ Generated with assistance from **Claude Code** (Anthropic)
 
 **Copyright © 2025 Michael Yoder / Desert Springs Civil Engineering PLLC**
 
-Saikei Civil is licensed under the **Apache License 2.0**.
+Saikei Civil is licensed under the **GNU General Public License v3 (GPL-3.0)**.
 
 This means you can:
 - ✅ Use it commercially
 - ✅ Modify and distribute it
 - ✅ Use it privately
-- ✅ Use patent claims from contributors
+- ✅ Study how the program works
 
 **Requirements:**
 - Include the original copyright notice and license
 - State any significant changes made
-- Include a copy of the Apache 2.0 license
+- Distribute modified versions under GPL v3
+- Make source code available when distributing
 
 See the [LICENSE](LICENSE) file for full terms.
 

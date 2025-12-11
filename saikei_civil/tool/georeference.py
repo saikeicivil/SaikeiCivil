@@ -1,7 +1,7 @@
 # ============================================================================
 # Saikei Civil - Native IFC for Horizontal Construction
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
-# Licensed under Apache License 2.0
+# Licensed under the GNU General Public License v3
 # https://github.com/saikeicivil/SaikeiCivil
 # ============================================================================
 """

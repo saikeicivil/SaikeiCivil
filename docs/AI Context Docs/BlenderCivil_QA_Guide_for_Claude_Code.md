@@ -91,7 +91,7 @@ Saikei Civil/
 │   └── workflows/
 │
 ├── README.md                      ← Main repository README
-├── LICENSE                        ← Apache 2.0 license file
+├── LICENSE                        ← GPL v3 license file
 ├── CHANGELOG.md                   ← Version history
 └── requirements.txt               ← Python dependencies (for development)
 ```
@@ -153,7 +153,7 @@ core/
 
 ## 📜 Licensing Header Requirements
 
-### Standard Apache 2.0 Header
+### Standard GPL v3 Header
 
 **EVERY `.py` file MUST begin with this exact header:**
 
@@ -161,17 +161,18 @@ core/
 # Saikei Civil - Native IFC Civil Engineering Tools for Blender
 # Copyright (C) 2025 Michael Yoder, Desert Springs Civil Engineering, PLLC
 #
-# This program is licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 # Module: <module_name>
 # Description: <brief one-line description>
@@ -685,7 +686,7 @@ version = "0.5.0"
 type = "add-on"
 
 maintainer = "Michael Yoder, Desert Springs Civil Engineering, PLLC"
-license = ["SPDX:Apache-2.0"]
+license = ["SPDX:GPL-3.0-or-later"]
 
 blender_version_min = "4.2.0"
 blender_version_max = "5.0.0"
@@ -767,7 +768,7 @@ Use this checklist when reviewing each file:
 ### File: `__________________.py`
 
 **Header & Documentation:**
-- [ ] Apache 2.0 license header present and complete
+- [ ] GPL v3 license header present and complete
 - [ ] Copyright credits Michael Yoder and Desert Springs Civil Engineering, PLLC
 - [ ] Module docstring present with description
 - [ ] All public functions/classes have docstrings
