@@ -1765,24 +1765,27 @@ class BC_OT_SaveAssemblyToIFC(Operator):
         return ifc_assembly
 
     def _create_component_profile(self, ifc_file, component):
-        """Create IfcOpenCrossProfileDef for a component."""
-        # Calculate profile points based on component type and geometry
-        # Points are (offset, elevation) pairs from centerline
+        """Create IfcArbitraryOpenProfileDef for a component.
+
+        Uses IfcArbitraryOpenProfileDef with a polyline curve instead of
+        IfcOpenCrossProfileDef since it's more flexible for our component geometry.
+        """
+        import math
 
         width = component.width
         slope = component.cross_slope
         offset = component.offset
         side = component.side
 
-        # Calculate start and end points
+        # Calculate start and end points (offset, elevation)
         if side == "LEFT":
-            # Left side: negative offsets
+            # Left side: negative offsets, extends further left
             start_offset = -abs(offset)
             end_offset = start_offset - width
             start_elev = 0.0
             end_elev = -width * slope
         elif side == "RIGHT":
-            # Right side: positive offsets
+            # Right side: positive offsets, extends further right
             start_offset = abs(offset)
             end_offset = start_offset + width
             start_elev = 0.0
@@ -1794,19 +1797,28 @@ class BC_OT_SaveAssemblyToIFC(Operator):
             start_elev = 0.0
             end_elev = 0.0
 
-        # Create IfcOpenCrossProfileDef
-        # Tags are the distance values, depths are elevations
+        # Create points for the profile curve
+        start_point = ifc_file.create_entity(
+            "IfcCartesianPoint",
+            Coordinates=(start_offset, start_elev)
+        )
+        end_point = ifc_file.create_entity(
+            "IfcCartesianPoint",
+            Coordinates=(end_offset, end_elev)
+        )
+
+        # Create polyline from points
+        polyline = ifc_file.create_entity(
+            "IfcPolyline",
+            Points=[start_point, end_point]
+        )
+
+        # Create IfcArbitraryOpenProfileDef
         profile = ifc_file.create_entity(
-            "IfcOpenCrossProfileDef",
+            "IfcArbitraryOpenProfileDef",
             ProfileType="CURVE",
             ProfileName=f"{component.name}_{component.component_type}",
-            HorizontalWidths=False,  # Using full distances, not half-widths
-            Tags=[str(start_offset), str(end_offset)],
-            Widths=None,
-            OffsetPoint=ifc_file.create_entity(
-                "IfcCartesianPoint",
-                Coordinates=(0.0, 0.0)
-            )
+            Curve=polyline
         )
 
         return profile
