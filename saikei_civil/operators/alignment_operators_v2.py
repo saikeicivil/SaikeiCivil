@@ -28,11 +28,15 @@ The key differences from v1 operators:
     3. Call core functions for business logic
     4. Cleaner separation of concerns
 """
+import logging
+
 import bpy
 from bpy.props import StringProperty, FloatProperty, IntProperty, BoolProperty
 
 from .. import tool
 from ..core import alignment as core_alignment
+
+logger = logging.getLogger(__name__)
 
 
 class SAIKEI_OT_create_alignment_v2(bpy.types.Operator, tool.Ifc.Operator):
@@ -290,23 +294,20 @@ class SAIKEI_OT_get_alignment_info_v2(bpy.types.Operator, tool.Ifc.Operator):
         self.report({'INFO'}, f"  Segments: {info['segment_count']}")
         self.report({'INFO'}, f"  Length: {info['total_length']:.2f}m")
 
-        # Also print detailed info to console
-        print(f"\n{'='*50}")
-        print(f"Alignment: {info['name']}")
-        print(f"{'='*50}")
-        print(f"PIs: {info['pi_count']}")
+        # Log detailed info using logger
+        logger.info(f"Alignment: {info['name']}")
+        logger.info(f"PIs: {info['pi_count']}")
         for pi in info['pis']:
             curve_info = ""
             if 'curve' in pi:
                 curve_info = f" (R={pi['curve'].get('radius', 0):.1f}m)"
-            print(f"  PI {pi['id']}: ({pi['x']:.3f}, {pi['y']:.3f}){curve_info}")
+            logger.info(f"  PI {pi['id']}: ({pi['x']:.3f}, {pi['y']:.3f}){curve_info}")
 
-        print(f"\nSegments: {info['segment_count']}")
+        logger.info(f"Segments: {info['segment_count']}")
         for seg in info['segments']:
-            print(f"  {seg['name']}: {seg['type']} L={seg['length']:.2f}m")
+            logger.info(f"  {seg['name']}: {seg['type']} L={seg['length']:.2f}m")
 
-        print(f"\nTotal Length: {info['total_length']:.2f}m")
-        print(f"{'='*50}\n")
+        logger.info(f"Total Length: {info['total_length']:.2f}m")
 
         return {'FINISHED'}
 

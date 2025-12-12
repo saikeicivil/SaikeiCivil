@@ -347,3 +347,101 @@ class Blender(core_tool.Blender):
         """Force a UI redraw."""
         for area in bpy.context.screen.areas:
             area.tag_redraw()
+
+    @classmethod
+    def get_object_by_name(cls, name: str) -> Optional[bpy.types.Object]:
+        """
+        Get a Blender object by name.
+
+        Args:
+            name: Object name to search for
+
+        Returns:
+            The object, or None if not found
+        """
+        return bpy.data.objects.get(name)
+
+    @classmethod
+    def remove_object(cls, obj: bpy.types.Object) -> None:
+        """
+        Remove a Blender object from the scene.
+
+        Args:
+            obj: Object to remove
+        """
+        if obj is None:
+            return
+
+        try:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        except (ReferenceError, RuntimeError):
+            # Object already removed or invalid
+            pass
+
+    @classmethod
+    def set_scene_property(cls, name: str, value: Any) -> None:
+        """
+        Set a custom property on the scene.
+
+        Args:
+            name: Property name
+            value: Property value
+        """
+        bpy.context.scene[name] = value
+
+    @classmethod
+    def get_scene_property(cls, name: str, default: Any = None) -> Any:
+        """
+        Get a custom property from the scene.
+
+        Args:
+            name: Property name
+            default: Default value if property doesn't exist
+
+        Returns:
+            Property value or default
+        """
+        return bpy.context.scene.get(name, default)
+
+    @classmethod
+    def set_object_parent(cls, obj: bpy.types.Object, parent: bpy.types.Object) -> None:
+        """
+        Set an object's parent.
+
+        Args:
+            obj: Object to parent
+            parent: Parent object
+        """
+        if obj is None:
+            return
+        obj.parent = parent
+
+    @classmethod
+    def set_empty_display(
+        cls,
+        obj: bpy.types.Object,
+        display_type: str,
+        display_size: float = 1.0
+    ) -> None:
+        """
+        Set empty object display properties.
+
+        Args:
+            obj: Empty object
+            display_type: Display type ('PLAIN_AXES', 'SPHERE', 'CUBE', etc.)
+            display_size: Display size
+        """
+        if obj is None or obj.type != 'EMPTY':
+            return
+        obj.empty_display_type = display_type
+        obj.empty_display_size = display_size
+
+    @classmethod
+    def get_context(cls) -> Any:
+        """
+        Get the current Blender context.
+
+        Returns:
+            bpy.context
+        """
+        return bpy.context

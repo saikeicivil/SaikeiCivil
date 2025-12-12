@@ -33,14 +33,21 @@ And visualizes it in Blender with organizational empties.
 
 This module now uses ifc_api wrappers where possible for consistent
 patterns and better API compatibility.
+
+Architecture Note:
+    This module uses the tool interface pattern to minimize direct bpy
+    dependencies. Blender-specific operations go through the Blender tool
+    class, allowing the core logic to remain more testable and portable.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
 
-import bpy
 import ifcopenshell
 import ifcopenshell.guid
+
+if TYPE_CHECKING:
+    import bpy
 
 from .ifc_entities import (
     create_units,
@@ -64,6 +71,19 @@ from .validation import validate_for_external_viewers, validate_and_report
 logger = logging.getLogger(__name__)
 
 
+def _get_blender_tool():
+    """Get the Blender tool for Blender-specific operations.
+
+    This function lazily imports the tool to avoid circular imports
+    and runtime bpy dependency at module load time.
+
+    Returns:
+        The Blender tool class
+    """
+    from ...tool.blender import Blender
+    return Blender
+
+
 class NativeIfcManager:
     """Manages IFC file lifecycle and Blender visualization.
 
@@ -71,6 +91,10 @@ class NativeIfcManager:
     visualizes it in Blender's outliner for user clarity.
 
     This is a singleton-style class using class-level state.
+
+    Architecture Note:
+        Methods that need Blender-specific operations use _get_blender_tool()
+        to access the Blender interface, minimizing direct bpy dependencies.
     """
 
     # Class-level state
@@ -85,10 +109,10 @@ class NativeIfcManager:
     geometric_context: Optional[ifcopenshell.entity_instance] = None
     axis_subcontext: Optional[ifcopenshell.entity_instance] = None
 
-    # Blender references
-    project_collection: Optional[bpy.types.Collection] = None
-    alignments_collection: Optional[bpy.types.Object] = None
-    geomodels_collection: Optional[bpy.types.Object] = None
+    # Blender references (use Any to avoid runtime bpy dependency)
+    project_collection: Optional[Any] = None  # bpy.types.Collection
+    alignments_collection: Optional[Any] = None  # bpy.types.Object
+    geomodels_collection: Optional[Any] = None  # bpy.types.Object
 
     # Loaded vertical alignments
     vertical_alignments: List = []
@@ -96,8 +120,8 @@ class NativeIfcManager:
     # Road parts by type (IfcRoadPartTypeEnum -> IfcRoadPart)
     road_parts: Dict[str, ifcopenshell.entity_instance] = {}
 
-    # Blender empties for road parts
-    road_part_empties: Dict[str, bpy.types.Object] = {}
+    # Blender empties for road parts (use Any to avoid runtime bpy dependency)
+    road_part_empties: Dict[str, Any] = {}  # Dict[str, bpy.types.Object]
 
     @classmethod
     def new_file(cls, schema: str = "IFC4X3") -> Dict:
@@ -266,9 +290,11 @@ class NativeIfcManager:
                 set_active_alignment,
                 refresh_alignment_list
             )
-            if hasattr(bpy.context, 'scene'):
-                refresh_alignment_list(bpy.context)
-                set_active_alignment(bpy.context, alignments[0])
+            blender = _get_blender_tool()
+            context = blender.get_context()
+            if hasattr(context, 'scene'):
+                refresh_alignment_list(context)
+                set_active_alignment(context, alignments[0])
 
     @classmethod
     def _load_vertical_alignments(cls) -> None:
@@ -332,7 +358,10 @@ class NativeIfcManager:
             validate_and_report(cls.file)
 
         cls.file.write(cls.filepath)
-        bpy.context.scene["ifc_filepath"] = cls.filepath
+
+        # Store filepath in scene property via tool interface
+        blender = _get_blender_tool()
+        blender.set_scene_property("ifc_filepath", cls.filepath)
 
         logger.info(f"Saved IFC file: {cls.filepath}")
 
@@ -391,7 +420,7 @@ class NativeIfcManager:
         return cls.axis_subcontext
 
     @classmethod
-    def get_project_collection(cls) -> Optional[bpy.types.Collection]:
+    def get_project_collection(cls) -> Optional[Any]:
         """Get Blender collection for the project."""
         cls.project_collection = get_or_find_collection(
             cls.project_collection, PROJECT_COLLECTION_NAME
@@ -402,7 +431,7 @@ class NativeIfcManager:
         return cls.project_collection
 
     @classmethod
-    def get_alignments_collection(cls) -> Optional[bpy.types.Object]:
+    def get_alignments_collection(cls) -> Optional[Any]:
         """Get Blender empty for alignments."""
         cls.alignments_collection = get_or_find_object(
             cls.alignments_collection, ALIGNMENTS_EMPTY_NAME
@@ -413,7 +442,7 @@ class NativeIfcManager:
         return cls.alignments_collection
 
     @classmethod
-    def get_geomodels_collection(cls) -> Optional[bpy.types.Object]:
+    def get_geomodels_collection(cls) -> Optional[Any]:
         """Get Blender empty for geomodels."""
         cls.geomodels_collection = get_or_find_object(
             cls.geomodels_collection, GEOMODELS_EMPTY_NAME
@@ -459,13 +488,13 @@ class NativeIfcManager:
     @classmethod
     def link_object(
         cls,
-        blender_obj: bpy.types.Object,
+        blender_obj: Any,
         ifc_entity: ifcopenshell.entity_instance
     ) -> None:
         """Link Blender object to IFC entity.
 
         Args:
-            blender_obj: Blender object
+            blender_obj: Blender object (bpy.types.Object)
             ifc_entity: IFC entity to link
         """
         blender_obj["ifc_definition_id"] = ifc_entity.id()
@@ -475,12 +504,12 @@ class NativeIfcManager:
     @classmethod
     def get_entity(
         cls,
-        blender_obj: bpy.types.Object
+        blender_obj: Any
     ) -> Optional[ifcopenshell.entity_instance]:
         """Retrieve IFC entity from Blender object.
 
         Args:
-            blender_obj: Blender object with IFC link
+            blender_obj: Blender object with IFC link (bpy.types.Object)
 
         Returns:
             IFC entity or None
@@ -581,7 +610,7 @@ class NativeIfcManager:
         cls,
         road_part_type: str,
         road_part: ifcopenshell.entity_instance
-    ) -> Optional[bpy.types.Object]:
+    ) -> Optional[Any]:
         """
         Create Blender empty for a road part in the hierarchy.
 
@@ -605,16 +634,16 @@ class NativeIfcManager:
             road_part_type, f"{road_part_type} (IfcRoadPart)"
         )
 
-        # Create empty
-        part_empty = bpy.data.objects.new(display_name, None)
-        part_empty.empty_display_type = 'PLAIN_AXES'
-        part_empty.empty_display_size = 2.0
-        part_empty.parent = road_empty
+        # Create empty using tool interface
+        blender = _get_blender_tool()
+        part_empty = blender.create_empty(display_name, empty_type='PLAIN_AXES')
+        blender.set_empty_display(part_empty, 'PLAIN_AXES', 2.0)
+        blender.set_object_parent(part_empty, road_empty)
 
         # Link to collection
         collection = cls.get_project_collection()
         if collection:
-            collection.objects.link(part_empty)
+            blender.link_to_collection(part_empty, collection)
 
         # Link to IFC entity
         cls.link_object(part_empty, road_part)
@@ -670,7 +699,7 @@ class NativeIfcManager:
     def get_road_part_empty(
         cls,
         road_part_type: str
-    ) -> Optional[bpy.types.Object]:
+    ) -> Optional[Any]:
         """
         Get the Blender empty for a road part type.
 
@@ -718,7 +747,7 @@ class NativeIfcManager:
         cross_slope: float = 0.0,
         offset: float = 0.0,
         assembly_name: str = None
-    ) -> Optional[Tuple[ifcopenshell.entity_instance, bpy.types.Object]]:
+    ) -> Optional[Tuple[ifcopenshell.entity_instance, Any]]:
         """
         Create an IFC entity and Blender object for a cross-section component.
 
@@ -918,7 +947,7 @@ class NativeIfcManager:
         component_type: str,
         side: str,
         road_part: ifcopenshell.entity_instance
-    ) -> Optional[bpy.types.Object]:
+    ) -> Optional[Any]:
         """
         Create a Blender empty to represent the component in the outliner.
 
@@ -946,19 +975,19 @@ class NativeIfcManager:
         side_indicator = "L" if side == "LEFT" else "R"
         display_name = f"{name} [{side_indicator}] ({ifc_class})"
 
-        # Create empty
-        component_empty = bpy.data.objects.new(display_name, None)
-        component_empty.empty_display_type = 'PLAIN_AXES'
-        component_empty.empty_display_size = 1.0
+        # Create empty using tool interface
+        blender = _get_blender_tool()
+        component_empty = blender.create_empty(display_name, empty_type='PLAIN_AXES')
+        blender.set_empty_display(component_empty, 'PLAIN_AXES', 1.0)
 
         # Parent to road part empty
         if parent_empty:
-            component_empty.parent = parent_empty
+            blender.set_object_parent(component_empty, parent_empty)
 
         # Link to project collection
         collection = cls.get_project_collection()
         if collection:
-            collection.objects.link(component_empty)
+            blender.link_to_collection(component_empty, collection)
 
         return component_empty
 
@@ -966,7 +995,7 @@ class NativeIfcManager:
     def delete_cross_section_component(
         cls,
         ifc_id: int,
-        blender_obj: bpy.types.Object = None
+        blender_obj: Any = None
     ) -> bool:
         """
         Delete a cross-section component from IFC and Blender.
@@ -1007,10 +1036,11 @@ class NativeIfcManager:
                     cls.file.remove(entity)
                     logger.info(f"Deleted IFC entity #{ifc_id}")
 
-            # Delete Blender object
+            # Delete Blender object using tool interface
             if blender_obj:
-                bpy.data.objects.remove(blender_obj, do_unlink=True)
-                logger.info(f"Deleted Blender object")
+                blender = _get_blender_tool()
+                blender.remove_object(blender_obj)
+                logger.info("Deleted Blender object")
 
             return True
 

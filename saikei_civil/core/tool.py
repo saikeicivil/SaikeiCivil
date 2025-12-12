@@ -298,6 +298,85 @@ class Blender:
         """
         pass
 
+    def get_object_by_name(cls, name: str) -> Optional["bpy.types.Object"]:
+        """
+        Get a Blender object by name.
+
+        Args:
+            name: Object name to search for
+
+        Returns:
+            The object, or None if not found
+        """
+        pass
+
+    def remove_object(cls, obj: "bpy.types.Object") -> None:
+        """
+        Remove a Blender object from the scene.
+
+        Args:
+            obj: Object to remove
+        """
+        pass
+
+    def set_scene_property(cls, name: str, value: Any) -> None:
+        """
+        Set a custom property on the scene.
+
+        Args:
+            name: Property name
+            value: Property value
+        """
+        pass
+
+    def get_scene_property(cls, name: str, default: Any = None) -> Any:
+        """
+        Get a custom property from the scene.
+
+        Args:
+            name: Property name
+            default: Default value if property doesn't exist
+
+        Returns:
+            Property value or default
+        """
+        pass
+
+    def set_object_parent(cls, obj: "bpy.types.Object", parent: "bpy.types.Object") -> None:
+        """
+        Set an object's parent.
+
+        Args:
+            obj: Object to parent
+            parent: Parent object
+        """
+        pass
+
+    def set_empty_display(
+        cls,
+        obj: "bpy.types.Object",
+        display_type: str,
+        display_size: float = 1.0
+    ) -> None:
+        """
+        Set empty object display properties.
+
+        Args:
+            obj: Empty object
+            display_type: Display type ('PLAIN_AXES', 'SPHERE', 'CUBE', etc.)
+            display_size: Display size
+        """
+        pass
+
+    def get_context(cls) -> Any:
+        """
+        Get the current Blender context.
+
+        Returns:
+            bpy.context
+        """
+        pass
+
 
 @interface
 class Alignment:

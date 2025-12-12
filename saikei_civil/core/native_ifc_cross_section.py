@@ -23,7 +23,6 @@ Native IFC Cross-Section System
 Professional road assembly management with IFC 4.3 export
 """
 
-import bpy
 import ifcopenshell
 import ifcopenshell.guid
 from typing import List, Tuple, Dict, Optional, Any

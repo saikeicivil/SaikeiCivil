@@ -209,11 +209,10 @@ def _create_corridor_ifc_entity(
 
 
 def _find_road_empty(blender: "type[tool.Blender]") -> Optional[Any]:
-    """Find the Road empty object."""
-    # This is a simple lookup - could be enhanced
-    import bpy
+    """Find the Road empty object using the Blender tool."""
     from .ifc_manager.blender_hierarchy import ROAD_EMPTY_NAME
-    return bpy.data.objects.get(ROAD_EMPTY_NAME)
+    # Use the Blender tool's get_object method instead of direct bpy access
+    return blender.get_object_by_name(ROAD_EMPTY_NAME)
 
 
 def _parent_object(child: Any, parent: Any) -> None:
@@ -256,21 +255,58 @@ class AlignmentWrapper:
 
     def _load_alignment_data(self):
         """Load horizontal segments and vertical data from IFC alignment."""
-        for rel in self.ifc_alignment.IsNestedBy or []:
-            for obj in rel.RelatedObjects:
+        from .logging_config import get_logger
+        logger = get_logger(__name__)
+
+        logger.info(f"Loading alignment data from: {self.ifc_alignment.Name if hasattr(self.ifc_alignment, 'Name') else 'Unknown'}")
+        logger.info(f"  Alignment type: {self.ifc_alignment.is_a()}")
+
+        nested_rels = self.ifc_alignment.IsNestedBy or []
+        logger.info(f"  Found {len(nested_rels)} IsNestedBy relationships")
+
+        for rel in nested_rels:
+            related_objs = rel.RelatedObjects or []
+            logger.info(f"    Relationship has {len(related_objs)} related objects")
+            for obj in related_objs:
+                logger.info(f"      Found: {obj.is_a()} - {obj.Name if hasattr(obj, 'Name') else 'no name'}")
                 if obj.is_a("IfcAlignmentHorizontal"):
                     self.horizontal = obj
                     self._load_horizontal_segments(obj)
                 elif obj.is_a("IfcAlignmentVertical"):
                     self.vertical = obj
 
+        logger.info(f"  Horizontal alignment: {'Found' if self.horizontal else 'NOT FOUND'}")
+        logger.info(f"  Vertical alignment: {'Found' if self.vertical else 'NOT FOUND'}")
+        logger.info(f"  Loaded {len(self.segments)} horizontal segments")
+
     def _load_horizontal_segments(self, horizontal):
         """Load segment data from IfcAlignmentHorizontal."""
+        from .logging_config import get_logger
+        logger = get_logger(__name__)
+
         self.segments = []
-        for rel in horizontal.IsNestedBy or []:
-            for obj in rel.RelatedObjects:
+        nested_rels = horizontal.IsNestedBy or []
+        logger.info(f"  Loading horizontal segments from {len(nested_rels)} nested relationships")
+
+        for rel in nested_rels:
+            for obj in rel.RelatedObjects or []:
+                logger.info(f"    Checking: {obj.is_a()}")
                 if obj.is_a("IfcAlignmentSegment"):
                     self.segments.append(obj)
+                    # Log segment details
+                    params = obj.DesignParameters
+                    if params:
+                        logger.info(f"      Segment DesignParameters type: {params.is_a()}")
+                        if hasattr(params, 'PredefinedType'):
+                            logger.info(f"      PredefinedType: {params.PredefinedType}")
+                        if hasattr(params, 'SegmentLength'):
+                            logger.info(f"      SegmentLength: {params.SegmentLength}")
+                        if hasattr(params, 'StartPoint'):
+                            sp = params.StartPoint
+                            if sp:
+                                logger.info(f"      StartPoint: {sp.Coordinates if hasattr(sp, 'Coordinates') else sp}")
+                    else:
+                        logger.warning(f"      Segment has no DesignParameters!")
 
     def get_start_station(self) -> float:
         """Get starting station."""
@@ -286,18 +322,33 @@ class AlignmentWrapper:
 
     def get_3d_position(self, station: float) -> Tuple[float, float, float]:
         """Get 3D position (x, y, z) at a given station."""
+        from .logging_config import get_logger
+        logger = get_logger(__name__)
+
         math = self._math
         distance_along = self._station_to_distance(station)
 
         x, y = 0.0, 0.0
         cumulative_distance = 0.0
+        found_segment = False
+
+        # Log only for first few stations to avoid spam
+        debug_this_call = (station == self._start)
+        if debug_this_call:
+            logger.info(f"get_3d_position(station={station:.2f})")
+            logger.info(f"  distance_along={distance_along:.2f}, segments={len(self.segments)}")
 
         for segment in self.segments:
             params = segment.DesignParameters
             if not params:
+                if debug_this_call:
+                    logger.warning(f"  Segment has no DesignParameters, skipping")
                 continue
 
             segment_length = params.SegmentLength
+            if debug_this_call:
+                logger.info(f"  Segment: type={params.PredefinedType}, length={segment_length:.2f}")
+                logger.info(f"    cumulative={cumulative_distance:.2f}, target={distance_along:.2f}")
 
             if cumulative_distance + segment_length >= distance_along:
                 local_distance = distance_along - cumulative_distance
@@ -308,6 +359,10 @@ class AlignmentWrapper:
 
                     x = start_point[0] + local_distance * math.cos(direction_angle)
                     y = start_point[1] + local_distance * math.sin(direction_angle)
+                    found_segment = True
+                    if debug_this_call:
+                        logger.info(f"    LINE: start={start_point}, dir={direction_angle:.4f}")
+                        logger.info(f"    Result: x={x:.2f}, y={y:.2f}")
                     break
 
                 elif params.PredefinedType == "CIRCULARARC":
@@ -336,11 +391,25 @@ class AlignmentWrapper:
 
                     x = center_x + radius * math.cos(current_angle)
                     y = center_y + radius * math.sin(current_angle)
+                    found_segment = True
+                    if debug_this_call:
+                        logger.info(f"    ARC: start={start_point}, radius={radius:.2f}")
+                        logger.info(f"    Result: x={x:.2f}, y={y:.2f}")
                     break
+
+                else:
+                    if debug_this_call:
+                        logger.warning(f"    Unknown segment type: {params.PredefinedType}")
 
             cumulative_distance += segment_length
 
+        if not found_segment and debug_this_call:
+            logger.error(f"  NO SEGMENT FOUND for station {station:.2f}!")
+            logger.error(f"  Total cumulative distance: {cumulative_distance:.2f}")
+
         z = self._get_elevation(station)
+        if debug_this_call:
+            logger.info(f"  Final position: ({x:.2f}, {y:.2f}, {z:.2f})")
         return x, y, z
 
     def _get_elevation(self, station: float) -> float:

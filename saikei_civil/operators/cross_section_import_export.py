@@ -585,12 +585,8 @@ class SAIKEI_OT_import_landxml(bpy.types.Operator):
                 self.report({'WARNING'}, "No cross-sections found in file")
                 return {'CANCELLED'}
             
-            # TODO: Create cross-sections in Saikei Civil
-            # for section in sections:
-            #     # Create assembly from section data
-            #     assembly = create_assembly_from_points(section.name, section.points)
-            #     manager.add_assembly(assembly)
-            
+            # TODO: Implement assembly creation from imported section data
+
             self.report({'INFO'}, f"Imported {len(sections)} cross-sections from LandXML")
             return {'FINISHED'}
             
@@ -651,12 +647,8 @@ class SAIKEI_OT_export_landxml(bpy.types.Operator):
         try:
             exporter = LandXMLExporter()
             
-            # TODO: Get cross-sections from Saikei Civil
-            # manager = get_manager()
-            # for assembly in manager.assemblies.values():
-            #     section_data = convert_assembly_to_section_data(assembly)
-            #     exporter.add_section(section_data)
-            
+            # TODO: Implement assembly to section data conversion for export
+
             if exporter.export(self.filepath, self.project_name):
                 self.report({'INFO'}, f"Exported to {self.filepath}")
                 return {'FINISHED'}

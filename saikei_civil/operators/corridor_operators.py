@@ -49,6 +49,10 @@ from bpy.props import (
 )
 import time
 
+from ..core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 class SAIKEI_OT_generate_corridor(Operator):
     """
@@ -244,6 +248,11 @@ class SAIKEI_OT_generate_corridor(Operator):
 
             # Create assembly wrapper (pure Python)
             assembly_wrapper = create_assembly_wrapper(assembly)
+            logger.info(f"Assembly '{assembly.name}' has {len(assembly_wrapper.components)} components")
+
+            if not assembly_wrapper.components:
+                self.report({'ERROR'}, f"Assembly '{assembly.name}' has no components. Add components first.")
+                return {'CANCELLED'}
 
             # Generate stations using StationManager (pure Python from core)
             station_manager = StationManager(alignment_3d, self.interval)
@@ -254,6 +263,13 @@ class SAIKEI_OT_generate_corridor(Operator):
             if len(stations) < 2:
                 self.report({'ERROR'}, "Need at least 2 stations to create corridor")
                 return {'CANCELLED'}
+
+            # Debug: log first and last station positions
+            first_sta = stations[0]
+            last_sta = stations[-1]
+            logger.info(f"Station range: {len(stations)} stations from {first_sta.station:.1f}m to {last_sta.station:.1f}m")
+            logger.info(f"First station position: ({first_sta.x:.2f}, {first_sta.y:.2f}, {first_sta.z:.2f})")
+            logger.info(f"Last station position: ({last_sta.x:.2f}, {last_sta.y:.2f}, {last_sta.z:.2f})")
 
             # Generate mesh using Corridor tool (Layer 2 - Blender specific)
             corridor_name = f"Corridor_{self.start_station:.0f}_{self.end_station:.0f} (IfcCourse)"
@@ -337,19 +353,24 @@ class SAIKEI_OT_generate_corridor(Operator):
                 traceback.print_exc()
                 # IFC linkage failed, but we can continue
 
-            # Add to collection
-            if self.create_collection:
-                tool.Corridor.add_to_collection(mesh_obj, "Saikei Civil Project")
+            # Add to collection - MUST link mesh to make it visible
+            collection_name = "Saikei Civil Project"
+            if collection_name in bpy.data.collections:
+                collection = bpy.data.collections[collection_name]
+                if mesh_obj.name not in collection.objects:
+                    collection.objects.link(mesh_obj)
+                    logger.info(f"Linked corridor mesh to '{collection_name}' collection")
+            else:
+                # Fallback to scene collection
+                if mesh_obj.name not in context.scene.collection.objects:
+                    context.scene.collection.objects.link(mesh_obj)
+                    logger.info("Linked corridor mesh to scene collection (fallback)")
 
             # Parent to RoadPart object (or Road as fallback) for hierarchy
             parent_obj = road_part_obj if road_part_obj else road_obj
             if parent_obj:
                 mesh_obj.parent = parent_obj
-
-            # Link mesh to scene if not already linked
-            if mesh_obj.name not in context.scene.collection.objects:
-                if "Saikei Civil Project" not in bpy.data.collections:
-                    context.scene.collection.objects.link(mesh_obj)
+                logger.info(f"Parented corridor to {parent_obj.name}")
 
             # Report success
             elapsed_time = time.time() - start_time

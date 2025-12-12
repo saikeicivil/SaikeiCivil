@@ -33,7 +33,8 @@ Architecture:
     Layer 3: BIM Modules - UI, operators, and properties
 """
 
-import bpy
+# Note: No bpy import at module level - core layer should be pure Python
+# Blender-specific imports should only be in TYPE_CHECKING blocks
 
 # Import logging configuration first (no dependencies)
 from .logging_config import get_logger, setup_logging

@@ -56,13 +56,6 @@ from bpy.props import FloatProperty, IntProperty, StringProperty
 import sys
 import os
 
-# Note: Adjust import path based on actual installation
-# from saikei.core.profile_view_overlay import (
-#     get_profile_overlay,
-#     load_from_sprint3_vertical,
-#     sync_to_sprint3_vertical
-# )
-
 
 # ============================================================================
 # OVERLAY CONTROL OPERATORS

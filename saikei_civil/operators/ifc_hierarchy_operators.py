@@ -183,8 +183,10 @@ class BC_OT_open_ifc(Operator, ImportHelper):
         """
         Load cross-section assemblies from IFC file into Blender PropertyGroups.
 
-        Searches for IfcElementAssembly entities with Pset_SaikeiCrossSectionAssembly
-        and recreates them in the scene's bc_cross_section property.
+        Searches for IfcRoadPart entities (with ROADSEGMENT type) that have
+        Pset_SaikeiCrossSectionAssembly, and recreates them in the scene's
+        bc_cross_section property. Also checks IfcElementAssembly for
+        backward compatibility with older files.
 
         Args:
             context: Blender context
@@ -199,15 +201,29 @@ class BC_OT_open_ifc(Operator, ImportHelper):
             # Clear existing assemblies
             cs.assemblies.clear()
 
-            # Find all IfcElementAssembly entities
-            assemblies = ifc_file.by_type("IfcElementAssembly")
+            # Find all IfcRoadPart entities (new format) and IfcElementAssembly (legacy)
+            assemblies = []
+            road_parts = ifc_file.by_type("IfcRoadPart") or []
+            element_assemblies = ifc_file.by_type("IfcElementAssembly") or []
+            assemblies.extend(road_parts)
+            assemblies.extend(element_assemblies)
+
+            logger.info(f"Loading cross-sections: Found {len(road_parts)} IfcRoadPart, {len(element_assemblies)} IfcElementAssembly")
+
             loaded_count = 0
 
             for ifc_assembly in assemblies:
+                logger.info(f"  Checking: {ifc_assembly.is_a()} - {ifc_assembly.Name if hasattr(ifc_assembly, 'Name') else 'no name'}")
+                if hasattr(ifc_assembly, 'PredefinedType'):
+                    logger.info(f"    PredefinedType: {ifc_assembly.PredefinedType}")
+
                 # Check if it has our custom property set
                 pset_data = self._get_cross_section_pset(ifc_assembly)
                 if pset_data is None:
+                    logger.info(f"    No Pset_SaikeiCrossSectionAssembly found, skipping")
                     continue
+
+                logger.info(f"    Found pset with keys: {list(pset_data.keys())}")
 
                 # Create PropertyGroup assembly
                 new_assembly = cs.assemblies.add()
@@ -252,7 +268,7 @@ class BC_OT_open_ifc(Operator, ImportHelper):
         Get cross-section property set data from an IFC assembly.
 
         Args:
-            ifc_assembly: IfcElementAssembly entity
+            ifc_assembly: IfcRoadPart or IfcElementAssembly entity
 
         Returns:
             Dictionary of property values, or None if not a cross-section
@@ -334,11 +350,11 @@ class BC_OT_open_ifc(Operator, ImportHelper):
             for obj in bpy.data.objects:
                 if obj.get("ifc_definition_id") == assembly.ifc_definition_id:
                     # Already exists, just update name if needed
-                    obj.name = f"{assembly.name} (IfcElementAssembly)"
+                    obj.name = f"{assembly.name} (IfcRoadPart)"
                     return obj
 
             # Create an empty object to represent the assembly
-            empty = bpy.data.objects.new(f"{assembly.name} (IfcElementAssembly)", None)
+            empty = bpy.data.objects.new(f"{assembly.name} (IfcRoadPart)", None)
             empty.empty_display_type = 'PLAIN_AXES'
             empty.empty_display_size = 1.0
 
@@ -533,6 +549,11 @@ class BC_OT_reload_ifc(Operator):
             # Get info
             info = NativeIfcManager.get_info()
 
+            # Load cross-section assemblies from IFC (use open operator's method)
+            assembly_count = BC_OT_open_ifc._load_cross_sections_from_ifc(
+                BC_OT_open_ifc, context, ifc_file
+            )
+
             # Report success
             self.report({'INFO'},
                 f"Reloaded: {info['project']} ({info['entities']} entities)")
@@ -545,6 +566,8 @@ class BC_OT_reload_ifc(Operator):
             logger.info("Entities: %s", info['entities'])
             logger.info("Alignments: %s", info['alignments'])
             logger.info("Geomodels: %s", info['geomodels'])
+            if assembly_count > 0:
+                logger.info("Cross-Section Assemblies: %s", assembly_count)
             logger.info("="*60)
 
             return {'FINISHED'}

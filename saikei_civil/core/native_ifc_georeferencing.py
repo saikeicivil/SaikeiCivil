@@ -155,9 +155,23 @@ class NativeIfcGeoreferencing:
         if existing:
             self.logger.warning("IfcProjectedCRS already exists, updating...")
             crs = existing[0]
-            crs.Name = name
-            crs.Description = description
-            crs.GeodeticDatum = f"EPSG:{epsg_code}"
+            # Use ifcopenshell.api for attribute updates when available
+            try:
+                ifcopenshell.api.run(
+                    "attribute.edit_attributes",
+                    self.ifc,
+                    product=crs,
+                    attributes={
+                        "Name": name,
+                        "Description": description,
+                        "GeodeticDatum": f"EPSG:{epsg_code}"
+                    }
+                )
+            except Exception:
+                # Fallback to direct assignment if API not available
+                crs.Name = name
+                crs.Description = description
+                crs.GeodeticDatum = f"EPSG:{epsg_code}"
             return crs
         
         # Get CRS details if PyProj is available
@@ -220,29 +234,44 @@ class NativeIfcGeoreferencing:
         Returns:
             IfcMapConversion entity
         """
-        # Check if IfcMapConversion already exists
-        existing = self.ifc.by_type("IfcMapConversion")
-        if existing:
-            self.logger.warning("IfcMapConversion already exists, updating...")
-            conversion = existing[0]
-        else:
-            conversion = self.ifc.create_entity("IfcMapConversion")
-        
         # Calculate x-axis direction from rotation
         if rotation != 0.0:
             rad = math.radians(rotation)
             x_axis_abscissa = math.cos(rad)
             x_axis_ordinate = math.sin(rad)
-        
-        # Set attributes
-        conversion.SourceCRS = source_crs
-        conversion.TargetCRS = target_crs
-        conversion.Eastings = eastings
-        conversion.Northings = northings
-        conversion.OrthogonalHeight = orthogonal_height
-        conversion.XAxisAbscissa = x_axis_abscissa
-        conversion.XAxisOrdinate = x_axis_ordinate
-        conversion.Scale = scale if scale != 1.0 else None
+
+        # Build attributes dictionary
+        attributes = {
+            "SourceCRS": source_crs,
+            "TargetCRS": target_crs,
+            "Eastings": eastings,
+            "Northings": northings,
+            "OrthogonalHeight": orthogonal_height,
+            "XAxisAbscissa": x_axis_abscissa,
+            "XAxisOrdinate": x_axis_ordinate,
+            "Scale": scale if scale != 1.0 else None
+        }
+
+        # Check if IfcMapConversion already exists
+        existing = self.ifc.by_type("IfcMapConversion")
+        if existing:
+            self.logger.warning("IfcMapConversion already exists, updating...")
+            conversion = existing[0]
+            # Use ifcopenshell.api for attribute updates when available
+            try:
+                ifcopenshell.api.run(
+                    "attribute.edit_attributes",
+                    self.ifc,
+                    product=conversion,
+                    attributes=attributes
+                )
+            except Exception:
+                # Fallback to direct assignment if API not available
+                for attr, value in attributes.items():
+                    setattr(conversion, attr, value)
+        else:
+            # Create new entity with all attributes
+            conversion = self.ifc.create_entity("IfcMapConversion", **attributes)
         
         self.logger.info(
             f"Created IfcMapConversion: "

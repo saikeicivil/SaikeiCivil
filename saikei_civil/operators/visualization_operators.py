@@ -84,26 +84,11 @@ class SAIKEI_OT_visualize_station(Operator):
             # Import visualizer
             from cross_section_visualizer import CrossSectionVisualizer
             
-            # TODO: Get actual alignment and assembly
-            # For now, show error message
-            self.report({'WARNING'}, 
+            # TODO: Implement when alignment and assembly data structures are available
+            self.report({'WARNING'},
                        "Visualization requires active alignment and cross-section assembly")
             return {'CANCELLED'}
-            
-            # Example code (when data available):
-            # alignment_3d = scene.saikei.alignment_3d
-            # assembly = scene.saikei.active_assembly
-            # 
-            # viz = CrossSectionVisualizer(alignment_3d, assembly)
-            # obj = viz.visualize_station(
-            #     self.station,
-            #     extrusion=self.extrusion,
-            #     show_materials=self.show_materials
-            # )
-            # 
-            # self.report({'INFO'}, f"Cross-section created: {obj.name}")
-            # return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Visualization failed: {str(e)}")
             return {'CANCELLED'}
@@ -171,31 +156,11 @@ class SAIKEI_OT_create_corridor(Operator):
         try:
             from cross_section_visualizer import CrossSectionVisualizer
             
-            # TODO: Get actual data from scene
-            self.report({'WARNING'}, 
+            # TODO: Implement when alignment and assembly data structures are available
+            self.report({'WARNING'},
                        "Corridor creation requires active alignment and assembly")
             return {'CANCELLED'}
-            
-            # Example code:
-            # alignment_3d = context.scene.saikei.alignment_3d
-            # assembly = context.scene.saikei.active_assembly
-            # 
-            # viz = CrossSectionVisualizer(alignment_3d, assembly)
-            # corridor = viz.create_corridor(
-            #     start_station=self.start_station,
-            #     end_station=self.end_station,
-            #     interval=self.interval,
-            #     name=self.corridor_name,
-            #     show_materials=self.show_materials,
-            #     smooth=self.smooth_shading
-            # )
-            # 
-            # elapsed = time.time() - start_time
-            # 
-            # self.report({'INFO'}, 
-            #            f"Corridor created in {elapsed:.2f}s: {corridor.name}")
-            # return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Corridor creation failed: {str(e)}")
             return {'CANCELLED'}
@@ -250,26 +215,11 @@ class SAIKEI_OT_add_station_markers(Operator):
         try:
             from cross_section_visualizer import CrossSectionVisualizer
             
-            # TODO: Get actual data
-            self.report({'WARNING'}, 
+            # TODO: Implement when alignment data structures are available
+            self.report({'WARNING'},
                        "Station markers require active alignment")
             return {'CANCELLED'}
-            
-            # Example code:
-            # alignment_3d = context.scene.saikei.alignment_3d
-            # assembly = context.scene.saikei.active_assembly
-            # 
-            # viz = CrossSectionVisualizer(alignment_3d, assembly)
-            # markers = viz.create_station_markers(
-            #     start_station=self.start_station,
-            #     end_station=self.end_station,
-            #     interval=self.interval,
-            #     height=self.marker_height
-            # )
-            # 
-            # self.report({'INFO'}, f"Created {len(markers)} station markers")
-            # return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Marker creation failed: {str(e)}")
             return {'CANCELLED'}
@@ -335,30 +285,12 @@ class SAIKEI_OT_quick_preview(Operator):
         logger.info("Quick preview")
         
         try:
-            # TODO: Get current station from scene properties
-            # current_station = scene.saikei.current_station
-            current_station = 0.0
-            
             from cross_section_visualizer import visualize_cross_section_quick
-            
-            # TODO: Get actual data
+
+            # TODO: Implement when alignment data structures are available
             self.report({'WARNING'}, "Quick preview requires active alignment")
             return {'CANCELLED'}
-            
-            # Example code:
-            # alignment_3d = scene.saikei.alignment_3d
-            # assembly = scene.saikei.active_assembly
-            # 
-            # obj = visualize_cross_section_quick(
-            #     alignment_3d,
-            #     assembly,
-            #     current_station,
-            #     collection_name="Quick Preview"
-            # )
-            # 
-            # self.report({'INFO'}, f"Preview created at STA {current_station:.2f}")
-            # return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Preview failed: {str(e)}")
             return {'CANCELLED'}
@@ -414,29 +346,10 @@ class SAIKEI_OT_component_preview(Operator):
         try:
             from cross_section_visualizer import CrossSectionVisualizer
             
-            # TODO: Get actual data
+            # TODO: Implement when assembly data structures are available
             self.report({'WARNING'}, "Component preview requires active assembly")
             return {'CANCELLED'}
-            
-            # Example code:
-            # alignment_3d = context.scene.saikei.alignment_3d
-            # assembly = context.scene.saikei.active_assembly
-            # 
-            # component = assembly.get_component_by_name(self.component_name)
-            # if not component:
-            #     self.report({'ERROR'}, f"Component not found: {self.component_name}")
-            #     return {'CANCELLED'}
-            # 
-            # viz = CrossSectionVisualizer(alignment_3d, assembly)
-            # obj = viz.create_component_preview(
-            #     component=component,
-            #     station=self.station,
-            #     extrusion=self.extrusion
-            # )
-            # 
-            # self.report({'INFO'}, f"Component preview: {obj.name}")
-            # return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Component preview failed: {str(e)}")
             return {'CANCELLED'}

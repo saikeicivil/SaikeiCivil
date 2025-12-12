@@ -24,9 +24,13 @@ Manages IFC relationships (IfcRelNests, IfcRelAggregates, etc.) and their Blende
 
 This module provides utilities for querying and managing IFC relationship entities,
 making it easy to navigate and modify the IFC spatial/logical structure.
+
+Note: This module prefers ifcopenshell.api calls when available for proper schema
+handling and relationship management. Fallbacks are provided for compatibility.
 """
 
 import ifcopenshell
+import ifcopenshell.api
 import ifcopenshell.guid
 
 from .logging_config import get_logger
@@ -167,14 +171,63 @@ class IfcRelationshipManager:
                 break
         
         if existing_rel:
-            # Add to existing relationship
+            # Add to existing relationship using API when possible
             related = list(existing_rel.RelatedObjects)
             if child not in related:
-                related.append(child)
-                existing_rel.RelatedObjects = related
+                try:
+                    # Use ifcopenshell.api for proper relationship handling
+                    if rel_type == "IfcRelAggregates":
+                        ifcopenshell.api.run(
+                            "aggregate.assign_object",
+                            ifc,
+                            relating_object=parent,
+                            products=[child]
+                        )
+                    elif rel_type == "IfcRelNests":
+                        ifcopenshell.api.run(
+                            "nest.assign_object",
+                            ifc,
+                            relating_object=parent,
+                            related_objects=[child]
+                        )
+                    else:
+                        # Fallback for other relationship types
+                        related.append(child)
+                        existing_rel.RelatedObjects = related
+                except Exception:
+                    # Fallback to direct manipulation if API fails
+                    related.append(child)
+                    existing_rel.RelatedObjects = related
             return existing_rel
         else:
-            # Create new relationship
+            # Create new relationship using API when possible
+            try:
+                if rel_type == "IfcRelAggregates":
+                    ifcopenshell.api.run(
+                        "aggregate.assign_object",
+                        ifc,
+                        relating_object=parent,
+                        products=[child]
+                    )
+                    # Find the created relationship
+                    for rel in ifc.by_type(rel_type):
+                        if rel.RelatingObject == parent and child in rel.RelatedObjects:
+                            return rel
+                elif rel_type == "IfcRelNests":
+                    ifcopenshell.api.run(
+                        "nest.assign_object",
+                        ifc,
+                        relating_object=parent,
+                        related_objects=[child]
+                    )
+                    # Find the created relationship
+                    for rel in ifc.by_type(rel_type):
+                        if rel.RelatingObject == parent and child in rel.RelatedObjects:
+                            return rel
+            except Exception:
+                pass  # Fall through to manual creation
+
+            # Fallback: Create relationship manually
             new_rel = ifc.create_entity(
                 rel_type,
                 GlobalId=ifcopenshell.guid.new(),
@@ -211,17 +264,37 @@ class IfcRelationshipManager:
             if rel.RelatingObject == parent:
                 related = list(rel.RelatedObjects)
                 if child in related:
-                    related.remove(child)
-                    
-                    if related:
-                        # Update relationship with remaining children
-                        rel.RelatedObjects = related
-                    else:
-                        # Remove relationship if no children left
-                        ifc.remove(rel)
-                    
+                    try:
+                        # Use ifcopenshell.api for proper relationship handling
+                        if rel_type == "IfcRelAggregates":
+                            ifcopenshell.api.run(
+                                "aggregate.unassign_object",
+                                ifc,
+                                products=[child]
+                            )
+                        elif rel_type == "IfcRelNests":
+                            ifcopenshell.api.run(
+                                "nest.unassign_object",
+                                ifc,
+                                related_objects=[child]
+                            )
+                        else:
+                            # Fallback for other relationship types
+                            related.remove(child)
+                            if related:
+                                rel.RelatedObjects = related
+                            else:
+                                ifc.remove(rel)
+                    except Exception:
+                        # Fallback to direct manipulation if API fails
+                        related.remove(child)
+                        if related:
+                            rel.RelatedObjects = related
+                        else:
+                            ifc.remove(rel)
+
                     return True
-        
+
         return False
     
     @classmethod
