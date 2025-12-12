@@ -1,56 +1,58 @@
 # ==============================================================================
 # Saikei Civil - Civil Engineering Tools for Blender
 # Copyright (c) 2025 Michael Yoder / Desert Springs Civil Engineering PLLC
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
-# 
+#
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
 #
 # Primary Author: Michael Yoder
 # Company: Desert Springs Civil Engineering PLLC
 # ==============================================================================
-
 """
-Saikei Civil - Corridor Mesh Generation System
-Sprint 5 Day 3 - Mesh Generation & Blender Integration
+DEPRECATED: This module has been moved to the tool layer.
 
-This module converts corridor data into Blender mesh geometry with
-LOD (Level of Detail) support and material assignment.
+The CorridorMeshGenerator class has been moved to saikei_civil.tool.corridor
+as part of the three-layer architecture migration.
 
-Author: Saikei Civil Team
-Date: November 5, 2025
-Sprint: 5 of 16 - Corridor Modeling
-Day: 3 of 5 - Mesh Generation
+For new code, use:
+    from saikei_civil.tool import Corridor
+    mesh_obj, stats = Corridor.generate_corridor_mesh(stations, assembly, name, lod)
 
-Key Features:
-- Generate Blender meshes from corridor data
-- LOD system (High, Medium, Low)
-- Material zone assignment
-- Efficient geometry generation
-- Collection organization
-- UV mapping support
+This file maintains backwards compatibility by re-exporting from the new location.
 
-Performance Targets:
-- High LOD: <5 seconds for 1km corridor
-- Medium LOD: <2 seconds for 1km corridor
-- Low LOD: <1 second for 1km corridor
+Migration Guide:
+    OLD: from saikei_civil.core.corridor_mesh_generator import CorridorMeshGenerator
+         generator = CorridorMeshGenerator(modeler)
+         mesh_obj = generator.generate_mesh(lod='medium')
 
-Usage Example:
-    >>> # Generate corridor mesh from modeler
-    >>> generator = CorridorMeshGenerator(modeler)
-    >>> mesh_obj = generator.generate_mesh(lod='medium')
-    >>> 
-    >>> # Or generate with materials
-    >>> mesh_obj = generator.generate_with_materials(lod='high')
+    NEW: from saikei_civil.tool import Corridor
+         mesh_obj, stats = Corridor.generate_corridor_mesh(
+             stations=modeler.stations,
+             assembly=assembly_wrapper,
+             name="Corridor",
+             lod='medium'
+         )
 """
+import warnings
+
+# Issue deprecation warning on import
+warnings.warn(
+    "saikei_civil.core.corridor_mesh_generator is deprecated. "
+    "Use saikei_civil.tool.Corridor instead. "
+    "This module will be removed in a future version.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import bpy
 import bmesh
@@ -61,6 +63,9 @@ import time
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Note: The classes below are maintained for backwards compatibility only.
+# New code should use the tool layer: from saikei_civil.tool import Corridor
 
 
 @dataclass
@@ -562,7 +567,8 @@ class CorridorMeshGenerator:
             collection.objects.link(self.mesh_obj)
 
             # Parent to Road empty if it exists
-            road_empty = bpy.data.objects.get("Road")
+            from .ifc_manager.blender_hierarchy import ROAD_EMPTY_NAME
+            road_empty = bpy.data.objects.get(ROAD_EMPTY_NAME)
             if road_empty:
                 self.mesh_obj.parent = road_empty
                 logger.info("Parented corridor to Road empty")

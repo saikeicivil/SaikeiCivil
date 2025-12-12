@@ -74,6 +74,7 @@ try:
     from . import vertical_alignment  # Refactored package
     from . import native_ifc_vertical_alignment  # Backwards compatibility shim
     from . import native_ifc_cross_section
+    from . import corridor  # Pure Python corridor logic (three-layer architecture)
     from . import alignment_3d
     from . import alignment_visualizer
     from . import alignment_registry
@@ -90,12 +91,13 @@ try:
         horizontal_alignment,
         vertical_alignment,
         native_ifc_cross_section,
+        corridor,  # Pure Python corridor logic
         alignment_3d,
         alignment_visualizer,
         alignment_registry,
         complete_update_system,
         ifc_geometry_builders,
-        corridor_mesh_generator,
+        corridor_mesh_generator,  # Deprecated, kept for backwards compatibility
         profile_view_data,
         profile_view_renderer,
         profile_view_overlay,

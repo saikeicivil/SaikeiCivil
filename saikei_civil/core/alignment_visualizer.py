@@ -75,7 +75,7 @@ class AlignmentVisualizer:
 
         if alignments_parent:
             # Check if alignment empty already exists and is valid
-            alignment_empty_name = f"📐 {name}"
+            alignment_empty_name = f"{name} (IfcAlignment)"
             if alignment_empty_name in bpy.data.objects:
                 existing_empty = bpy.data.objects[alignment_empty_name]
                 # Validate it's still valid

@@ -1713,6 +1713,11 @@ class BC_OT_SaveAssemblyToIFC(Operator):
             # Link to IfcRoad
             self._link_to_road(ifc_file, ifc_assembly)
 
+            # Create Blender representation for the assembly
+            blender_obj = self._create_blender_representation(
+                context, assembly, ifc_assembly
+            )
+
             self.report({'INFO'},
                 f"Saved assembly '{assembly.name}' to IFC (ID: {ifc_assembly.id()})")
 
@@ -1949,6 +1954,68 @@ class BC_OT_SaveAssemblyToIFC(Operator):
             ifc_file.remove(entity)
         except RuntimeError:
             pass
+
+    def _create_blender_representation(self, context, assembly, ifc_assembly):
+        """Create a Blender empty to represent the assembly in the Outliner.
+
+        Creates an empty object, adds it to the Saikei Civil Project collection,
+        parents it to the Road empty, and links it to the IFC entity.
+
+        Args:
+            context: Blender context
+            assembly: The PropertyGroup assembly data
+            ifc_assembly: The IFC entity
+
+        Returns:
+            The created Blender object
+        """
+        from ..core.ifc_manager import NativeIfcManager
+        from .. import tool
+
+        # Check if a Blender object already exists for this assembly
+        existing_obj = None
+        for obj in bpy.data.objects:
+            if obj.get("ifc_definition_id") == assembly.ifc_definition_id:
+                existing_obj = obj
+                break
+
+        if existing_obj:
+            # Update existing object name if needed
+            existing_obj.name = f"{assembly.name} (IfcElementAssembly)"
+            return existing_obj
+
+        # Create an empty object to represent the assembly
+        empty = bpy.data.objects.new(f"{assembly.name} (IfcElementAssembly)", None)
+        empty.empty_display_type = 'PLAIN_AXES'
+        empty.empty_display_size = 1.0
+
+        # Link to IFC entity
+        NativeIfcManager.link_object(empty, ifc_assembly)
+
+        # Add to project collection
+        project_coll_name = "Saikei Civil Project"
+        if project_coll_name in bpy.data.collections:
+            collection = bpy.data.collections[project_coll_name]
+            collection.objects.link(empty)
+        else:
+            # Fallback to scene collection
+            context.scene.collection.objects.link(empty)
+
+        # Parent to Road object - use tool layer to find proper object
+        road = tool.Spatial.get_road()
+        road_obj = None
+        if road:
+            road_obj = tool.Ifc.get_object(road)
+        if road_obj is None:
+            # Fallback: try direct lookup by name
+            from ..core.ifc_manager.blender_hierarchy import ROAD_EMPTY_NAME
+            road_obj = bpy.data.objects.get(ROAD_EMPTY_NAME)
+
+        if road_obj:
+            empty.parent = road_obj
+
+        logger.info(f"Created Blender representation for assembly: {assembly.name}")
+        return empty
 
 
 # Registration

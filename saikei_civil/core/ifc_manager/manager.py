@@ -504,15 +504,15 @@ class NativeIfcManager:
         'CUSTOM': 'ROADSEGMENT',
     }
 
-    # Display names for road parts in Blender
+    # Display names for road parts in Blender (includes IFC entity type)
     ROAD_PART_DISPLAY_NAMES = {
-        'TRAFFICLANE': '🚗 Traffic Lanes',
-        'SHOULDER': '🛤️ Shoulders',
-        'ROADSIDE': '🌿 Roadside',
-        'CENTRALRESERVE': '🚧 Central Reserve',
-        'SIDEWALK': '🚶 Sidewalks',
-        'CARRIAGEWAY': '🛣️ Carriageway',
-        'ROADSEGMENT': '📐 Road Segment',
+        'TRAFFICLANE': 'Traffic Lanes (IfcRoadPart)',
+        'SHOULDER': 'Shoulders (IfcRoadPart)',
+        'ROADSIDE': 'Roadside (IfcRoadPart)',
+        'CENTRALRESERVE': 'Central Reserve (IfcRoadPart)',
+        'SIDEWALK': 'Sidewalks (IfcRoadPart)',
+        'CARRIAGEWAY': 'Carriageway (IfcRoadPart)',
+        'ROADSEGMENT': 'Road Segment (IfcRoadPart)',
     }
 
     @classmethod
@@ -602,7 +602,7 @@ class NativeIfcManager:
 
         # Get display name
         display_name = cls.ROAD_PART_DISPLAY_NAMES.get(
-            road_part_type, f"🔹 {road_part_type}"
+            road_part_type, f"{road_part_type} (IfcRoadPart)"
         )
 
         # Create empty
@@ -941,10 +941,10 @@ class NativeIfcManager:
             cls._create_road_part_empty(road_part_type, road_part)
             parent_empty = cls.get_road_part_empty(road_part_type)
 
-        # Create display name with icon and side indicator
-        icon = cls.COMPONENT_ICONS.get(component_type, '📐')
-        side_indicator = "◀" if side == "LEFT" else "▶"
-        display_name = f"{icon} {name} {side_indicator}"
+        # Create display name with IFC entity type and side indicator
+        ifc_class = cls.COMPONENT_TO_IFC_CLASS.get(component_type, 'IfcBuildingElementProxy')
+        side_indicator = "L" if side == "LEFT" else "R"
+        display_name = f"{name} [{side_indicator}] ({ifc_class})"
 
         # Create empty
         component_empty = bpy.data.objects.new(display_name, None)

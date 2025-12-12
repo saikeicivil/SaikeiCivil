@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 
 # Object names used in hierarchy
 PROJECT_COLLECTION_NAME = "Saikei Civil Project"
-PROJECT_EMPTY_NAME = "📂 Project"
-SITE_EMPTY_NAME = "🌍 Site"
-ROAD_EMPTY_NAME = "🛣️  Road"
-ALIGNMENTS_EMPTY_NAME = "📏 Alignments"
-GEOMODELS_EMPTY_NAME = "🌏 Geomodels"
+PROJECT_EMPTY_NAME = "Project (IfcProject)"
+SITE_EMPTY_NAME = "Site (IfcSite)"
+ROAD_EMPTY_NAME = "Road (IfcRoad)"
+ALIGNMENTS_EMPTY_NAME = "Alignments"
+GEOMODELS_EMPTY_NAME = "Geomodels"
 
 
 def create_blender_hierarchy(
