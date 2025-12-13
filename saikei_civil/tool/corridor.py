@@ -363,6 +363,127 @@ class Corridor(core_tool.Corridor):
 
         return None
 
+    @classmethod
+    def create_ifc_corridor_solid(
+        cls,
+        stations: List["StationPoint"],
+        assembly: "AssemblyWrapper",
+        name: str = "Corridor",
+        interval: float = 10.0
+    ) -> Tuple[Optional[Any], Dict[str, Any]]:
+        """
+        Create an IFC IfcSectionedSolidHorizontal corridor solid.
+
+        This is the proper IFC 4.3 method for creating corridors - it creates
+        native IFC geometry instead of converting Blender mesh to IFC.
+
+        Args:
+            stations: List of StationPoint objects from core
+            assembly: AssemblyWrapper with component data
+            name: Name for the corridor
+            interval: Station interval (for metadata)
+
+        Returns:
+            Tuple of (IfcSectionedSolidHorizontal entity, summary dict)
+        """
+        from .ifc import Ifc
+        from ..core.native_ifc_corridor import (
+            CorridorModeler,
+            create_profile_from_assembly,
+            create_tagged_cross_section_profile,
+            PointTags
+        )
+        from ..core.corridor import AlignmentWrapper
+
+        ifc_file = Ifc.get()
+        if ifc_file is None:
+            logger.error("No IFC file loaded")
+            return None, {"error": "No IFC file loaded"}
+
+        if len(stations) < 2:
+            logger.error("Need at least 2 stations to create corridor")
+            return None, {"error": "Need at least 2 stations"}
+
+        try:
+            # Create directrix (3D alignment curve) from stations
+            points = []
+            for station_point in stations:
+                point = ifc_file.create_entity(
+                    "IfcCartesianPoint",
+                    Coordinates=(station_point.x, station_point.y, station_point.z)
+                )
+                points.append(point)
+
+            directrix = ifc_file.create_entity(
+                "IfcPolyline",
+                Points=points
+            )
+
+            logger.info(f"Created directrix with {len(points)} points")
+
+            # Create cross-section profiles for each station
+            cross_sections = []
+            for station_point in stations:
+                profile = create_profile_from_assembly(
+                    ifc_file=ifc_file,
+                    assembly=assembly,
+                    station=station_point.station,
+                    pavement_thickness=0.3
+                )
+                cross_sections.append(profile)
+
+            logger.info(f"Created {len(cross_sections)} cross-section profiles")
+
+            # Create positions for each cross-section
+            positions = []
+            for station_point in stations:
+                distance_expr = ifc_file.create_entity(
+                    "IfcDistanceExpression",
+                    DistanceAlong=station_point.station,
+                    OffsetLateral=0.0,
+                    OffsetVertical=0.0
+                )
+
+                placement = ifc_file.create_entity(
+                    "IfcAxis2PlacementLinear",
+                    Location=distance_expr,
+                    Axis=None,
+                    RefDirection=None
+                )
+                positions.append(placement)
+
+            logger.info(f"Created {len(positions)} cross-section positions")
+
+            # Create the IfcSectionedSolidHorizontal
+            corridor_solid = ifc_file.create_entity(
+                "IfcSectionedSolidHorizontal",
+                Directrix=directrix,
+                CrossSections=cross_sections,
+                CrossSectionPositions=positions
+            )
+
+            logger.info(f"Created IfcSectionedSolidHorizontal: #{corridor_solid.id()}")
+
+            # Summary
+            summary = {
+                "name": name,
+                "station_count": len(stations),
+                "start_station": stations[0].station,
+                "end_station": stations[-1].station,
+                "length": stations[-1].station - stations[0].station,
+                "profile_count": len(cross_sections),
+                "corridor_solid_id": corridor_solid.id(),
+                "ifc_type": "IfcSectionedSolidHorizontal"
+            }
+
+            return corridor_solid, summary
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.error(f"Failed to create IFC corridor solid: {e}")
+            return None, {"error": str(e)}
+
     # =========================================================================
     # Internal Mesh Generation Methods
     # =========================================================================

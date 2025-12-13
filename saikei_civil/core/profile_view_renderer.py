@@ -35,20 +35,26 @@ not core/ (Layer 1) per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.profile_view_renderer is deprecated. "
-    "Import from saikei_civil.tool.profile_view_renderer instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ..tool.profile_view_renderer import (
-    ProfileViewRenderer,
-    COLORS,
-)
-
 __all__ = [
     "ProfileViewRenderer",
     "COLORS",
 ]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.profile_view_renderer to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.profile_view_renderer is deprecated. "
+            "Import from saikei_civil.tool.profile_view_renderer instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ..tool import profile_view_renderer
+            _module_cache["module"] = profile_view_renderer
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

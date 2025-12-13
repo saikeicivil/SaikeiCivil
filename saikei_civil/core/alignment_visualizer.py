@@ -32,16 +32,25 @@ not core/ (Layer 1) per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.alignment_visualizer is deprecated. "
-    "Import from saikei_civil.tool.alignment_visualizer instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ..tool.alignment_visualizer import AlignmentVisualizer
-
 __all__ = [
     "AlignmentVisualizer",
 ]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.alignment_visualizer to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.alignment_visualizer is deprecated. "
+            "Import from saikei_civil.tool.alignment_visualizer instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ..tool import alignment_visualizer
+            _module_cache["module"] = alignment_visualizer
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -181,12 +181,14 @@ class BC_OT_open_ifc(Operator, ImportHelper):
 
     def _load_cross_sections_from_ifc(self, context, ifc_file):
         """
-        Load cross-section assemblies from IFC file into Blender PropertyGroups.
+        Load cross-section components from the IFC file.
 
-        Searches for IfcRoadPart entities (with ROADSEGMENT type) that have
-        Pset_SaikeiCrossSectionAssembly, and recreates them in the scene's
-        bc_cross_section property. Also checks IfcElementAssembly for
-        backward compatibility with older files.
+        Per IFC 4.3, each component is stored as:
+        - IfcPavement (lanes, shoulders)
+        - IfcKerb (curbs)
+        - Plus associated IfcOpenCrossProfileDef or IfcArbitraryClosedProfileDef
+
+        Components are grouped by their parent IfcRoadPart into assemblies.
 
         Args:
             context: Blender context
@@ -195,86 +197,102 @@ class BC_OT_open_ifc(Operator, ImportHelper):
         Returns:
             Number of assemblies loaded
         """
+        from ..core.ifc_manager.manager import NativeIfcManager
+
         try:
             cs = context.scene.bc_cross_section
 
             # Clear existing assemblies
             cs.assemblies.clear()
 
-            # Find all IfcRoadPart entities (new format) and IfcElementAssembly (legacy)
-            assemblies = []
-            road_parts = ifc_file.by_type("IfcRoadPart") or []
-            element_assemblies = ifc_file.by_type("IfcElementAssembly") or []
-            assemblies.extend(road_parts)
-            assemblies.extend(element_assemblies)
+            # Find all cross-section component entities
+            pavements = ifc_file.by_type("IfcPavement") or []
+            kerbs = ifc_file.by_type("IfcKerb") or []
 
-            logger.info(f"Loading cross-sections: Found {len(road_parts)} IfcRoadPart, {len(element_assemblies)} IfcElementAssembly")
+            logger.info(f"Loading cross-sections: Found {len(pavements)} IfcPavement, {len(kerbs)} IfcKerb")
 
-            loaded_count = 0
+            # Group components by their parent (assembly name)
+            assembly_components = {}  # name -> list of (entity, pset_data)
 
-            for ifc_assembly in assemblies:
-                logger.info(f"  Checking: {ifc_assembly.is_a()} - {ifc_assembly.Name if hasattr(ifc_assembly, 'Name') else 'no name'}")
-                if hasattr(ifc_assembly, 'PredefinedType'):
-                    logger.info(f"    PredefinedType: {ifc_assembly.PredefinedType}")
-
-                # Check if it has our custom property set
-                pset_data = self._get_cross_section_pset(ifc_assembly)
+            for entity in pavements + kerbs:
+                pset_data = self._get_component_pset(entity)
                 if pset_data is None:
-                    logger.info(f"    No Pset_SaikeiCrossSectionAssembly found, skipping")
                     continue
 
-                logger.info(f"    Found pset with keys: {list(pset_data.keys())}")
+                # Get assembly name from pset or parent
+                assembly_name = pset_data.get('AssemblyName', 'Default Assembly')
 
-                # Create PropertyGroup assembly
+                if assembly_name not in assembly_components:
+                    assembly_components[assembly_name] = []
+
+                assembly_components[assembly_name].append((entity, pset_data))
+                logger.debug(f"  Found component: {entity.Name} -> assembly: {assembly_name}")
+
+            # Create assemblies from grouped components
+            loaded_count = 0
+            for assembly_name, components in assembly_components.items():
                 new_assembly = cs.assemblies.add()
-                new_assembly.name = ifc_assembly.Name or "Unnamed Assembly"
-                new_assembly.description = ifc_assembly.Description or ""
-                new_assembly.ifc_definition_id = ifc_assembly.id()
-                new_assembly.global_id = ifc_assembly.GlobalId or ""
+                new_assembly.name = assembly_name
+                new_assembly.assembly_type = 'CUSTOM'
 
-                # Load properties from pset
-                if 'AssemblyType' in pset_data:
-                    new_assembly.assembly_type = pset_data['AssemblyType']
-                if 'DesignSpeed' in pset_data:
-                    new_assembly.design_speed = float(pset_data['DesignSpeed'])
-                if 'TotalWidth' in pset_data:
-                    new_assembly.total_width = float(pset_data['TotalWidth'])
+                for entity, pset_data in components:
+                    comp = new_assembly.components.add()
+                    comp.name = entity.Name or "Unnamed Component"
+                    comp.ifc_definition_id = entity.id()
+                    comp.global_id = entity.GlobalId or ""
 
-                # Parse component data
-                if 'ComponentData' in pset_data:
-                    self._parse_component_data(new_assembly, pset_data['ComponentData'])
+                    # Load component properties
+                    if 'ComponentType' in pset_data:
+                        comp.component_type = pset_data['ComponentType']
+                    if 'Side' in pset_data:
+                        comp.side = pset_data['Side']
+                    if 'Width' in pset_data:
+                        comp.width = float(pset_data['Width'])
+                    if 'CrossSlope' in pset_data:
+                        comp.cross_slope = float(pset_data['CrossSlope'])
+                    if 'Offset' in pset_data:
+                        comp.offset = float(pset_data['Offset'])
 
-                # Mark as valid if it has components
+                    # Create Blender object for component
+                    self._create_component_blender_object(context, comp, entity)
+
+                # Calculate total width
+                total_width = sum(c.width for c in new_assembly.components)
+                new_assembly.total_width = total_width
+
+                # Mark as valid
                 new_assembly.is_valid = len(new_assembly.components) > 0
                 new_assembly.validation_message = (
-                    "Loaded from IFC" if new_assembly.is_valid
-                    else "No components found"
+                    f"Loaded {len(new_assembly.components)} components from IFC"
+                    if new_assembly.is_valid else "No components found"
                 )
 
-                # Create Blender representation for the assembly
-                self._create_assembly_blender_object(context, new_assembly, ifc_assembly)
-
                 loaded_count += 1
-                logger.info(f"Loaded cross-section assembly: {new_assembly.name}")
+                logger.info(f"Loaded assembly '{assembly_name}' with {len(new_assembly.components)} components")
+
+            if loaded_count == 0 and (pavements or kerbs):
+                logger.warning("Found IFC components but no Pset_SaikeiCrossSection data")
 
             return loaded_count
 
         except Exception as e:
             logger.warning(f"Error loading cross-sections from IFC: {e}")
+            import traceback
+            traceback.print_exc()
             return 0
 
-    def _get_cross_section_pset(self, ifc_assembly):
+    def _get_component_pset(self, entity):
         """
-        Get cross-section property set data from an IFC assembly.
+        Get cross-section component property set data from an IFC entity.
 
         Args:
-            ifc_assembly: IfcRoadPart or IfcElementAssembly entity
+            entity: IfcPavement, IfcKerb, or similar entity
 
         Returns:
-            Dictionary of property values, or None if not a cross-section
+            Dictionary of property values, or None if not a Saikei component
         """
         try:
-            for rel in ifc_assembly.IsDefinedBy or []:
+            for rel in entity.IsDefinedBy or []:
                 if not rel.is_a("IfcRelDefinesByProperties"):
                     continue
 
@@ -282,7 +300,8 @@ class BC_OT_open_ifc(Operator, ImportHelper):
                 if not pset or not pset.is_a("IfcPropertySet"):
                     continue
 
-                if pset.Name != "Pset_SaikeiCrossSectionAssembly":
+                # Look for our component-level property set
+                if pset.Name != "Pset_SaikeiCrossSection":
                     continue
 
                 # Extract property values
@@ -291,14 +310,63 @@ class BC_OT_open_ifc(Operator, ImportHelper):
                     if prop.is_a("IfcPropertySingleValue"):
                         value = prop.NominalValue
                         if value:
-                            # Get the wrapped value
                             data[prop.Name] = value.wrappedValue
                 return data
 
         except Exception as e:
-            logger.warning(f"Error reading pset: {e}")
+            logger.warning(f"Error reading component pset: {e}")
 
         return None
+
+    def _create_component_blender_object(self, context, comp, ifc_entity):
+        """
+        Create a Blender object to represent a component.
+
+        Args:
+            context: Blender context
+            comp: BC_ComponentProperties instance
+            ifc_entity: The IFC entity
+        """
+        from ..core.ifc_manager.manager import NativeIfcManager
+
+        # Check if object already exists
+        for obj in bpy.data.objects:
+            if obj.get("ifc_definition_id") == ifc_entity.id():
+                return obj
+
+        # Determine display name based on IFC class
+        ifc_class = ifc_entity.is_a()
+        side_indicator = "L" if comp.side == "LEFT" else "R"
+        display_name = f"{comp.name} [{side_indicator}] ({ifc_class})"
+
+        # Create empty to represent component
+        empty = bpy.data.objects.new(display_name, None)
+        empty.empty_display_type = 'SINGLE_ARROW'
+        empty.empty_display_size = 0.5
+
+        # Link to IFC
+        NativeIfcManager.link_object(empty, ifc_entity)
+
+        # Add to project collection
+        collection = NativeIfcManager.get_project_collection()
+        if collection:
+            collection.objects.link(empty)
+        else:
+            context.scene.collection.objects.link(empty)
+
+        # Parent to the correct road part empty based on component type
+        road_part_type = NativeIfcManager.COMPONENT_TO_ROAD_PART_TYPE.get(
+            comp.component_type, 'ROADSEGMENT'
+        )
+        parent_empty = NativeIfcManager.get_road_part_empty(road_part_type)
+
+        if parent_empty:
+            empty.parent = parent_empty
+            logger.debug(f"Parented {comp.name} to {parent_empty.name}")
+        else:
+            logger.warning(f"No parent empty found for {road_part_type}")
+
+        return empty
 
     def _parse_component_data(self, assembly, comp_string):
         """

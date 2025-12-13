@@ -38,29 +38,6 @@ per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.ifc_manager.blender_hierarchy is deprecated. "
-    "Import from saikei_civil.tool.blender_hierarchy instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export everything from the new location for backwards compatibility
-from ...tool.blender_hierarchy import (
-    create_blender_hierarchy,
-    clear_blender_hierarchy,
-    get_or_find_collection,
-    get_or_find_object,
-    add_alignment_to_hierarchy,
-    add_geomodel_to_hierarchy,
-    PROJECT_COLLECTION_NAME,
-    PROJECT_EMPTY_NAME,
-    SITE_EMPTY_NAME,
-    ROAD_EMPTY_NAME,
-    ALIGNMENTS_EMPTY_NAME,
-    GEOMODELS_EMPTY_NAME,
-)
-
 __all__ = [
     "create_blender_hierarchy",
     "clear_blender_hierarchy",
@@ -75,3 +52,22 @@ __all__ = [
     "ALIGNMENTS_EMPTY_NAME",
     "GEOMODELS_EMPTY_NAME",
 ]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.blender_hierarchy to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.ifc_manager.blender_hierarchy is deprecated. "
+            "Import from saikei_civil.tool.blender_hierarchy instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ...tool import blender_hierarchy
+            _module_cache["module"] = blender_hierarchy
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

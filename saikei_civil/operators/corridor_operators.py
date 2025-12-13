@@ -57,69 +57,16 @@ logger = get_logger(__name__)
 class SAIKEI_OT_generate_corridor(Operator):
     """
     Generate 3D corridor mesh from alignment and cross-section.
-    
+
     Creates a complete corridor model by sweeping the cross-section
     assembly along the 3D alignment with intelligent station management.
+    Uses parameters from the N-panel (bc_corridor scene properties).
     """
     bl_idname = "saikei.generate_corridor"
     bl_label = "Generate Corridor"
     bl_description = "Create 3D corridor mesh from alignment and cross-section"
     bl_options = {'REGISTER', 'UNDO'}
-    
-    # Properties
-    start_station: FloatProperty(
-        name="Start Station",
-        description="Starting station along alignment (m)",
-        default=0.0,
-        min=0.0
-    )
-    
-    end_station: FloatProperty(
-        name="End Station",
-        description="Ending station along alignment (m)",
-        default=1000.0,
-        min=0.0
-    )
-    
-    interval: FloatProperty(
-        name="Station Interval",
-        description="Base interval between stations (m)",
-        default=10.0,
-        min=1.0,
-        max=50.0
-    )
-    
-    lod: EnumProperty(
-        name="Level of Detail",
-        description="Mesh detail level",
-        items=[
-            ('high', "High", "Best quality, slower generation (< 5s for 1km)", 0),
-            ('medium', "Medium", "Balanced quality and speed (< 2s for 1km)", 1),
-            ('low', "Low", "Fast preview, lower quality (< 1s for 1km)", 2),
-        ],
-        default='medium'
-    )
-    
-    curve_densification: FloatProperty(
-        name="Curve Densification",
-        description="Additional stations at curves (1.0 = minimal, 2.0 = dense)",
-        default=1.5,
-        min=1.0,
-        max=3.0
-    )
-    
-    apply_materials: BoolProperty(
-        name="Apply Materials",
-        description="Create and apply materials to corridor",
-        default=True
-    )
-    
-    create_collection: BoolProperty(
-        name="Create Collection",
-        description="Organize corridor in collection",
-        default=True
-    )
-    
+
     @classmethod
     def poll(cls, context):
         """Check if operator can run."""
@@ -143,56 +90,6 @@ class SAIKEI_OT_generate_corridor(Operator):
 
         return True
 
-    def invoke(self, context, event):
-        """Show dialog before executing."""
-        # Set default start/end based on alignment length
-        # For now, use reasonable defaults
-        self.start_station = 0.0
-        self.end_station = 100.0  # Default 100m corridor
-
-        return context.window_manager.invoke_props_dialog(self, width=400)
-    
-    def draw(self, context):
-        """Draw operator properties in dialog."""
-        layout = self.layout
-        
-        # Station range
-        box = layout.box()
-        box.label(text="Station Range:", icon='DRIVER_DISTANCE')
-        col = box.column(align=True)
-        col.prop(self, "start_station")
-        col.prop(self, "end_station")
-        
-        # Generation settings
-        box = layout.box()
-        box.label(text="Generation Settings:", icon='SETTINGS')
-        col = box.column(align=True)
-        col.prop(self, "interval")
-        col.prop(self, "curve_densification")
-        col.prop(self, "lod", expand=False)
-        
-        # Options
-        box = layout.box()
-        box.label(text="Options:", icon='PREFERENCES')
-        col = box.column(align=True)
-        col.prop(self, "apply_materials")
-        col.prop(self, "create_collection")
-        
-        # Estimated generation time
-        layout.separator()
-        length = self.end_station - self.start_station
-        
-        if self.lod == 'high':
-            est_time = length / 200.0  # ~200m/s
-        elif self.lod == 'medium':
-            est_time = length / 500.0  # ~500m/s
-        else:
-            est_time = length / 1000.0  # ~1000m/s
-        
-        info_box = layout.box()
-        info_box.label(text=f"Corridor Length: {length:.0f}m", icon='INFO')
-        info_box.label(text=f"Estimated Time: {est_time:.1f}s")
-    
     def execute(self, context):
         """
         Generate the corridor using the three-layer architecture.
@@ -240,10 +137,17 @@ class SAIKEI_OT_generate_corridor(Operator):
             )
             from ..core.native_ifc_corridor import StationManager
 
+            # Get generation parameters from scene properties
+            start_station = props.start_station
+            end_station = props.end_station
+            interval = props.station_interval
+            curve_densification = props.curve_densification
+            lod = props.lod
+
             alignment_3d = AlignmentWrapper(
                 alignment,
-                self.start_station,
-                self.end_station
+                start_station,
+                end_station
             )
 
             # Create assembly wrapper (pure Python)
@@ -255,9 +159,9 @@ class SAIKEI_OT_generate_corridor(Operator):
                 return {'CANCELLED'}
 
             # Generate stations using StationManager (pure Python from core)
-            station_manager = StationManager(alignment_3d, self.interval)
+            station_manager = StationManager(alignment_3d, interval)
             stations = station_manager.calculate_stations(
-                curve_densification_factor=self.curve_densification
+                curve_densification_factor=curve_densification
             )
 
             if len(stations) < 2:
@@ -271,13 +175,37 @@ class SAIKEI_OT_generate_corridor(Operator):
             logger.info(f"First station position: ({first_sta.x:.2f}, {first_sta.y:.2f}, {first_sta.z:.2f})")
             logger.info(f"Last station position: ({last_sta.x:.2f}, {last_sta.y:.2f}, {last_sta.z:.2f})")
 
-            # Generate mesh using Corridor tool (Layer 2 - Blender specific)
-            corridor_name = f"Corridor_{self.start_station:.0f}_{self.end_station:.0f} (IfcCourse)"
+            # Generate corridor name
+            corridor_name = f"Corridor_{start_station:.0f}_{end_station:.0f} (IfcCourse)"
+
+            # ==========================================
+            # Step 1: Create IFC Corridor Solid (Native IFC 4.3)
+            # ==========================================
+            # This creates the proper IfcSectionedSolidHorizontal representation
+            corridor_solid, ifc_summary = tool.Corridor.create_ifc_corridor_solid(
+                stations=stations,
+                assembly=assembly_wrapper,
+                name=corridor_name,
+                interval=interval
+            )
+
+            if corridor_solid is None:
+                logger.warning(f"IFC corridor solid creation failed: {ifc_summary.get('error', 'Unknown error')}")
+                # Continue anyway - mesh can still be generated
+            else:
+                logger.info(f"Created IfcSectionedSolidHorizontal: #{ifc_summary.get('corridor_solid_id', '?')}")
+                logger.info(f"  Stations: {ifc_summary.get('station_count', 0)}")
+                logger.info(f"  Length: {ifc_summary.get('length', 0):.1f}m")
+
+            # ==========================================
+            # Step 2: Generate Blender Mesh (Visualization)
+            # ==========================================
+            # This creates the visible Blender mesh for working in the viewport
             mesh_obj, stats = tool.Corridor.generate_corridor_mesh(
                 stations=stations,
                 assembly=assembly_wrapper,
                 name=corridor_name,
-                lod=self.lod
+                lod=lod
             )
 
             if mesh_obj is None:
@@ -483,28 +411,41 @@ class SAIKEI_OT_corridor_quick_preview(Operator):
         return bool(cs_props.assemblies)
 
     def execute(self, context):
-        """Generate quick preview."""
+        """Generate quick preview by temporarily modifying scene properties."""
         try:
             corridor_props = context.scene.bc_corridor
+
+            # Save original values
+            original_start = corridor_props.start_station
+            original_end = corridor_props.end_station
+            original_interval = corridor_props.station_interval
+            original_lod = corridor_props.lod
 
             # Calculate preview range centered on start_station
             center = corridor_props.start_station
             start = max(0, center - self.preview_length / 2)
             end = center + self.preview_length / 2
 
-            # Use the main generate corridor operator with limited range
-            bpy.ops.saikei.generate_corridor(
-                'EXEC_DEFAULT',
-                start_station=start,
-                end_station=end,
-                interval=5.0,
-                lod='high',
-                apply_materials=True,
-                create_collection=False
-            )
+            # Temporarily set preview parameters
+            corridor_props.start_station = start
+            corridor_props.end_station = end
+            corridor_props.station_interval = 5.0
+            corridor_props.lod = 'high'
 
-            self.report({'INFO'}, f"Preview generated: {start:.0f}m to {end:.0f}m")
-            return {'FINISHED'}
+            # Generate corridor with preview settings
+            result = bpy.ops.saikei.generate_corridor('EXEC_DEFAULT')
+
+            # Restore original values
+            corridor_props.start_station = original_start
+            corridor_props.end_station = original_end
+            corridor_props.station_interval = original_interval
+            corridor_props.lod = original_lod
+
+            if result == {'FINISHED'}:
+                self.report({'INFO'}, f"Preview generated: {start:.0f}m to {end:.0f}m")
+                return {'FINISHED'}
+            else:
+                return result
 
         except Exception as e:
             self.report({'ERROR'}, f"Preview failed: {str(e)}")

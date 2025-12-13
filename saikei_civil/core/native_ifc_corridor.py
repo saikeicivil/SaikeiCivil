@@ -69,6 +69,255 @@ from .logging_config import get_logger
 logger = get_logger(__name__)
 
 
+# =============================================================================
+# Point Tags for IFC Corridor Interpolation
+# =============================================================================
+
+class PointTags:
+    """
+    Standard point tags for IFC corridor interpolation.
+
+    Tags are CRITICAL for IfcSectionedSolidHorizontal - the IFC viewer/processor
+    interpolates between consecutive profiles by matching points with the same tag.
+    Points without matching tags in consecutive profiles create undefined geometry.
+    """
+
+    # Centerline
+    CENTERLINE = "CL"
+    CROWN = "CR"
+
+    # Travel lanes
+    EDGE_TRAVELED_WAY_LEFT = "ETW_L"
+    EDGE_TRAVELED_WAY_RIGHT = "ETW_R"
+
+    # Pavement edges
+    EDGE_PAVEMENT_LEFT = "EPS_L"
+    EDGE_PAVEMENT_RIGHT = "EPS_R"
+
+    # Curb points
+    FLOWLINE_LEFT = "FL_L"
+    FLOWLINE_RIGHT = "FL_R"
+    BACK_CURB_LEFT = "BC_L"
+    BACK_CURB_RIGHT = "BC_R"
+    TOP_CURB_LEFT = "TC_L"
+    TOP_CURB_RIGHT = "TC_R"
+
+    # Shoulder
+    HINGE_LEFT = "HG_L"
+    HINGE_RIGHT = "HG_R"
+    SHOULDER_LEFT = "SH_L"
+    SHOULDER_RIGHT = "SH_R"
+
+    # Daylight/grading
+    DAYLIGHT_LEFT = "DL_L"
+    DAYLIGHT_RIGHT = "DL_R"
+
+    # Subgrade
+    DATUM_LEFT = "DAT_L"
+    DATUM_RIGHT = "DAT_R"
+
+    # Bottom points for closed profiles
+    BOTTOM_LEFT = "BTM_L"
+    BOTTOM_RIGHT = "BTM_R"
+
+
+def create_tagged_cross_section_profile(
+    ifc_file: Any,
+    points: List[Tuple[float, float]],
+    tags: List[str],
+    station: float,
+    profile_name: Optional[str] = None
+) -> Any:
+    """
+    Create an IFC cross-section profile with tagged points for interpolation.
+
+    This creates an IfcArbitraryClosedProfileDef with IfcIndexedPolyCurve
+    containing tagged points. Tags are ESSENTIAL for proper interpolation
+    between cross-sections in IfcSectionedSolidHorizontal.
+
+    Args:
+        ifc_file: IFC file object
+        points: List of (offset, elevation) tuples defining the profile
+        tags: List of point tags (same length as points)
+        station: Station value for naming
+        profile_name: Optional profile name override
+
+    Returns:
+        IfcArbitraryClosedProfileDef entity
+
+    Raises:
+        ValueError: If points and tags have different lengths
+    """
+    if len(points) != len(tags):
+        raise ValueError(f"Points ({len(points)}) and tags ({len(tags)}) must have same length")
+
+    if len(points) < 3:
+        raise ValueError("Profile must have at least 3 points")
+
+    # Create point list with tags
+    # CoordList is a list of 2D coordinates (offset, elevation)
+    point_list = ifc_file.create_entity(
+        "IfcCartesianPointList2D",
+        CoordList=points,
+        TagList=tags
+    )
+
+    # Create indexed polycurve - line segments connecting all points
+    # IFC indices are 1-based
+    # Note: For IfcIndexedPolyCurve, Segments is optional
+    # If omitted, points are connected in sequence
+    curve = ifc_file.create_entity(
+        "IfcIndexedPolyCurve",
+        Points=point_list,
+        Segments=None,  # Sequential connection
+        SelfIntersect=False
+    )
+
+    # Create the profile definition
+    name = profile_name or f"Road Section at Sta {station:.2f}"
+    profile = ifc_file.create_entity(
+        "IfcArbitraryClosedProfileDef",
+        ProfileType="AREA",
+        ProfileName=name,
+        OuterCurve=curve
+    )
+
+    return profile
+
+
+def create_profile_from_assembly(
+    ifc_file: Any,
+    assembly: Any,
+    station: float,
+    pavement_thickness: float = 0.3
+) -> Any:
+    """
+    Create a closed, tagged cross-section profile from an assembly wrapper.
+
+    This converts the assembly's component data into a closed polygon suitable
+    for IfcSectionedSolidHorizontal. Points are tagged for proper interpolation.
+
+    Args:
+        ifc_file: IFC file object
+        assembly: AssemblyWrapper instance with component data
+        station: Station value for naming
+        pavement_thickness: Total thickness of pavement layers (meters)
+
+    Returns:
+        IfcArbitraryClosedProfileDef entity with tagged points
+    """
+    from .corridor import AssemblyWrapper, ComponentData
+
+    # Build the cross-section polygon from components
+    # Start from left-most component, go to right-most, then bottom back
+    top_points = []
+    top_tags = []
+
+    # Separate left and right components
+    left_components = []
+    right_components = []
+
+    for comp in assembly.components:
+        if comp.offset < 0:
+            left_components.append(comp)
+        else:
+            right_components.append(comp)
+
+    # Sort: left from most negative to least, right from least to most
+    left_components.sort(key=lambda c: c.offset)
+    right_components.sort(key=lambda c: c.offset)
+
+    # Counter for unique tags per component type
+    tag_counter = {}
+
+    def get_tag(comp_type: str, side: str, position: str) -> str:
+        """Generate unique tag for a point."""
+        key = f"{side}_{comp_type}_{position}"
+        if key not in tag_counter:
+            tag_counter[key] = 0
+        tag_counter[key] += 1
+        count = tag_counter[key]
+        if count == 1:
+            return key
+        return f"{key}_{count}"
+
+    # Build left side points (from left edge toward center)
+    for comp in left_components:
+        # Outer edge of component
+        outer_x = comp.offset
+        outer_z = comp.elevation - comp.slope * comp.width
+        top_points.append((outer_x, outer_z))
+        top_tags.append(get_tag(comp.component_type, "L", "OUT"))
+
+        # Inner edge (toward centerline)
+        inner_x = comp.offset + comp.width
+        inner_z = comp.elevation
+        top_points.append((inner_x, inner_z))
+        top_tags.append(get_tag(comp.component_type, "L", "IN"))
+
+    # Add centerline point if no components reach it exactly
+    if not left_components or left_components[-1].offset + left_components[-1].width < -0.001:
+        top_points.append((0.0, 0.0))
+        top_tags.append(PointTags.CENTERLINE)
+    elif right_components and right_components[0].offset > 0.001:
+        top_points.append((0.0, 0.0))
+        top_tags.append(PointTags.CENTERLINE)
+
+    # Build right side points (from center outward)
+    for comp in right_components:
+        # Inner edge (at offset)
+        inner_x = comp.offset
+        inner_z = comp.elevation
+        top_points.append((inner_x, inner_z))
+        top_tags.append(get_tag(comp.component_type, "R", "IN"))
+
+        # Outer edge
+        outer_x = comp.offset + comp.width
+        outer_z = comp.elevation - comp.slope * comp.width
+        top_points.append((outer_x, outer_z))
+        top_tags.append(get_tag(comp.component_type, "R", "OUT"))
+
+    # Remove duplicate points at centerline if needed
+    cleaned_points = []
+    cleaned_tags = []
+    for i, (pt, tag) in enumerate(zip(top_points, top_tags)):
+        if i == 0:
+            cleaned_points.append(pt)
+            cleaned_tags.append(tag)
+        else:
+            # Skip if same as previous point
+            prev = cleaned_points[-1]
+            if abs(pt[0] - prev[0]) > 0.001 or abs(pt[1] - prev[1]) > 0.001:
+                cleaned_points.append(pt)
+                cleaned_tags.append(tag)
+
+    top_points = cleaned_points
+    top_tags = cleaned_tags
+
+    # Now create bottom points by going back right to left with elevation offset
+    bottom_points = []
+    bottom_tags = []
+
+    for pt, tag in zip(reversed(top_points), reversed(top_tags)):
+        bottom_points.append((pt[0], pt[1] - pavement_thickness))
+        bottom_tags.append(f"{tag}_BTM")
+
+    # Combine: top (L→R) + bottom (R→L) to form closed polygon
+    all_points = top_points + bottom_points + [top_points[0]]  # Close loop
+    all_tags = top_tags + bottom_tags + [top_tags[0]]
+
+    # Convert tuples to list format for IFC
+    coord_list = [list(pt) for pt in all_points]
+
+    return create_tagged_cross_section_profile(
+        ifc_file=ifc_file,
+        points=coord_list,
+        tags=all_tags,
+        station=station,
+        profile_name=f"Corridor Section at Sta {station:.2f}"
+    )
+
+
 @dataclass
 class StationPoint:
     """
@@ -538,13 +787,27 @@ class CorridorModeler:
     def _export_assembly_to_ifc(self, station: float) -> Any:
         """
         Export cross-section assembly to IFC profile at a specific station.
-        
+
+        Creates a closed, tagged profile for IfcSectionedSolidHorizontal.
+        Uses proper tagging for interpolation between cross-sections.
+
         Args:
             station: Station where cross-section is placed
-            
+
         Returns:
-            IfcCompositeProfileDef entity
+            IfcArbitraryClosedProfileDef entity with tagged points
         """
+        # Check if assembly is an AssemblyWrapper (from corridor.py)
+        from .corridor import AssemblyWrapper
+        if isinstance(self.assembly, AssemblyWrapper):
+            # Use the tagged profile creator for proper IFC corridor generation
+            return create_profile_from_assembly(
+                ifc_file=self.ifc_file,
+                assembly=self.assembly,
+                station=station,
+                pavement_thickness=0.3  # Default 300mm pavement
+            )
+
         # Check if assembly has native IFC export
         if hasattr(self.assembly, 'to_ifc'):
             # Assembly has IFC export with station support
@@ -553,31 +816,34 @@ class CorridorModeler:
                 params = self.assembly.to_ifc.__code__.co_varnames
                 if 'station' in params:
                     return self.assembly.to_ifc(self.ifc_file, station=station)
-            
+
             # Default: call without station
             return self.assembly.to_ifc(self.ifc_file)
-        
-        # Fallback: Create simple rectangular profile
+
+        # Fallback: Create simple rectangular profile with tags
         # This is for testing when RoadAssembly doesn't have IFC export
-        outer_curve = self.ifc_file.create_entity(
-            "IfcPolyline",
-            Points=[
-                self.ifc_file.create_entity("IfcCartesianPoint", Coordinates=(-5.0, 0.0)),
-                self.ifc_file.create_entity("IfcCartesianPoint", Coordinates=(5.0, 0.0)),
-                self.ifc_file.create_entity("IfcCartesianPoint", Coordinates=(5.0, 0.5)),
-                self.ifc_file.create_entity("IfcCartesianPoint", Coordinates=(-5.0, 0.5)),
-                self.ifc_file.create_entity("IfcCartesianPoint", Coordinates=(-5.0, 0.0))
-            ]
+        points = [
+            [-5.0, 0.0],    # Left edge top
+            [5.0, 0.0],     # Right edge top
+            [5.0, -0.3],    # Right edge bottom
+            [-5.0, -0.3],   # Left edge bottom
+            [-5.0, 0.0]     # Close loop
+        ]
+        tags = [
+            PointTags.EDGE_PAVEMENT_LEFT,
+            PointTags.EDGE_PAVEMENT_RIGHT,
+            f"{PointTags.EDGE_PAVEMENT_RIGHT}_BTM",
+            f"{PointTags.EDGE_PAVEMENT_LEFT}_BTM",
+            PointTags.EDGE_PAVEMENT_LEFT  # Closing tag
+        ]
+
+        return create_tagged_cross_section_profile(
+            ifc_file=self.ifc_file,
+            points=points,
+            tags=tags,
+            station=station,
+            profile_name=f"Default Section at Sta {station:.2f}"
         )
-        
-        profile = self.ifc_file.create_entity(
-            "IfcArbitraryClosedProfileDef",
-            ProfileType="AREA",
-            ProfileName=f"Section_{station:.2f}",
-            OuterCurve=outer_curve
-        )
-        
-        return profile
     
     def _create_cross_section_positions(self, directrix: Any) -> List[Any]:
         """

@@ -75,14 +75,14 @@ def update_assembly_total_width(assembly):
     assembly.total_width = left_width + right_width
 
 
-def _add_component_with_ifc(assembly, name, component_type, side, width,
-                            cross_slope=0.0, offset=0.0, **kwargs):
+def _add_component_to_propertygroup(assembly, name, component_type, side, width,
+                                     cross_slope=0.0, offset=0.0, **kwargs):
     """
-    Helper function to add a component with optional IFC entity creation.
+    Helper function to add a component to the PropertyGroup.
 
-    This implements the Native IFC pattern: when an IFC file is loaded,
-    components are created as IFC entities. Otherwise, they're stored
-    only in PropertyGroups.
+    Note: This also creates the IFC entity and profile if an IFC file is loaded.
+    Per IFC 4.3, each component gets its own IfcPavement/IfcKerb entity and
+    an IfcArbitraryClosedProfileDef or IfcOpenCrossProfileDef for geometry.
 
     Args:
         assembly: BC_AssemblyProperties instance
@@ -113,9 +113,10 @@ def _add_component_with_ifc(assembly, name, component_type, side, width,
         if hasattr(comp, key):
             setattr(comp, key, value)
 
-    # === NATIVE IFC: Create IFC entity if file is loaded ===
+    # === NATIVE IFC: Create IFC entity and profile if file is loaded ===
     ifc_file = NativeIfcManager.get_file()
     if ifc_file:
+        # Create the IFC entity (IfcPavement, IfcKerb, etc.)
         result = NativeIfcManager.create_cross_section_component(
             name=name,
             component_type=component_type,
@@ -131,7 +132,72 @@ def _add_component_with_ifc(assembly, name, component_type, side, width,
             comp.ifc_definition_id = ifc_entity.id()
             comp.global_id = ifc_entity.GlobalId
 
+            # Create profile definition for the component
+            # Use depth for lanes/shoulders (AREA profile), 0 for others (CURVE profile)
+            depth = 0.20 if component_type in ('LANE', 'SHOULDER', 'SIDEWALK') else 0.0
+            NativeIfcManager.create_component_profile(
+                component_entity=ifc_entity,
+                component_type=component_type,
+                width=width,
+                cross_slope=cross_slope,
+                depth=depth,
+                name=f"{name}_profile"
+            )
+
+            logger.info(f"Created IFC entity #{comp.ifc_definition_id} with profile for {name}")
+        else:
+            logger.warning(f"Failed to create IFC entity for {name}")
+
     return comp
+
+
+def create_assembly_composite_profile(assembly):
+    """
+    Create an IfcCompositeProfileDef from all component profiles in an assembly.
+
+    This combines all individual component profiles into a single composite
+    profile that can be used with IfcSectionedSolidHorizontal for corridor generation.
+
+    Args:
+        assembly: BC_AssemblyProperties instance
+
+    Returns:
+        IfcCompositeProfileDef entity or None
+    """
+    from ..core.ifc_manager.manager import NativeIfcManager
+
+    ifc_file = NativeIfcManager.get_file()
+    if not ifc_file:
+        return None
+
+    # Collect IFC IDs of all components
+    component_ifc_ids = []
+    for comp in assembly.components:
+        if comp.ifc_definition_id > 0:
+            component_ifc_ids.append(comp.ifc_definition_id)
+
+    if not component_ifc_ids:
+        logger.warning("No components with IFC entities to create composite profile")
+        return None
+
+    # Get profile definitions
+    profiles = NativeIfcManager.get_assembly_profiles(component_ifc_ids)
+
+    if not profiles:
+        logger.warning("No profile definitions found for components")
+        return None
+
+    # Create composite profile
+    return NativeIfcManager.create_composite_profile(assembly.name, profiles)
+
+
+# Keep old name as alias for compatibility
+def _add_component_with_ifc(assembly, name, component_type, side, width,
+                            cross_slope=0.0, offset=0.0, **kwargs):
+    """Deprecated: Use _add_component_to_propertygroup instead."""
+    return _add_component_to_propertygroup(
+        assembly, name, component_type, side, width, cross_slope, offset, **kwargs
+    )
 
 
 class BC_OT_CreateAssembly(Operator):
@@ -168,6 +234,8 @@ class BC_OT_CreateAssembly(Operator):
         return True
 
     def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+
         cs = context.scene.bc_cross_section
 
         # Check if name already exists
@@ -176,21 +244,31 @@ class BC_OT_CreateAssembly(Operator):
                 self.report({'ERROR'}, f"Assembly '{self.name}' already exists")
                 return {'CANCELLED'}
 
-        # Create new assembly
+        # Create new assembly PropertyGroup
         assembly = cs.assemblies.add()
         assembly.name = self.name
         assembly.assembly_type = self.assembly_type
 
         # If template selected, populate with components
+        # Note: _add_component_with_ifc creates individual IFC entities per component
+        # (IfcPavement, IfcKerb, etc.) with profile definitions
         if self.assembly_type == 'TWO_LANE_RURAL':
             self._create_two_lane_rural(assembly)
         elif self.assembly_type == 'FOUR_LANE_DIVIDED':
             self._create_four_lane_divided(assembly)
 
+        # Report status based on whether IFC file is loaded
+        ifc_file = NativeIfcManager.get_file()
+        if ifc_file:
+            component_count = len(assembly.components)
+            ifc_count = sum(1 for c in assembly.components if c.ifc_definition_id > 0)
+            self.report({'INFO'}, f"Created assembly '{self.name}' with {ifc_count}/{component_count} IFC components")
+        else:
+            self.report({'INFO'}, f"Created assembly '{self.name}' (no IFC file loaded)")
+
         # Set as active
         cs.active_assembly_index = len(cs.assemblies) - 1
 
-        self.report({'INFO'}, f"Created assembly '{self.name}'")
         return {'FINISHED'}
 
     def _create_two_lane_rural(self, assembly):
@@ -333,57 +411,39 @@ class BC_OT_AddComponent(Operator):
 
         assembly = cs.assemblies[cs.active_assembly_index]
 
-        # Add new component to PropertyGroup
-        comp = assembly.components.add()
-        comp.component_type = self.component_type
-        comp.side = self.side
-
-        # Set default name
-        count = sum(1 for c in assembly.components if c.component_type == self.component_type)
-        comp.name = f"{self.component_type.title()} {count}"
+        # Set default name based on count
+        count = sum(1 for c in assembly.components if c.component_type == self.component_type) + 1
+        comp_name = f"{self.component_type.title()} {count}"
 
         # Set default properties based on type
+        width = 3.6
+        cross_slope = 0.02
+        kwargs = {}
+
         if self.component_type == 'LANE':
-            comp.lane_type = 'TRAVEL'
-            comp.width = 3.6
-            comp.cross_slope = 0.02
+            kwargs['lane_type'] = 'TRAVEL'
+            width = 3.6
+            cross_slope = 0.02
         elif self.component_type == 'SHOULDER':
-            comp.shoulder_type = 'PAVED'
-            comp.width = 2.4
-            comp.cross_slope = 0.04
+            kwargs['shoulder_type'] = 'PAVED'
+            width = 2.4
+            cross_slope = 0.04
         elif self.component_type == 'CURB':
-            comp.curb_type = 'VERTICAL'
-            comp.width = 0.15
-            comp.curb_height = 0.15
+            kwargs['curb_type'] = 'VERTICAL'
+            width = 0.15
+            kwargs['curb_height'] = 0.15
         elif self.component_type == 'DITCH':
-            comp.width = 6.0
-            comp.foreslope = 4.0
-            comp.backslope = 3.0
-            comp.bottom_width = 1.2
-            comp.depth = 0.45
+            width = 6.0
+            kwargs['foreslope'] = 4.0
+            kwargs['backslope'] = 3.0
+            kwargs['bottom_width'] = 1.2
+            kwargs['depth'] = 0.45
 
-        # === NATIVE IFC: Create IFC entity and Blender object ===
-        ifc_file = NativeIfcManager.get_file()
-        if ifc_file:
-            result = NativeIfcManager.create_cross_section_component(
-                name=comp.name,
-                component_type=self.component_type,
-                side=self.side,
-                width=comp.width,
-                cross_slope=comp.cross_slope,
-                offset=comp.offset,
-                assembly_name=assembly.name
-            )
-
-            if result:
-                ifc_entity, blender_obj = result
-                comp.ifc_definition_id = ifc_entity.id()
-                comp.global_id = ifc_entity.GlobalId
-                logger.info(f"Created IFC entity #{comp.ifc_definition_id} for {comp.name}")
-            else:
-                logger.warning(f"Failed to create IFC entity for {comp.name}")
-        else:
-            logger.debug("No IFC file loaded - component stored in PropertyGroup only")
+        # Add component using helper (creates IFC entity and profile if file loaded)
+        comp = _add_component_to_propertygroup(
+            assembly, comp_name, self.component_type, self.side,
+            width=width, cross_slope=cross_slope, **kwargs
+        )
 
         # Set as active
         assembly.active_component_index = len(assembly.components) - 1
@@ -424,9 +484,10 @@ class BC_OT_RemoveComponent(Operator):
             name = comp.name
             ifc_id = comp.ifc_definition_id
 
-            # === NATIVE IFC: Delete IFC entity and Blender object ===
+            # === NATIVE IFC: Delete component's IFC entity and Blender object ===
             if ifc_id > 0:
                 # Find the Blender object linked to this IFC entity
+                import bpy
                 blender_obj = None
                 for obj in bpy.data.objects:
                     if obj.get("ifc_definition_id") == ifc_id:
@@ -435,6 +496,11 @@ class BC_OT_RemoveComponent(Operator):
 
                 # Delete from IFC and Blender
                 NativeIfcManager.delete_cross_section_component(ifc_id, blender_obj)
+
+                # Remove profile from cache
+                if ifc_id in NativeIfcManager.component_profiles:
+                    del NativeIfcManager.component_profiles[ifc_id]
+
                 logger.info(f"Deleted IFC entity #{ifc_id} for {name}")
 
             # Remove from PropertyGroup

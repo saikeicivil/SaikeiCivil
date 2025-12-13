@@ -238,8 +238,8 @@ class AlignmentWrapper:
 
         Args:
             ifc_alignment: IfcAlignment entity
-            start_sta: Starting station
-            end_sta: Ending station
+            start_sta: Starting station (user-specified, may be offset from 0)
+            end_sta: Ending station (user-specified)
         """
         import math
         self._math = math
@@ -250,8 +250,68 @@ class AlignmentWrapper:
         self.horizontal = None
         self.vertical = None
         self.segments = []
+        # This will be set from alignment data - the station value at distance=0
         self.starting_station = 0.0
         self._load_alignment_data()
+
+        # After loading, determine the alignment's starting station
+        # The starting_station is the station value at distance 0 along the alignment
+        self._determine_starting_station()
+
+    def _determine_starting_station(self):
+        """
+        Determine the alignment's starting station value.
+
+        The starting_station is the station offset - i.e., what station value
+        corresponds to distance=0 along the alignment geometry.
+
+        This is determined from:
+        1. The vertical alignment's first segment's StartDistAlong
+        2. Or falls back to 0.0 if no vertical data available
+        """
+        from .logging_config import get_logger
+        logger = get_logger(__name__)
+
+        # Try to get starting station from vertical alignment
+        if self.vertical:
+            v_segments = []
+            for rel in self.vertical.IsNestedBy or []:
+                for obj in rel.RelatedObjects:
+                    if obj.is_a("IfcAlignmentSegment"):
+                        if hasattr(obj, 'DesignParameters') and obj.DesignParameters:
+                            if obj.DesignParameters.is_a("IfcAlignmentVerticalSegment"):
+                                v_segments.append(obj.DesignParameters)
+
+            if v_segments:
+                v_segments.sort(key=lambda s: s.StartDistAlong)
+                # The first vertical segment's StartDistAlong tells us what station
+                # corresponds to the start of the vertical alignment
+                self.starting_station = v_segments[0].StartDistAlong
+                logger.info(f"Starting station from vertical alignment: {self.starting_station:.2f}")
+                return
+
+        # If no vertical alignment, try to infer from horizontal alignment extent
+        # The user's start station (e.g., 10000) maps to geometry distance 0
+        # This assumes the horizontal geometry starts at the user's start station
+        if self.segments:
+            # Calculate total horizontal length
+            total_h_length = sum(
+                seg.DesignParameters.SegmentLength
+                for seg in self.segments
+                if seg.DesignParameters
+            )
+            # If user station range matches horizontal length, use user's start
+            user_length = self._end - self._start
+            if abs(total_h_length - user_length) < 10.0:  # Within 10m tolerance
+                self.starting_station = self._start
+                logger.info(f"Starting station inferred from user input: {self.starting_station:.2f}")
+                return
+            else:
+                logger.info(f"Horizontal length ({total_h_length:.2f}m) doesn't match user range ({user_length:.2f}m)")
+
+        # Default: assume the user's start station corresponds to distance 0
+        self.starting_station = self._start
+        logger.info(f"Starting station defaulting to user start: {self.starting_station:.2f}")
 
     def _load_alignment_data(self):
         """Load horizontal segments and vertical data from IFC alignment."""

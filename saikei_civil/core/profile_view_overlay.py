@@ -38,22 +38,6 @@ not core/ (Layer 1) per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.profile_view_overlay is deprecated. "
-    "Import from saikei_civil.tool.profile_view_overlay instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ..tool.profile_view_overlay import (
-    ProfileViewOverlay,
-    get_profile_overlay,
-    reset_profile_overlay,
-    load_from_sprint3_vertical,
-    sync_to_sprint3_vertical,
-)
-
 __all__ = [
     "ProfileViewOverlay",
     "get_profile_overlay",
@@ -61,3 +45,22 @@ __all__ = [
     "load_from_sprint3_vertical",
     "sync_to_sprint3_vertical",
 ]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.profile_view_overlay to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.profile_view_overlay is deprecated. "
+            "Import from saikei_civil.tool.profile_view_overlay instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ..tool import profile_view_overlay
+            _module_cache["module"] = profile_view_overlay
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

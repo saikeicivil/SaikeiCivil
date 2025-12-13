@@ -220,6 +220,9 @@ class NativeIfcManager:
         # Create Blender visualization
         cls._create_blender_hierarchy()
 
+        # Create Blender empties for loaded road parts
+        cls.create_road_part_empties_for_loaded()
+
         # Load alignments
         cls._load_alignments()
 
@@ -252,6 +255,57 @@ class NativeIfcManager:
         roads = cls.file.by_type("IfcRoad")
         if roads:
             cls.road = roads[0]
+
+        # Load IfcRoadPart entities and create Blender empties
+        cls._load_road_parts()
+
+    @classmethod
+    def _load_road_parts(cls) -> None:
+        """Load IfcRoadPart entities from file and create Blender empties."""
+        if not cls.file:
+            return
+
+        road_parts = cls.file.by_type("IfcRoadPart")
+        if not road_parts:
+            return
+
+        logger.info(f"Loading {len(road_parts)} IfcRoadPart entities")
+
+        for road_part in road_parts:
+            try:
+                # Get the predefined type
+                road_part_type = getattr(road_part, 'PredefinedType', None)
+                if not road_part_type:
+                    # Try to infer from name
+                    name = road_part.Name or ""
+                    if "TRAFFIC" in name.upper() or "LANE" in name.upper():
+                        road_part_type = "TRAFFICLANE"
+                    elif "SHOULDER" in name.upper():
+                        road_part_type = "SHOULDER"
+                    elif "ROADSIDE" in name.upper():
+                        road_part_type = "ROADSIDE"
+                    else:
+                        road_part_type = "ROADSEGMENT"
+
+                # Store reference
+                cls.road_parts[road_part_type] = road_part
+
+                # Create Blender empty (only after hierarchy is created)
+                # This will be called from _create_blender_hierarchy or after
+                logger.debug(f"Loaded IfcRoadPart: {road_part.Name} ({road_part_type})")
+
+            except Exception as e:
+                logger.warning(f"Error loading IfcRoadPart {road_part.Name}: {e}")
+
+    @classmethod
+    def create_road_part_empties_for_loaded(cls) -> None:
+        """Create Blender empties for all loaded road parts.
+
+        Call this after Blender hierarchy is created.
+        """
+        for road_part_type, road_part in cls.road_parts.items():
+            if road_part_type not in cls.road_part_empties:
+                cls._create_road_part_empty(road_part_type, road_part)
 
     @classmethod
     def _load_alignments(cls) -> None:
@@ -640,9 +694,15 @@ class NativeIfcManager:
         blender.set_empty_display(part_empty, 'PLAIN_AXES', 2.0)
         blender.set_object_parent(part_empty, road_empty)
 
-        # Link to collection
+        # Link ONLY to project collection (remove from any auto-linked collections)
         collection = cls.get_project_collection()
         if collection:
+            # Unlink from all current collections first
+            import bpy
+            for coll in list(part_empty.users_collection):
+                if coll != collection:
+                    coll.objects.unlink(part_empty)
+            # Link to project collection
             blender.link_to_collection(part_empty, collection)
 
         # Link to IFC entity
@@ -841,7 +901,8 @@ class NativeIfcManager:
 
         # Store component properties as property set
         cls._create_component_property_set(
-            component_entity, component_type, side, width, cross_slope, offset
+            component_entity, component_type, side, width, cross_slope, offset,
+            assembly_name=assembly_name or ""
         )
 
         # Create Blender visualization object
@@ -865,7 +926,8 @@ class NativeIfcManager:
         side: str,
         width: float,
         cross_slope: float,
-        offset: float
+        offset: float,
+        assembly_name: str = ""
     ) -> Optional[ifcopenshell.entity_instance]:
         """
         Create an IfcPropertySet with component properties.
@@ -877,6 +939,7 @@ class NativeIfcManager:
             width: Width in meters
             cross_slope: Cross slope as decimal
             offset: Offset from centerline
+            assembly_name: Name of parent assembly
 
         Returns:
             IfcPropertySet entity or None
@@ -886,6 +949,14 @@ class NativeIfcManager:
 
         # Create property values
         props = []
+
+        # Assembly name (for grouping components on reload)
+        if assembly_name:
+            props.append(cls.file.create_entity(
+                "IfcPropertySingleValue",
+                Name="AssemblyName",
+                NominalValue=cls.file.create_entity("IfcLabel", assembly_name)
+            ))
 
         # Component type
         props.append(cls.file.create_entity(
@@ -984,9 +1055,15 @@ class NativeIfcManager:
         if parent_empty:
             blender.set_object_parent(component_empty, parent_empty)
 
-        # Link to project collection
+        # Link ONLY to project collection (remove from any auto-linked collections)
         collection = cls.get_project_collection()
         if collection:
+            # Unlink from all current collections first
+            import bpy
+            for coll in list(component_empty.users_collection):
+                if coll != collection:
+                    coll.objects.unlink(component_empty)
+            # Link to project collection
             blender.link_to_collection(component_empty, collection)
 
         return component_empty
@@ -1101,12 +1178,248 @@ class NativeIfcManager:
             return None
 
     # =========================================================================
+    # Cross-Section Profile Definition Management (IFC 4.3 Native)
+    # =========================================================================
+
+    # Storage for profile definitions by component IFC ID
+    component_profiles: Dict[int, ifcopenshell.entity_instance] = {}
+
+    @classmethod
+    def create_component_profile(
+        cls,
+        component_entity: ifcopenshell.entity_instance,
+        component_type: str,
+        width: float,
+        cross_slope: float,
+        depth: float = 0.0,
+        name: str = ""
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Create an IFC profile definition for a cross-section component.
+
+        Creates IfcArbitraryClosedProfileDef (AREA) for components with depth,
+        or IfcOpenCrossProfileDef (CURVE) for surface-only profiles.
+
+        Args:
+            component_entity: The IFC component entity (IfcPavement, IfcKerb, etc.)
+            component_type: Type of component (LANE, SHOULDER, CURB, etc.)
+            width: Component width in meters
+            cross_slope: Cross slope as decimal (e.g., 0.02 for 2%)
+            depth: Pavement depth in meters (0 for surface-only)
+            name: Profile name
+
+        Returns:
+            IfcProfileDef entity or None
+        """
+        if not cls.file:
+            return None
+
+        profile_name = name or f"{component_type}_profile"
+
+        try:
+            if depth > 0:
+                # Create IfcArbitraryClosedProfileDef (AREA) for components with depth
+                profile = cls._create_closed_profile(profile_name, width, cross_slope, depth)
+            else:
+                # Create IfcOpenCrossProfileDef (CURVE) for surface-only
+                profile = cls._create_open_cross_profile(profile_name, width, cross_slope)
+
+            if profile and component_entity:
+                # Store profile reference
+                cls.component_profiles[component_entity.id()] = profile
+
+            logger.info(f"Created profile definition: {profile_name}")
+            return profile
+
+        except Exception as e:
+            logger.error(f"Error creating profile definition: {e}")
+            return None
+
+    @classmethod
+    def _create_open_cross_profile(
+        cls,
+        name: str,
+        width: float,
+        cross_slope: float
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Create IfcOpenCrossProfileDef for surface-only profiles.
+
+        Per IFC 4.3: Uses widths and slopes rather than explicit coordinates.
+        ProfileType = CURVE.
+
+        Args:
+            name: Profile name
+            width: Width in meters
+            cross_slope: Cross slope as ratio
+
+        Returns:
+            IfcOpenCrossProfileDef entity
+        """
+        if not cls.file:
+            return None
+
+        # Tags for interpolation (start and end of segment)
+        tags = [f"{name}_start", f"{name}_end"]
+
+        return cls.file.create_entity(
+            "IfcOpenCrossProfileDef",
+            ProfileType="CURVE",
+            ProfileName=name,
+            HorizontalWidths=True,
+            Widths=[width],
+            Slopes=[cross_slope],
+            Tags=tags
+        )
+
+    @classmethod
+    def _create_closed_profile(
+        cls,
+        name: str,
+        width: float,
+        cross_slope: float,
+        depth: float
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Create IfcArbitraryClosedProfileDef for profiles with depth.
+
+        Creates a closed rectangular profile with slope applied to top surface.
+        ProfileType = AREA.
+
+        Args:
+            name: Profile name
+            width: Width in meters
+            cross_slope: Cross slope as ratio
+            depth: Depth in meters
+
+        Returns:
+            IfcArbitraryClosedProfileDef entity
+        """
+        if not cls.file:
+            return None
+
+        # Calculate profile points (clockwise for AREA)
+        # Starting from top-left, going clockwise
+        y_drop = width * cross_slope  # Elevation change due to slope
+
+        points = [
+            (0.0, 0.0),              # Top-left (attachment point)
+            (width, -y_drop),         # Top-right (with slope)
+            (width, -y_drop - depth), # Bottom-right
+            (0.0, -depth),            # Bottom-left
+        ]
+
+        # Create point list
+        point_list = cls.file.create_entity(
+            "IfcCartesianPointList2D",
+            CoordList=points
+        )
+
+        # Create indexed poly curve (closed)
+        curve = cls.file.create_entity(
+            "IfcIndexedPolyCurve",
+            Points=point_list,
+            SelfIntersect=False
+        )
+
+        return cls.file.create_entity(
+            "IfcArbitraryClosedProfileDef",
+            ProfileType="AREA",
+            ProfileName=name,
+            OuterCurve=curve
+        )
+
+    @classmethod
+    def create_composite_profile(
+        cls,
+        assembly_name: str,
+        component_profiles: list
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Create IfcCompositeProfileDef combining multiple component profiles.
+
+        Per IFC 4.3: Combines multiple profile definitions into a single
+        cross-section definition. All profiles must have the same ProfileType.
+
+        Args:
+            assembly_name: Name of the assembly
+            component_profiles: List of IfcProfileDef entities
+
+        Returns:
+            IfcCompositeProfileDef entity or None
+        """
+        if not cls.file or not component_profiles:
+            return None
+
+        if len(component_profiles) < 2:
+            # Need at least 2 profiles for composite
+            logger.warning("IfcCompositeProfileDef requires at least 2 profiles")
+            return component_profiles[0] if component_profiles else None
+
+        # Verify all profiles have same ProfileType
+        profile_types = set(p.ProfileType for p in component_profiles if hasattr(p, 'ProfileType'))
+        if len(profile_types) > 1:
+            logger.warning(f"Mixed ProfileTypes in composite: {profile_types}")
+            # Use the first type
+            profile_type = component_profiles[0].ProfileType
+        else:
+            profile_type = profile_types.pop() if profile_types else "AREA"
+
+        return cls.file.create_entity(
+            "IfcCompositeProfileDef",
+            ProfileType=profile_type,
+            ProfileName=f"{assembly_name}_composite",
+            Profiles=component_profiles,
+            Label=assembly_name
+        )
+
+    @classmethod
+    def get_component_profile(
+        cls,
+        component_ifc_id: int
+    ) -> Optional[ifcopenshell.entity_instance]:
+        """
+        Get the profile definition for a component.
+
+        Args:
+            component_ifc_id: IFC entity ID of the component
+
+        Returns:
+            IfcProfileDef entity or None
+        """
+        return cls.component_profiles.get(component_ifc_id)
+
+    @classmethod
+    def get_assembly_profiles(
+        cls,
+        component_ifc_ids: list
+    ) -> list:
+        """
+        Get all profile definitions for an assembly's components.
+
+        Args:
+            component_ifc_ids: List of component IFC entity IDs
+
+        Returns:
+            List of IfcProfileDef entities
+        """
+        profiles = []
+        for ifc_id in component_ifc_ids:
+            profile = cls.component_profiles.get(ifc_id)
+            if profile:
+                profiles.append(profile)
+        return profiles
+
+    # =========================================================================
     # Cleanup
     # =========================================================================
 
     @classmethod
     def clear(cls) -> None:
         """Clear all IFC data and Blender collections."""
+        # Delete road part empties and component empties BEFORE clearing references
+        cls._clear_road_part_objects()
+
         cls.file = None
         cls.filepath = None
         cls.project = None
@@ -1118,6 +1431,7 @@ class NativeIfcManager:
         cls.vertical_alignments = []
         cls.road_parts = {}
         cls.road_part_empties = {}
+        cls.component_profiles = {}
 
         clear_blender_hierarchy()
 
@@ -1130,6 +1444,41 @@ class NativeIfcManager:
         alignment_registry.clear_registry()
 
         logger.info("Cleared IFC data and Blender hierarchy")
+
+    @classmethod
+    def _clear_road_part_objects(cls) -> None:
+        """Delete all road part empties and component empties from Blender."""
+        blender = _get_blender_tool()
+
+        # Delete tracked road part empties
+        for road_part_type, empty in list(cls.road_part_empties.items()):
+            if empty:
+                try:
+                    blender.remove_object(empty)
+                except Exception as e:
+                    logger.debug(f"Could not remove road part empty {road_part_type}: {e}")
+
+        # Find and delete any component empties (IfcPavement, IfcKerb, etc.)
+        # These are identified by their ifc_class custom property
+        component_classes = {'IfcPavement', 'IfcKerb', 'IfcBuildingElementProxy'}
+        objects_to_remove = []
+
+        try:
+            import bpy
+            for obj in bpy.data.objects:
+                ifc_class = obj.get("ifc_class", "")
+                if ifc_class in component_classes:
+                    objects_to_remove.append(obj)
+
+            for obj in objects_to_remove:
+                try:
+                    blender.remove_object(obj)
+                except Exception as e:
+                    logger.debug(f"Could not remove component object {obj.name}: {e}")
+
+            logger.debug(f"Cleared {len(objects_to_remove)} component objects")
+        except Exception as e:
+            logger.debug(f"Error clearing component objects: {e}")
 
     @classmethod
     def get_info(cls) -> Dict:

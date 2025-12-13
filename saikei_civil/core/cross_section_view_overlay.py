@@ -40,24 +40,6 @@ not core/ (Layer 1) per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.cross_section_view_overlay is deprecated. "
-    "Import from saikei_civil.tool.cross_section_view_overlay instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ..tool.cross_section_view_overlay import (
-    OverlayPosition,
-    ResizeEdge,
-    CrossSectionViewOverlay,
-    get_cross_section_overlay,
-    reset_cross_section_overlay,
-    load_assembly_to_overlay,
-    load_active_assembly_to_overlay,
-)
-
 __all__ = [
     "OverlayPosition",
     "ResizeEdge",
@@ -67,3 +49,22 @@ __all__ = [
     "load_assembly_to_overlay",
     "load_active_assembly_to_overlay",
 ]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.cross_section_view_overlay to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.cross_section_view_overlay is deprecated. "
+            "Import from saikei_civil.tool.cross_section_view_overlay instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ..tool import cross_section_view_overlay
+            _module_cache["module"] = cross_section_view_overlay
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

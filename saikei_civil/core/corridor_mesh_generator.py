@@ -41,14 +41,23 @@ architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing from core.corridor_mesh_generator is deprecated. "
-    "Use saikei_civil.tool.corridor instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ..tool.corridor import LODSettings, Corridor
-
 __all__ = ["LODSettings", "Corridor"]
+
+# Lazy imports to avoid potential circular dependencies
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from tool.corridor to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing from core.corridor_mesh_generator is deprecated. "
+            "Use saikei_civil.tool.corridor instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ..tool import corridor
+            _module_cache["module"] = corridor
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

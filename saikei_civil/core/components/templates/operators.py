@@ -35,24 +35,28 @@ the operators directory (Layer 3) per the three-layer architecture.
 
 import warnings
 
-warnings.warn(
-    "Importing operators from core.components.templates.operators is deprecated. "
-    "Import from saikei_civil.operators.template_operators instead.",
-    DeprecationWarning,
-    stacklevel=2
-)
-
-# Re-export for backwards compatibility
-from ....operators.template_operators import (
-    SAIKEI_OT_load_template,
-    SAIKEI_OT_template_browser,
-    register,
-    unregister,
-)
-
 __all__ = [
     "SAIKEI_OT_load_template",
     "SAIKEI_OT_template_browser",
     "register",
     "unregister",
 ]
+
+# Lazy imports to avoid circular dependency with operators module
+_module_cache = {}
+
+
+def __getattr__(name):
+    """Lazy import from operators.template_operators to avoid circular imports."""
+    if name in __all__:
+        warnings.warn(
+            "Importing operators from core.components.templates.operators is deprecated. "
+            "Import from saikei_civil.operators.template_operators instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if "module" not in _module_cache:
+            from ....operators import template_operators
+            _module_cache["module"] = template_operators
+        return getattr(_module_cache["module"], name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
