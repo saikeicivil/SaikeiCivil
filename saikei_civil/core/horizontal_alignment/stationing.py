@@ -353,11 +353,48 @@ class StationingManager:
         # Create linear placement if basis curve exists
         if basis_curve:
             self._create_linear_placement(referent, ref_data, basis_curve)
+        else:
+            # IfcReferent requires ObjectPlacement (WHERE rule: HasPlacement)
+            # Create a simple IfcLocalPlacement at origin as fallback
+            self._create_local_placement(referent)
 
         # Create Pset_Stationing
         self._create_stationing_pset(referent, ref_data)
 
         return referent
+
+    def _create_local_placement(
+        self,
+        referent: ifcopenshell.entity_instance
+    ) -> None:
+        """Create a fallback IfcLocalPlacement at origin for referent.
+
+        IfcReferent inherits from IfcPositioningElement which has a WHERE rule:
+        HasPlacement: EXISTS(SELF\\IfcProduct.ObjectPlacement)
+
+        This creates a simple placement at origin when linear placement
+        cannot be created (e.g., when basis curve is not available).
+        """
+        # Get alignment's placement if available
+        placement_rel_to = None
+        if self.alignment and hasattr(self.alignment, 'ObjectPlacement'):
+            placement_rel_to = self.alignment.ObjectPlacement
+
+        axis_placement = self.ifc.create_entity(
+            "IfcAxis2Placement3D",
+            Location=self.ifc.create_entity(
+                "IfcCartesianPoint",
+                Coordinates=(0.0, 0.0, 0.0)
+            )
+        )
+
+        local_placement = self.ifc.create_entity(
+            "IfcLocalPlacement",
+            PlacementRelTo=placement_rel_to,
+            RelativePlacement=axis_placement
+        )
+
+        referent.ObjectPlacement = local_placement
 
     def _create_linear_placement(
         self,

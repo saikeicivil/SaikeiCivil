@@ -725,6 +725,7 @@ class VerticalAlignment:
         # Create IfcAlignmentVertical
         vertical = ifc_file.create_entity(
             "IfcAlignmentVertical",
+            GlobalId=ifcopenshell.guid.new(),
             Name=self.name
         )
 
@@ -732,6 +733,7 @@ class VerticalAlignment:
         if horizontal_alignment:
             ifc_file.create_entity(
                 "IfcRelNests",
+                GlobalId=ifcopenshell.guid.new(),
                 RelatingObject=horizontal_alignment,
                 RelatedObjects=[vertical]
             )
@@ -743,6 +745,7 @@ class VerticalAlignment:
 
             ifc_alignment_seg = ifc_file.create_entity(
                 "IfcAlignmentSegment",
+                GlobalId=ifcopenshell.guid.new(),
                 Name=f"Segment {i+1}",
                 DesignParameters=ifc_vert_seg
             )
@@ -751,6 +754,7 @@ class VerticalAlignment:
         if ifc_alignment_segments:
             ifc_file.create_entity(
                 "IfcRelNests",
+                GlobalId=ifcopenshell.guid.new(),
                 RelatingObject=vertical,
                 RelatedObjects=ifc_alignment_segments
             )

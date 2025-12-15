@@ -267,13 +267,15 @@ class BC_OT_SaveAssemblyToIFC(Operator):
 
         # Create IfcRoadPart for the cross-section assembly
         # Using ROADSEGMENT as the PredefinedType for cross-section templates
+        # UsageType="LATERAL" because cross-sections define lateral extent
         ifc_assembly = ifc_file.create_entity(
             "IfcRoadPart",
             GlobalId=ifcopenshell.guid.new(),
             Name=assembly.name,
             Description=assembly.description or f"Cross-section assembly: {assembly.name}",
             ObjectType="CROSS_SECTION_ASSEMBLY",
-            PredefinedType="ROADSEGMENT"
+            PredefinedType="ROADSEGMENT",
+            UsageType="LATERAL"
         )
 
         # Map component types to IFC classes

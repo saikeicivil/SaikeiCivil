@@ -351,13 +351,15 @@ class SAIKEI_OT_generate_corridor(Operator):
                             return obj
 
         # Create new IfcRoadPart
+        # UsageType is required by IFC 4.3: LONGITUDINAL for corridor parts
         road_part = ifc_file.create_entity(
             "IfcRoadPart",
             GlobalId=ifcopenshell.guid.new(),
             Name=name,
             Description=f"{part_type} road part",
             ObjectType=part_type,
-            PredefinedType=part_type
+            PredefinedType=part_type,
+            UsageType="LONGITUDINAL"
         )
 
         # Aggregate IfcRoadPart to IfcRoad using IfcRelAggregates

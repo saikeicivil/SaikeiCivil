@@ -263,6 +263,7 @@ class TangentSegment(VerticalSegment):
             HorizontalLength=self.length,
             StartHeight=self.start_elevation,
             StartGradient=self.grade,
+            EndGradient=self.grade,  # Same as StartGradient for CONSTANTGRADIENT
             PredefinedType="CONSTANTGRADIENT"
         )
 
