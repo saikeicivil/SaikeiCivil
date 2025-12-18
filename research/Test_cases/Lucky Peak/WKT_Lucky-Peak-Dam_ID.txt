@@ -1,0 +1,14 @@
+PROJCS["Orthographic",
+    GEOGCS["GCS_WGS_1984",
+        DATUM["WGS_1984",
+            SPHEROID["WGS_1984",6378137,298.257223563]],
+        PRIMEM["Greenwich",0],
+        UNIT["Degree",0.0174532925199433]],
+    PROJECTION["Orthographic"],
+
+    PARAMETER["latitude_of_origin",43.528635],
+    PARAMETER["central_meridian",-116.054587],
+
+    PARAMETER["false_easting",0],
+    PARAMETER["false_northing",0],
+    UNIT["Meter",1]]

@@ -1,0 +1,371 @@
+Automatically generated validation log file
+This file contains information about results of validation tasks
+File name: c:\users\amish\nordlocker_8858233\desert springs civil engineering pllc\projects\saikei_local\test files\bsi_val_edits_8.ifc
+File schema: IFC4X3_ADD2
+Date: Mon Dec 15 21:35:39 2025
+
+
+
+Used validation tasks
+Name		Description
+HeaderSectionValidationTask		Header Section validation
+RequiredExplicitAttrsAssignedValidationTask		Required explicit attributes assignment validation
+AggrUniquenessValidationTask		Aggregation Uniqueness validation
+StringWidthValidationTask		String width validation
+InverseAttrsValidationTask		Inverse attributers validation
+ArrayNotOptionalValidationTask		Array Not Optional validation
+BinaryWidthValidaionTask		Binary width validation
+WhereRulesAttrsValidationTask		Attribute type Where Rules validation
+WhereRulesEntitiesValidationTask		Entity Where Rules validation
+ReferenceValidationTask		Reference validation
+AggrSizeValidationTask		Aggregation size validation
+GlobalRulesValidationTask		Model Global Rules validation
+PlaneAngleUnitValidationTask		PlaneAngleUnit validation
+RepresentationContextRedundantValidationTask		Representation Context Redundant validation
+CompositeCurveConsistencyValidationTask		Composite curve segments consistency validation
+FaceLoopsOrientationValidationTask		IfcLoop bounds orientation validation.
+RepresentationContextValidationTask		Representation Context assignment validation
+ShapeRepresentationTask		IfcShapeRepresentation identifier and type validation
+CurveSegmentParametrizationValidationTask		Curve segments parametrization validation
+
+
+
+#6748 IfcCurveSegment  #6758 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6758 IfcCurveSegment  #6768 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6758 IfcCurveSegment  #6768 IfcCurveSegment   		Composite curve segments consistency validation 	Tangents at the segments end and start points are not codirectional 	Error
+#6768 IfcCurveSegment  #6778 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6778 IfcCurveSegment  #6788 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6778 IfcCurveSegment  #6788 IfcCurveSegment   		Composite curve segments consistency validation 	Tangents at the segments end and start points are not codirectional 	Error
+#6788 IfcCurveSegment  #6798 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6798 IfcCurveSegment  #6808 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6798 IfcCurveSegment  #6808 IfcCurveSegment   		Composite curve segments consistency validation 	Tangents at the segments end and start points are not codirectional 	Error
+#6808 IfcCurveSegment  #6818 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6818 IfcCurveSegment  #6828 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#6818 IfcCurveSegment  #6828 IfcCurveSegment   		Composite curve segments consistency validation 	Tangents at the segments end and start points are not codirectional 	Error
+#6828 IfcCurveSegment  #6839 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7507 IfcCurveSegment  #7514 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7514 IfcCurveSegment  #7521 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7521 IfcCurveSegment  #7528 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7528 IfcCurveSegment  #7535 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7535 IfcCurveSegment  #7542 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7542 IfcCurveSegment  #7549 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7549 IfcCurveSegment  #7556 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7556 IfcCurveSegment  #7563 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7563 IfcCurveSegment  #7570 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7570 IfcCurveSegment  #7577 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7577 IfcCurveSegment  #7584 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7584 IfcCurveSegment  #7591 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7591 IfcCurveSegment  #7598 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7598 IfcCurveSegment  #7605 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7605 IfcCurveSegment  #7612 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7612 IfcCurveSegment  #7619 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7619 IfcCurveSegment  #7626 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7626 IfcCurveSegment  #7633 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7633 IfcCurveSegment  #7640 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7640 IfcCurveSegment  #7647 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7647 IfcCurveSegment  #7654 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7654 IfcCurveSegment  #7661 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7661 IfcCurveSegment  #7668 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7668 IfcCurveSegment  #7675 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7675 IfcCurveSegment  #7682 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7682 IfcCurveSegment  #7689 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7689 IfcCurveSegment  #7696 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7696 IfcCurveSegment  #7703 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7703 IfcCurveSegment  #7710 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7710 IfcCurveSegment  #7717 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7717 IfcCurveSegment  #7724 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7724 IfcCurveSegment  #7731 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7731 IfcCurveSegment  #7738 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7738 IfcCurveSegment  #7745 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7745 IfcCurveSegment  #7752 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7752 IfcCurveSegment  #7759 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7759 IfcCurveSegment  #7766 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7766 IfcCurveSegment  #7773 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7773 IfcCurveSegment  #7780 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7780 IfcCurveSegment  #7787 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7787 IfcCurveSegment  #7794 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7794 IfcCurveSegment  #7801 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7801 IfcCurveSegment  #7808 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7808 IfcCurveSegment  #7815 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7815 IfcCurveSegment  #7822 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7822 IfcCurveSegment  #7829 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7829 IfcCurveSegment  #7836 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7836 IfcCurveSegment  #7843 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7843 IfcCurveSegment  #7850 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7850 IfcCurveSegment  #7857 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7857 IfcCurveSegment  #7864 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7864 IfcCurveSegment  #7871 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7871 IfcCurveSegment  #7878 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7878 IfcCurveSegment  #7885 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7885 IfcCurveSegment  #7892 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7892 IfcCurveSegment  #7899 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7899 IfcCurveSegment  #7906 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7906 IfcCurveSegment  #7913 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7913 IfcCurveSegment  #7920 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7920 IfcCurveSegment  #7927 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7927 IfcCurveSegment  #7934 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7934 IfcCurveSegment  #7941 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7941 IfcCurveSegment  #7948 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7948 IfcCurveSegment  #7955 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7955 IfcCurveSegment  #7962 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7962 IfcCurveSegment  #7969 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7969 IfcCurveSegment  #7976 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7976 IfcCurveSegment  #7983 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7983 IfcCurveSegment  #7990 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7990 IfcCurveSegment  #7997 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#7997 IfcCurveSegment  #8004 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8004 IfcCurveSegment  #8011 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8011 IfcCurveSegment  #8018 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8018 IfcCurveSegment  #8025 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8025 IfcCurveSegment  #8032 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8032 IfcCurveSegment  #8039 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8039 IfcCurveSegment  #8046 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8046 IfcCurveSegment  #8053 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8053 IfcCurveSegment  #8060 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8060 IfcCurveSegment  #8067 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8067 IfcCurveSegment  #8074 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8074 IfcCurveSegment  #8081 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8081 IfcCurveSegment  #8088 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8088 IfcCurveSegment  #8095 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8095 IfcCurveSegment  #8102 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8102 IfcCurveSegment  #8109 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8109 IfcCurveSegment  #8116 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8116 IfcCurveSegment  #8123 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8123 IfcCurveSegment  #8130 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8130 IfcCurveSegment  #8137 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8137 IfcCurveSegment  #8144 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8144 IfcCurveSegment  #8151 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8151 IfcCurveSegment  #8158 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8158 IfcCurveSegment  #8165 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8165 IfcCurveSegment  #8172 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8172 IfcCurveSegment  #8179 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8179 IfcCurveSegment  #8186 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8186 IfcCurveSegment  #8193 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8193 IfcCurveSegment  #8200 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8200 IfcCurveSegment  #8207 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8207 IfcCurveSegment  #8214 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8214 IfcCurveSegment  #8221 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8221 IfcCurveSegment  #8228 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8228 IfcCurveSegment  #8235 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8235 IfcCurveSegment  #8242 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8242 IfcCurveSegment  #8249 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8249 IfcCurveSegment  #8256 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8256 IfcCurveSegment  #8263 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8263 IfcCurveSegment  #8270 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8270 IfcCurveSegment  #8277 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8277 IfcCurveSegment  #8284 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8284 IfcCurveSegment  #8291 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8291 IfcCurveSegment  #8298 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8298 IfcCurveSegment  #8305 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8305 IfcCurveSegment  #8312 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8312 IfcCurveSegment  #8319 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8319 IfcCurveSegment  #8326 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8326 IfcCurveSegment  #8333 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8333 IfcCurveSegment  #8340 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8340 IfcCurveSegment  #8347 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8347 IfcCurveSegment  #8354 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8354 IfcCurveSegment  #8361 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8361 IfcCurveSegment  #8368 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8368 IfcCurveSegment  #8375 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8375 IfcCurveSegment  #8382 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8382 IfcCurveSegment  #8389 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8389 IfcCurveSegment  #8396 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8396 IfcCurveSegment  #8403 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8403 IfcCurveSegment  #8410 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8410 IfcCurveSegment  #8417 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8417 IfcCurveSegment  #8424 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8424 IfcCurveSegment  #8431 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8431 IfcCurveSegment  #8438 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8438 IfcCurveSegment  #8445 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8445 IfcCurveSegment  #8452 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8452 IfcCurveSegment  #8459 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8459 IfcCurveSegment  #8466 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8466 IfcCurveSegment  #8473 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8473 IfcCurveSegment  #8480 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8480 IfcCurveSegment  #8487 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8487 IfcCurveSegment  #8494 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8494 IfcCurveSegment  #8501 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8501 IfcCurveSegment  #8508 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8508 IfcCurveSegment  #8515 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8515 IfcCurveSegment  #8522 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8522 IfcCurveSegment  #8529 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8529 IfcCurveSegment  #8536 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8536 IfcCurveSegment  #8543 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8543 IfcCurveSegment  #8550 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8550 IfcCurveSegment  #8557 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8557 IfcCurveSegment  #8564 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8564 IfcCurveSegment  #8571 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8571 IfcCurveSegment  #8578 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8578 IfcCurveSegment  #8585 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8585 IfcCurveSegment  #8592 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8592 IfcCurveSegment  #8599 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8599 IfcCurveSegment  #8606 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8606 IfcCurveSegment  #8613 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8613 IfcCurveSegment  #8620 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8620 IfcCurveSegment  #8627 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8627 IfcCurveSegment  #8634 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8634 IfcCurveSegment  #8641 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8641 IfcCurveSegment  #8648 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8648 IfcCurveSegment  #8655 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8655 IfcCurveSegment  #8662 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8662 IfcCurveSegment  #8669 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8669 IfcCurveSegment  #8676 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8676 IfcCurveSegment  #8683 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8683 IfcCurveSegment  #8690 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8690 IfcCurveSegment  #8697 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8697 IfcCurveSegment  #8704 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8704 IfcCurveSegment  #8711 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8711 IfcCurveSegment  #8718 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8718 IfcCurveSegment  #8725 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8725 IfcCurveSegment  #8732 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8732 IfcCurveSegment  #8739 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8739 IfcCurveSegment  #8746 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8746 IfcCurveSegment  #8753 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8753 IfcCurveSegment  #8760 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8760 IfcCurveSegment  #8767 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8767 IfcCurveSegment  #8774 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8774 IfcCurveSegment  #8781 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8781 IfcCurveSegment  #8788 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8788 IfcCurveSegment  #8795 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8795 IfcCurveSegment  #8802 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8802 IfcCurveSegment  #8809 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8809 IfcCurveSegment  #8816 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8816 IfcCurveSegment  #8823 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8823 IfcCurveSegment  #8830 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8830 IfcCurveSegment  #8837 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8837 IfcCurveSegment  #8844 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8844 IfcCurveSegment  #8851 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8851 IfcCurveSegment  #8858 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8858 IfcCurveSegment  #8865 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8865 IfcCurveSegment  #8872 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8872 IfcCurveSegment  #8879 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8879 IfcCurveSegment  #8886 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8886 IfcCurveSegment  #8893 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8893 IfcCurveSegment  #8900 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8900 IfcCurveSegment  #8907 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8907 IfcCurveSegment  #8914 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8914 IfcCurveSegment  #8921 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8921 IfcCurveSegment  #8928 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8928 IfcCurveSegment  #8935 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8935 IfcCurveSegment  #8942 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8942 IfcCurveSegment  #8949 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8949 IfcCurveSegment  #8956 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8956 IfcCurveSegment  #8963 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8963 IfcCurveSegment  #8970 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8970 IfcCurveSegment  #8977 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8977 IfcCurveSegment  #8984 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8984 IfcCurveSegment  #8991 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8991 IfcCurveSegment  #8998 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#8998 IfcCurveSegment  #9005 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9005 IfcCurveSegment  #9012 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9012 IfcCurveSegment  #9019 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9019 IfcCurveSegment  #9026 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9026 IfcCurveSegment  #9033 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9033 IfcCurveSegment  #9040 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9040 IfcCurveSegment  #9047 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9047 IfcCurveSegment  #9054 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9054 IfcCurveSegment  #9061 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9061 IfcCurveSegment  #9068 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9068 IfcCurveSegment  #9075 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9075 IfcCurveSegment  #9082 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9082 IfcCurveSegment  #9089 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9089 IfcCurveSegment  #9096 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9096 IfcCurveSegment  #9103 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9103 IfcCurveSegment  #9110 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9110 IfcCurveSegment  #9117 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9117 IfcCurveSegment  #9124 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9124 IfcCurveSegment  #9131 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9131 IfcCurveSegment  #9138 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9138 IfcCurveSegment  #9145 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9145 IfcCurveSegment  #9152 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9152 IfcCurveSegment  #9159 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9159 IfcCurveSegment  #9166 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9166 IfcCurveSegment  #9173 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9173 IfcCurveSegment  #9180 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9180 IfcCurveSegment  #9187 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9187 IfcCurveSegment  #9194 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9194 IfcCurveSegment  #9201 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9201 IfcCurveSegment  #9208 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9208 IfcCurveSegment  #9215 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9215 IfcCurveSegment  #9222 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9222 IfcCurveSegment  #9229 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9229 IfcCurveSegment  #9236 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9236 IfcCurveSegment  #9243 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9243 IfcCurveSegment  #9250 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9250 IfcCurveSegment  #9257 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9257 IfcCurveSegment  #9264 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9264 IfcCurveSegment  #9271 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9271 IfcCurveSegment  #9278 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9278 IfcCurveSegment  #9285 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9285 IfcCurveSegment  #9292 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9292 IfcCurveSegment  #9299 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9299 IfcCurveSegment  #9306 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9306 IfcCurveSegment  #9313 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9313 IfcCurveSegment  #9320 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9320 IfcCurveSegment  #9327 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9327 IfcCurveSegment  #9334 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9334 IfcCurveSegment  #9341 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9341 IfcCurveSegment  #9348 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9348 IfcCurveSegment  #9355 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9355 IfcCurveSegment  #9362 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9362 IfcCurveSegment  #9369 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9369 IfcCurveSegment  #9376 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9376 IfcCurveSegment  #9383 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9383 IfcCurveSegment  #9390 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9390 IfcCurveSegment  #9397 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9397 IfcCurveSegment  #9404 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9404 IfcCurveSegment  #9411 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9411 IfcCurveSegment  #9418 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9418 IfcCurveSegment  #9425 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9425 IfcCurveSegment  #9432 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9432 IfcCurveSegment  #9439 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9439 IfcCurveSegment  #9446 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9446 IfcCurveSegment  #9453 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9453 IfcCurveSegment  #9460 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9460 IfcCurveSegment  #9467 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9467 IfcCurveSegment  #9474 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9474 IfcCurveSegment  #9481 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9481 IfcCurveSegment  #9488 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9488 IfcCurveSegment  #9495 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9495 IfcCurveSegment  #9502 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9502 IfcCurveSegment  #9509 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9509 IfcCurveSegment  #9516 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9516 IfcCurveSegment  #9523 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9523 IfcCurveSegment  #9530 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9530 IfcCurveSegment  #9537 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9537 IfcCurveSegment  #9544 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9544 IfcCurveSegment  #9551 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9551 IfcCurveSegment  #9558 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9558 IfcCurveSegment  #9565 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9565 IfcCurveSegment  #9572 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9572 IfcCurveSegment  #9579 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9579 IfcCurveSegment  #9586 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9586 IfcCurveSegment  #9593 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9593 IfcCurveSegment  #9600 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9600 IfcCurveSegment  #9607 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9607 IfcCurveSegment  #9614 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9614 IfcCurveSegment  #9621 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9621 IfcCurveSegment  #9628 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9628 IfcCurveSegment  #9635 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9635 IfcCurveSegment  #9642 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9642 IfcCurveSegment  #9649 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9649 IfcCurveSegment  #9656 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9656 IfcCurveSegment  #9663 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9663 IfcCurveSegment  #9670 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9670 IfcCurveSegment  #9677 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9677 IfcCurveSegment  #9684 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9684 IfcCurveSegment  #9691 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9691 IfcCurveSegment  #9698 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9698 IfcCurveSegment  #9705 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9705 IfcCurveSegment  #9712 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9712 IfcCurveSegment  #9719 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9719 IfcCurveSegment  #9726 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9726 IfcCurveSegment  #9733 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9733 IfcCurveSegment  #9740 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9740 IfcCurveSegment  #9747 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9747 IfcCurveSegment  #9754 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9754 IfcCurveSegment  #9761 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9761 IfcCurveSegment  #9768 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9768 IfcCurveSegment  #9775 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9775 IfcCurveSegment  #9782 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
+#9782 IfcCurveSegment  #9789 IfcCurveSegment   		Composite curve segments consistency validation 	Segments end and start points are not equal 	Error
