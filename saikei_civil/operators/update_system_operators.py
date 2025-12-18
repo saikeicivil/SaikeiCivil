@@ -69,13 +69,51 @@ def unregister_alignment(alignment):
 
 
 def get_alignment_from_pi(pi_object):
-    """Get alignment from PI object."""
+    """Get alignment from PI object.
+
+    Uses IFC GlobalId (persistent across sessions) to look up the alignment.
+    If needed, creates the alignment Python object and visualizer on-demand.
+    """
     if 'bc_alignment_id' not in pi_object:
         return None
 
-    # Convert from string back to int (stored as string because Python int too large for C int)
-    alignment_id = int(pi_object['bc_alignment_id'])
-    return _alignment_registry.get(alignment_id)
+    alignment_id = pi_object['bc_alignment_id']
+
+    # Handle both old format (Python object ID as string) and new format (IFC GlobalId)
+    # IFC GlobalIds are 22 characters, Python object IDs are numeric
+    if isinstance(alignment_id, str) and len(alignment_id) == 22:
+        # New format: IFC GlobalId - look up by GlobalId and create if needed
+        from ..core.alignment_registry import get_or_create_alignment, get_or_create_visualizer
+        from ..core.native_ifc_manager import NativeIfcManager
+
+        ifc = NativeIfcManager.get_file()
+        if not ifc:
+            return None
+
+        # Find alignment entity by GlobalId
+        try:
+            alignment_entity = ifc.by_guid(alignment_id)
+            if alignment_entity and alignment_entity.is_a('IfcAlignment'):
+                # Get or create alignment Python object
+                alignment_obj, _ = get_or_create_alignment(alignment_entity)
+
+                # CRITICAL: Also ensure visualizer exists for real-time curve updates!
+                # get_or_create_visualizer links the visualizer to alignment.visualizer
+                get_or_create_visualizer(alignment_obj)
+
+                return alignment_obj
+        except (RuntimeError, KeyError):
+            logger.debug("Could not find alignment with GlobalId: %s", alignment_id)
+            return None
+    else:
+        # Old format: Python object ID (deprecated, for backward compatibility)
+        try:
+            alignment_id_int = int(alignment_id)
+            return _alignment_registry.get(alignment_id_int)
+        except (ValueError, TypeError):
+            return None
+
+    return None
 
 
 # =============================================================================
@@ -85,6 +123,86 @@ def get_alignment_from_pi(pi_object):
 _last_update = {}
 _throttle_ms = 50  # 20 FPS minimum
 _updating = False  # Reentrancy guard
+
+# DEBOUNCE: Track pending IFC regeneration
+_pending_ifc_regeneration = {}  # alignment_id -> last_movement_time
+_ifc_regeneration_delay = 0.3  # Wait 300ms after last movement before regenerating IFC
+_last_regeneration_time = {}  # alignment_id -> time of last regeneration (cooldown)
+_regeneration_cooldown = 0.5  # Don't regenerate again within 500ms of last regeneration
+
+
+def _debounced_ifc_regeneration():
+    """Timer callback to regenerate IFC after movement has stopped.
+
+    This runs periodically and checks if enough time has passed since the last
+    movement for each alignment. If so, it regenerates the IFC segments.
+    """
+    global _updating, _pending_ifc_regeneration
+
+    if _updating:
+        return 0.1  # Check again in 100ms
+
+    current_time = time.time()
+    regenerated = []
+
+    # DEBUG: Show timer state
+    logger.info("=== DEBOUNCE TIMER FIRED ===")
+    logger.info("  Pending regenerations: %s", len(_pending_ifc_regeneration))
+    logger.info("  Registry has %s alignments", len(_alignment_registry))
+    logger.info("  Registry keys: %s", list(_alignment_registry.keys()))
+
+    for alignment_id, last_move_time in list(_pending_ifc_regeneration.items()):
+        time_since_move = current_time - last_move_time
+        logger.info("  Checking alignment_id=%s, time_since_move=%.3fs", alignment_id, time_since_move)
+
+        # Check if enough time has passed since last movement
+        if time_since_move >= _ifc_regeneration_delay:
+            # Check cooldown - don't regenerate if we just regenerated recently
+            last_regen = _last_regeneration_time.get(alignment_id, 0)
+            time_since_regen = current_time - last_regen
+            if time_since_regen < _regeneration_cooldown:
+                logger.info("  Skipping - cooldown active (%.3fs since last regen)", time_since_regen)
+                regenerated.append(alignment_id)  # Remove from pending anyway
+                continue
+
+            # Find the alignment
+            alignment = _alignment_registry.get(alignment_id)
+            logger.info("  Looking up alignment_id=%s in registry: found=%s", alignment_id, alignment is not None)
+            logger.info("  alignment type=%s, bool(alignment)=%s", type(alignment).__name__, bool(alignment) if alignment is not None else 'N/A')
+            if alignment is not None:
+                logger.info("  Alignment has %s PIs", len(alignment.pis) if hasattr(alignment, 'pis') else 'NO pis attr')
+                _updating = True
+                try:
+                    # Now regenerate IFC segments (this is the expensive operation)
+                    has_curves = any('curve' in pi for pi in alignment.pis)
+                    logger.info("  has_curves=%s, calling regenerate_segments()", has_curves)
+                    if has_curves:
+                        alignment.regenerate_segments_with_curves()
+                    else:
+                        alignment.regenerate_segments()
+
+                    # Record regeneration time for cooldown
+                    _last_regeneration_time[alignment_id] = current_time
+
+                    logger.info("  REGENERATION COMPLETE for %s", alignment.alignment.Name)
+                except Exception as e:
+                    logger.error("  ERROR in debounced regeneration: %s", e)
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    _updating = False
+
+            regenerated.append(alignment_id)
+
+    # Remove regenerated alignments from pending list
+    for alignment_id in regenerated:
+        del _pending_ifc_regeneration[alignment_id]
+
+    # Keep timer running if there are pending regenerations, otherwise stop
+    if _pending_ifc_regeneration:
+        return 0.1  # Check again in 100ms
+    else:
+        return None  # Stop timer
 
 
 @persistent
@@ -101,6 +219,9 @@ def saikei_update_handler(scene, depsgraph):
         return
 
     current_time = time.time()
+
+    # DEBUG: Log handler activity
+    pi_updates_found = 0
 
     # ========================================================================
     # PART 1: Check for deleted PI objects and sync to IFC
@@ -223,11 +344,21 @@ def saikei_update_handler(scene, depsgraph):
         # Must be a Saikei Civil PI
         if 'bc_pi_id' not in obj or 'bc_alignment_id' not in obj:
             continue
-        
+
+        # DEBUG: We found a PI being moved!
+        logger.info("=== PI MOVEMENT DETECTED: %s ===", obj.name)
+        logger.info("  bc_alignment_id: %s (type: %s, len: %s)",
+                   obj['bc_alignment_id'],
+                   type(obj['bc_alignment_id']).__name__,
+                   len(str(obj['bc_alignment_id'])) if obj['bc_alignment_id'] else 0)
+
         # Get the alignment
         alignment = get_alignment_from_pi(obj)
         if alignment is None:
+            logger.warning("  FAILED to get alignment from PI!")
             continue
+        else:
+            logger.info("  Got alignment: %s", alignment.alignment.Name)
         
         # Check auto-update enabled
         if not getattr(alignment, 'auto_update', True):
@@ -260,28 +391,31 @@ def saikei_update_handler(scene, depsgraph):
             # Set reentrancy flag before updating
             _updating = True
             try:
-                # Update position
+                # Update position in memory (this is fast)
                 pi['position'] = new_pos
-                if pi.get('ifc_point'):
-                    pi['ifc_point'].Coordinates = [float(new_pos.x), float(new_pos.y)]
 
-                # REGENERATE ENTIRE ALIGNMENT
-                # Check if any PI has curve data - if so, use regenerate_segments_with_curves()
-                has_curves = any('curve' in pi for pi in alignment.pis)
-
-                if has_curves:
-                    alignment.regenerate_segments_with_curves()
-                else:
-                    alignment.regenerate_segments()
-
-                # UPDATE VISUALIZATION
+                # ================================================================
+                # VISUAL UPDATE ONLY - Update Blender curves without touching IFC
+                # This gives real-time feedback during dragging
+                # ================================================================
                 if hasattr(alignment, 'visualizer') and alignment.visualizer:
                     try:
-                        alignment.visualizer.update_all()
+                        # Only update the visual curves (move existing points)
+                        # Don't recreate them - just update their positions
+                        alignment.visualizer.update_segment_curves_fast(alignment.pis)
                     except (ReferenceError, AttributeError, RuntimeError) as e:
-                        # Visualization update failed (possibly due to BlenderBIM override)
-                        # Don't crash - just log and continue
-                        logger.warning("Visualization update skipped: %s", e)
+                        logger.debug("Fast visual update skipped: %s", e)
+
+                # ================================================================
+                # DEBOUNCED IFC REGENERATION - Schedule for after movement stops
+                # This prevents creating thousands of intermediate IFC entities
+                # ================================================================
+                _pending_ifc_regeneration[alignment_id] = current_time
+
+                # Start the debounce timer if not already running
+                if not bpy.app.timers.is_registered(_debounced_ifc_regeneration):
+                    bpy.app.timers.register(_debounced_ifc_regeneration, first_interval=0.1)
+
             except Exception as e:
                 # Catch any unexpected errors to prevent Blender crashes
                 logger.error("Error updating alignment: %s", e)
@@ -531,6 +665,49 @@ class AlignmentVisualizer:
                 obj = pi_data['blender_object']
                 pos = pi_data['position']
                 obj.location = (pos.x, pos.y, 0)
+
+    def update_segment_curves_fast(self, pis):
+        """Fast update: Move existing curve points without recreating objects.
+
+        This is called during PI dragging to provide real-time visual feedback
+        without touching IFC entities. Only the Blender curve points are updated.
+
+        Args:
+            pis: List of PI data dictionaries with updated positions
+        """
+        if len(pis) < 2:
+            return
+
+        # For each tangent segment curve, update its endpoint positions
+        # Tangent segments connect PI[i] to PI[i+1]
+        for i, curve_obj in enumerate(self.segment_curves):
+            if i >= len(pis) - 1:
+                break  # No more PI pairs
+
+            try:
+                # Check object still exists
+                if curve_obj.name not in bpy.data.objects:
+                    continue
+
+                curve_data = curve_obj.data
+                if not curve_data or not curve_data.splines:
+                    continue
+
+                spline = curve_data.splines[0]
+
+                # For LINE segments (tangents), update start/end points
+                if len(spline.points) == 2:
+                    start_pos = pis[i]['position']
+                    end_pos = pis[i + 1]['position']
+
+                    spline.points[0].co = (start_pos.x, start_pos.y, 0, 1)
+                    spline.points[1].co = (end_pos.x, end_pos.y, 0, 1)
+
+                # For CIRCULARARC segments, we'd need to recalculate the arc
+                # For now, just leave them - they'll be fully updated after debounce
+
+            except (ReferenceError, KeyError, IndexError) as e:
+                logger.debug("Fast curve update skipped for segment %d: %s", i, e)
 
 
 # =============================================================================

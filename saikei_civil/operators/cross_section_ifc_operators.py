@@ -458,7 +458,7 @@ class BC_OT_SaveAssemblyToIFC(Operator):
         pset = ifc_file.create_entity(
             "IfcPropertySet",
             GlobalId=ifcopenshell.guid.new(),
-            Name="Pset_SaikeiCrossSectionAssembly",
+            Name="SaikeiCivil_CrossSectionAssembly",
             HasProperties=properties
         )
 
@@ -471,29 +471,37 @@ class BC_OT_SaveAssemblyToIFC(Operator):
         )
 
     def _link_to_road(self, ifc_file, ifc_assembly):
-        """Link assembly to IfcRoad in spatial hierarchy."""
+        """Link assembly (IfcRoadPart) to IfcRoad via aggregation.
+
+        Per IFC 4.3 SPS002: IfcRoadPart must be AGGREGATED to IfcRoad,
+        not spatially contained. The spatial composition hierarchy is:
+        IfcRoad (aggregates) -> IfcRoadPart (contains) -> elements
+        """
         import ifcopenshell.guid
 
         # Find IfcRoad
         roads = ifc_file.by_type("IfcRoad")
         if not roads:
-            logger.warning("No IfcRoad found - assembly not spatially contained")
+            logger.warning("No IfcRoad found - assembly not aggregated")
             return
 
         road = roads[0]
 
-        # Check if relationship already exists
-        for rel in road.ContainsElements or []:
-            if ifc_assembly in (rel.RelatedElements or []):
-                return  # Already linked
+        # Check if aggregation relationship already exists
+        for rel in ifc_file.by_type("IfcRelAggregates"):
+            if rel.RelatingObject == road:
+                if ifc_assembly in (rel.RelatedObjects or []):
+                    return  # Already aggregated
 
-        # Create new containment relationship
+        # Create aggregation relationship (IfcRoadPart aggregated BY IfcRoad)
+        # Per SPS002: IfcRoadPart spatial parent must be IfcRoad, not IfcAlignment
         ifc_file.create_entity(
-            "IfcRelContainedInSpatialStructure",
+            "IfcRelAggregates",
             GlobalId=ifcopenshell.guid.new(),
-            Name="RoadToCrossSection",
-            RelatingStructure=road,
-            RelatedElements=[ifc_assembly]
+            Name="RoadToRoadPart",
+            Description="Cross-section assembly aggregated to road",
+            RelatingObject=road,
+            RelatedObjects=[ifc_assembly]
         )
 
     def _remove_assembly_from_ifc(self, ifc_file, entity):

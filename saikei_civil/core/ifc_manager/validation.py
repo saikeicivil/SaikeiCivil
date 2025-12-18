@@ -103,26 +103,31 @@ def _validate_spatial_containment(ifc_file: ifcopenshell.file) -> List[str]:
 
 
 def _validate_alignments(ifc_file: ifcopenshell.file) -> List[str]:
-    """Validate alignment entities."""
+    """Validate alignment entities.
+
+    Per BSI ALB004: IfcAlignment must be related to IfcProject via
+    IfcRelAggregates (directly or indirectly), NOT via
+    IfcRelContainedInSpatialStructure.
+    """
     issues = []
 
-    # Get contained element IDs
-    containments = ifc_file.by_type("IfcRelContainedInSpatialStructure")
-    contained_ids = set()
-    for rel in containments:
-        if rel.RelatedElements:
-            for elem in rel.RelatedElements:
-                contained_ids.add(elem.id())
+    # Get aggregated element IDs (per BSI ALB004, alignments use aggregation)
+    aggregations = ifc_file.by_type("IfcRelAggregates")
+    aggregated_ids = set()
+    for rel in aggregations:
+        if rel.RelatedObjects:
+            for obj in rel.RelatedObjects:
+                aggregated_ids.add(obj.id())
 
     # Check each alignment
     alignments = ifc_file.by_type("IfcAlignment")
     for alignment in alignments:
         name = alignment.Name or f"#{alignment.id()}"
 
-        if alignment.id() not in contained_ids:
+        if alignment.id() not in aggregated_ids:
             issues.append(
                 f"CRITICAL: {name} not in spatial structure "
-                f"(missing IfcRelContainedInSpatialStructure)"
+                f"(missing IfcRelAggregates - per BSI ALB004)"
             )
 
         if not alignment.ObjectPlacement:

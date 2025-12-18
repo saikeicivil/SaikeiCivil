@@ -40,7 +40,6 @@ Architecture Note:
     class, allowing the core logic to remain more testable and portable.
 """
 
-import logging
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Any
 
 import ifcopenshell
@@ -57,6 +56,7 @@ from .ifc_entities import (
     find_axis_subcontext,
 )
 from .. import ifc_api
+from ..logging_config import get_logger
 from .blender_hierarchy import (
     create_blender_hierarchy,
     clear_blender_hierarchy,
@@ -68,7 +68,7 @@ from .blender_hierarchy import (
 )
 from .validation import validate_for_external_viewers, validate_and_report
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_blender_tool():
@@ -411,7 +411,106 @@ class NativeIfcManager:
         if validate:
             validate_and_report(cls.file)
 
+        # Run BSI normative rule cleanup before saving
+        # Per SPS002: Fix IfcAlignment aggregated to IfcSite instead of IfcRoad
+        # Per SPS002/OJT001: Fix IfcRoadPart parent and ObjectType issues
+        # Per SPS007: Remove misplaced alignment segments from spatial containment
+        # Per IFC105: Remove orphaned resource entities (IfcCartesianPoint, etc.)
+        # Per ALS017: Remove orphaned gradient curves that cause continuity errors
+        from .. import ifc_api as ifc_api_module
+        alignment_fixes = ifc_api_module.cleanup_misplaced_alignments(cls.file)
+        gradient_cleanup = ifc_api_module.cleanup_orphaned_gradient_curves(cls.file)
+        road_part_fixes = ifc_api_module.cleanup_road_part_issues(cls.file)
+        alignment_seg_fixes = ifc_api_module.cleanup_alignment_segment_issues(cls.file)
+        course_fixes = ifc_api_module.cleanup_course_issues(cls.file)
+        segment_count = ifc_api_module.cleanup_misplaced_alignment_segments(cls.file)
+        orphan_count = ifc_api_module.cleanup_orphaned_resources(cls.file)
+        total_fixes = orphan_count + segment_count + road_part_fixes + alignment_seg_fixes + course_fixes + gradient_cleanup + alignment_fixes
+        if total_fixes > 0:
+            logger.info(f"Pre-save cleanup: {alignment_fixes} alignments, "
+                       f"{gradient_cleanup} gradient curves, "
+                       f"{road_part_fixes} road part fixes, "
+                       f"{course_fixes} course fixes, "
+                       f"{segment_count} misplaced segments, "
+                       f"{orphan_count} orphaned resources")
+
+        # SECOND PASS: Run cleanup again to catch any late modifications
+        road_part_fixes_2 = ifc_api_module.cleanup_road_part_issues(cls.file)
+        course_fixes_2 = ifc_api_module.cleanup_course_issues(cls.file)
+        orphan_count_2 = ifc_api_module.cleanup_orphaned_resources(cls.file)
+        if road_part_fixes_2 + course_fixes_2 + orphan_count_2 > 0:
+            logger.warning(f"Second cleanup pass found additional issues: "
+                          f"{road_part_fixes_2} road parts, {course_fixes_2} courses, {orphan_count_2} orphans")
+
+        # Final verification: Log IfcRoadPart and IfcCourse state immediately before write
+        logger.info("=== FINAL STATE BEFORE WRITE ===")
+
+        # Check IfcRoadParts
+        for rp in cls.file.by_type("IfcRoadPart"):
+            obj_type = getattr(rp, 'ObjectType', 'NONE')
+            pred_type = getattr(rp, 'PredefinedType', 'NONE')
+            rp_id = rp.id()
+            # Find parent
+            parent_info = "NO PARENT"
+            for rel in cls.file.by_type("IfcRelAggregates"):
+                if rel.RelatedObjects and rp in rel.RelatedObjects:
+                    parent_type = rel.RelatingObject.is_a() if rel.RelatingObject else "None"
+                    parent_name = getattr(rel.RelatingObject, 'Name', '?')
+                    parent_id = rel.RelatingObject.id() if rel.RelatingObject else 0
+                    parent_info = f"#{parent_id} {parent_type} '{parent_name}'"
+            status = "[OK]" if obj_type and obj_type != 'NONE' and "IfcAlignment" not in parent_info else "[ISSUE]"
+            logger.info(f"  {status} #{rp_id} IfcRoadPart '{rp.Name}': ObjectType={obj_type}, Parent={parent_info}")
+
+        # Check IfcCourse entities (OJT001)
+        for course in cls.file.by_type("IfcCourse"):
+            obj_type = getattr(course, 'ObjectType', 'NONE')
+            pred_type = getattr(course, 'PredefinedType', 'NONE')
+            course_id = course.id()
+            status = "[OK]" if obj_type and obj_type != 'NONE' else "[ISSUE - OJT001]"
+            logger.info(f"  {status} #{course_id} IfcCourse '{course.Name}': ObjectType={obj_type}, PredefinedType={pred_type}")
+
+        logger.info("=== END FINAL STATE ===")
+
         cls.file.write(cls.filepath)
+
+        # POST-SAVE VERIFICATION: Read file back and verify entities
+        logger.info("=== POST-SAVE VERIFICATION (reading written file) ===")
+        try:
+            verify_file = ifcopenshell.open(cls.filepath)
+
+            # Check IfcRoadParts in saved file
+            for rp in verify_file.by_type("IfcRoadPart"):
+                rp_id = rp.id()
+                obj_type = getattr(rp, 'ObjectType', 'NONE')
+                name = rp.Name
+
+                # Find parent
+                parent_info = "NO PARENT"
+                for rel in verify_file.by_type("IfcRelAggregates"):
+                    if rel.RelatedObjects and rp in rel.RelatedObjects:
+                        parent_type = rel.RelatingObject.is_a() if rel.RelatingObject else "None"
+                        parent_name = getattr(rel.RelatingObject, 'Name', '?')
+                        parent_id = rel.RelatingObject.id() if rel.RelatingObject else 0
+                        parent_info = f"#{parent_id} {parent_type} '{parent_name}'"
+                        # Check for invalid parent
+                        if parent_type == "IfcAlignment":
+                            parent_info += " [INVALID!]"
+
+                status = "[OK]" if obj_type and "IfcAlignment" not in parent_info else "[ISSUE]"
+                logger.info(f"  {status} #{rp_id} IfcRoadPart '{name}': ObjectType={obj_type}, Parent={parent_info}")
+
+            # Check IfcCourse in saved file
+            for course in verify_file.by_type("IfcCourse"):
+                course_id = course.id()
+                obj_type = getattr(course, 'ObjectType', 'NONE')
+                status = "[OK]" if obj_type and obj_type != 'NONE' else "[ISSUE]"
+                logger.info(f"  {status} #{course_id} IfcCourse '{course.Name}': ObjectType={obj_type}")
+
+            del verify_file  # Close the file
+        except Exception as e:
+            logger.warning(f"Post-save verification failed: {e}")
+
+        logger.info("=== END POST-SAVE VERIFICATION ===")
 
         # Store filepath in scene property via tool interface
         blender = _get_blender_tool()
@@ -511,25 +610,39 @@ class NativeIfcManager:
         cls,
         alignment: ifcopenshell.entity_instance
     ) -> Optional[ifcopenshell.entity_instance]:
-        """Add spatial containment for alignment within road.
+        """Add alignment to road hierarchy via IfcRelAggregates.
 
-        Uses ifc_api.contain_in_spatial() for consistent relationship handling.
+        Per IFC 4.3 / BSI ALB004: IfcAlignment must be related to IfcProject
+        via IfcRelAggregates (directly or indirectly), NOT via
+        IfcRelContainedInSpatialStructure.
 
         Args:
-            alignment: IfcAlignment entity to contain
+            alignment: IfcAlignment entity to aggregate
 
         Returns:
-            IfcRelContainedInSpatialStructure entity or None
+            IfcRelAggregates entity or None
         """
-        if not cls.road:
-            logger.warning("No road entity to contain alignment in")
-            return None
-
         if not cls.file:
-            logger.warning("No IFC file loaded")
+            logger.error("Cannot aggregate alignment - no IFC file loaded")
             return None
 
-        return ifc_api.contain_in_spatial(cls.file, alignment, cls.road)
+        if not cls.road:
+            # Try to get the road from the file
+            cls.road = cls.get_road()
+            if not cls.road:
+                logger.error("Cannot aggregate alignment - no IfcRoad entity found")
+                return None
+
+        # Use IfcRelAggregates instead of IfcRelContainedInSpatialStructure
+        # This satisfies BSI rule ALB004: Alignment must be aggregated to Project
+        rel = ifc_api.aggregate_objects(
+            cls.file, cls.road, [alignment], "RoadToAlignment"
+        )
+        if rel:
+            logger.info(f"Aggregated alignment '{alignment.Name}' to road '{cls.road.Name}'")
+        else:
+            logger.error(f"Failed to aggregate alignment '{alignment.Name}' to road")
+        return rel
 
     @classmethod
     def create_alignment_placement(cls) -> ifcopenshell.entity_instance:
@@ -566,10 +679,14 @@ class NativeIfcManager:
             blender_obj: Blender object with IFC link (bpy.types.Object)
 
         Returns:
-            IFC entity or None
+            IFC entity or None (including when entity ID is stale/deleted)
         """
         if "ifc_definition_id" in blender_obj:
-            return cls.file.by_id(blender_obj["ifc_definition_id"])
+            try:
+                return cls.file.by_id(blender_obj["ifc_definition_id"])
+            except RuntimeError:
+                # Entity was deleted (stale reference from segment regeneration)
+                return None
         return None
 
     # =========================================================================
@@ -632,13 +749,17 @@ class NativeIfcManager:
 
         part_placement = create_local_placement(cls.file, relative_to=road_placement)
 
+        # UsageType is REQUIRED by IFC 4.3 schema for IfcRoadPart
+        # LONGITUDINAL = extends along the road direction
+        # LATERAL = defines cross-sectional extent
         road_part = cls.file.create_entity(
             "IfcRoadPart",
             GlobalId=ifcopenshell.guid.new(),
             Name=road_part_name,
             Description=f"Road part of type {road_part_type}",
             ObjectPlacement=part_placement,
-            PredefinedType=road_part_type
+            PredefinedType=road_part_type,
+            UsageType="LONGITUDINAL"
         )
 
         # Create aggregation relationship (Road contains RoadPart) using ifc_api
@@ -997,7 +1118,7 @@ class NativeIfcManager:
         pset = cls.file.create_entity(
             "IfcPropertySet",
             GlobalId=ifcopenshell.guid.new(),
-            Name="Pset_SaikeiCrossSection",
+            Name="SaikeiCivil_CrossSection",
             HasProperties=props
         )
 
@@ -1157,7 +1278,7 @@ class NativeIfcManager:
             for rel in cls.file.by_type("IfcRelDefinesByProperties"):
                 if entity in (rel.RelatedObjects or []):
                     pset = rel.RelatingPropertyDefinition
-                    if hasattr(pset, 'Name') and pset.Name == "Pset_SaikeiCrossSection":
+                    if hasattr(pset, 'Name') and pset.Name == "SaikeiCivil_CrossSection":
                         for prop in pset.HasProperties:
                             if prop.Name == "ComponentType":
                                 result['component_type'] = prop.NominalValue.wrappedValue

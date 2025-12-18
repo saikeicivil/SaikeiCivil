@@ -253,13 +253,15 @@ class SAIKEI_OT_generate_corridor(Operator):
                             road_part_obj.parent = road_obj
 
                 # Create IfcCourse for the corridor
+                # Per OJT001: Use standard PredefinedType="PAVEMENT" to avoid
+                # the requirement for ObjectType when using USERDEFINED
                 corridor_entity = ifc_file.create_entity(
                     "IfcCourse",
                     GlobalId=ifcopenshell.guid.new(),
                     Name=corridor_name,
                     Description="Corridor surface generated from cross-section assembly",
-                    ObjectType="PAVEMENT",
-                    PredefinedType="USERDEFINED"
+                    ObjectType="PAVEMENT_SURFACE",  # Descriptive, not required with standard type
+                    PredefinedType="PAVEMENT"
                 )
 
                 # Link Blender mesh object to IFC entity

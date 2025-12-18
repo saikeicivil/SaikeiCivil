@@ -271,7 +271,7 @@ class BC_OT_open_ifc(Operator, ImportHelper):
                 logger.info(f"Loaded assembly '{assembly_name}' with {len(new_assembly.components)} components")
 
             if loaded_count == 0 and (pavements or kerbs):
-                logger.warning("Found IFC components but no Pset_SaikeiCrossSection data")
+                logger.warning("Found IFC components but no SaikeiCivil_CrossSection data")
 
             return loaded_count
 
@@ -301,7 +301,7 @@ class BC_OT_open_ifc(Operator, ImportHelper):
                     continue
 
                 # Look for our component-level property set
-                if pset.Name != "Pset_SaikeiCrossSection":
+                if pset.Name != "SaikeiCivil_CrossSection":
                     continue
 
                 # Extract property values
@@ -521,8 +521,11 @@ class BC_OT_save_ifc(Operator, ExportHelper):
             return {'FINISHED'}
             
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to save IFC file: {str(e)}")
-            logger.error("Error saving IFC: %s", str(e))
+            import traceback
+            error_msg = str(e) if str(e) else "An unknown error occurred"
+            self.report({'ERROR'}, f"Failed to save IFC file: {error_msg}")
+            logger.error("Error saving IFC: %s", error_msg)
+            logger.error("Full traceback:\n%s", traceback.format_exc())
             return {'CANCELLED'}
     
     def invoke(self, context, event):

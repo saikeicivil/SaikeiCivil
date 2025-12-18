@@ -195,13 +195,15 @@ def _create_corridor_ifc_entity(
         if ifc_file is None:
             return None
 
+        # Per OJT001: Use standard PredefinedType to avoid ObjectType requirement
+        # PAVEMENT is the standard IfcCourseTypeEnum value for road surfaces
         entity = ifc_file.create_entity(
             "IfcCourse",
             GlobalId=ifcopenshell.guid.new(),
             Name=name,
             Description="Corridor solid generated from cross-section assembly",
-            ObjectType="CORRIDOR",
-            PredefinedType="USERDEFINED"
+            ObjectType="CORRIDOR_SURFACE",  # Descriptive, not required with standard type
+            PredefinedType="PAVEMENT"
         )
         return entity
     except Exception:

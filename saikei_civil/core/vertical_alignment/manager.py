@@ -743,13 +743,46 @@ class VerticalAlignment:
         for i, segment in enumerate(self.segments):
             ifc_vert_seg = segment.to_ifc_segment(ifc_file)
 
+            # Per BSI OJT001: ObjectType must have a value
+            # Get segment type from design parameters
+            seg_type = ifc_vert_seg.PredefinedType if hasattr(ifc_vert_seg, 'PredefinedType') else "VERTICAL"
             ifc_alignment_seg = ifc_file.create_entity(
                 "IfcAlignmentSegment",
                 GlobalId=ifcopenshell.guid.new(),
                 Name=f"Segment {i+1}",
+                ObjectType=seg_type,  # BSI OJT001: Set ObjectType for segment type
                 DesignParameters=ifc_vert_seg
             )
             ifc_alignment_segments.append(ifc_alignment_seg)
+
+        # BSI ALB015: Add zero-length final segment (business logic requirement)
+        # Per IFC 4.3: Each alignment layout must end with a zero-length segment
+        if self.segments:
+            last_seg = self.segments[-1]
+            # Calculate end position and gradient of last segment
+            end_dist = last_seg.end_station
+            end_height = last_seg.end_elevation
+            end_gradient = last_seg.get_grade(last_seg.end_station)
+
+            # Create zero-length vertical segment at endpoint
+            zero_length_seg = ifc_file.create_entity(
+                "IfcAlignmentVerticalSegment",
+                StartDistAlong=end_dist,
+                HorizontalLength=0.0,  # Zero length - marks endpoint
+                StartHeight=end_height,
+                StartGradient=end_gradient,
+                EndGradient=end_gradient,
+                PredefinedType="CONSTANTGRADIENT"
+            )
+
+            final_alignment_seg = ifc_file.create_entity(
+                "IfcAlignmentSegment",
+                GlobalId=ifcopenshell.guid.new(),
+                Name="Endpoint",
+                ObjectType="ENDPOINT",  # Descriptive type for clarity
+                DesignParameters=zero_length_seg
+            )
+            ifc_alignment_segments.append(final_alignment_seg)
 
         if ifc_alignment_segments:
             ifc_file.create_entity(
@@ -759,30 +792,115 @@ class VerticalAlignment:
                 RelatedObjects=ifc_alignment_segments
             )
 
-        # Create geometric layer
+        # Create geometric layer with chained positions for C0/C1 continuity
         ifc_curve_segments = []
-        for segment in self.segments:
-            curve_seg = segment.to_ifc_curve_segment(ifc_file)
-            ifc_curve_segments.append(curve_seg)
+        current_start_point = None
+        current_start_tangent = None
 
-        if ifc_curve_segments:
-            gradient_curve = ifc_file.create_entity(
-                "IfcGradientCurve",
-                Segments=ifc_curve_segments,
-                SelfIntersect=False
+        for i, segment in enumerate(self.segments):
+            # First segment uses its own start point, subsequent segments
+            # use the exact end point of the previous segment for C0 continuity
+            # to_ifc_curve_segment now returns (curve_seg, actual_end_point, actual_end_tangent)
+            result = segment.to_ifc_curve_segment(
+                ifc_file,
+                start_point=current_start_point,
+                start_tangent=current_start_tangent
             )
 
-            # Link BaseCurve if horizontal alignment provided
+            # Unpack result - returns tuple of (curve_segment, end_point, end_tangent)
+            curve_seg, actual_end_point, actual_end_tangent = result
+            ifc_curve_segments.append(curve_seg)
+
+            # Use the ACTUAL computed end point for next segment's start
+            # This ensures true C0 continuity based on the curve formula
+            current_start_point = actual_end_point
+            current_start_tangent = actual_end_tangent
+
+        # BSI ALS015: Add zero-length DISCONTINUOUS final segment (geometry requirement)
+        # Per IFC 4.3: Alignment geometry curve must end with discontinuous zero-length segment
+        if ifc_curve_segments and self.segments:
+            # Use the chained end point for exact C0 continuity
+            if current_start_point is not None:
+                end_station, end_elevation = current_start_point
+            else:
+                last_seg = self.segments[-1]
+                end_station = last_seg.end_station
+                end_elevation = last_seg.end_elevation
+
+            # Create zero-length line at endpoint
+            end_point = ifc_file.create_entity(
+                "IfcCartesianPoint",
+                Coordinates=(0.0, 0.0)  # Relative to placement
+            )
+            end_direction = ifc_file.create_entity(
+                "IfcDirection",
+                DirectionRatios=(1.0, 0.0)
+            )
+            parent_line = ifc_file.create_entity(
+                "IfcLine",
+                Pnt=end_point,
+                Dir=ifc_file.create_entity(
+                    "IfcVector",
+                    Orientation=end_direction,
+                    Magnitude=1.0
+                )
+            )
+
+            # Create placement at endpoint (using exact chained position)
+            placement = ifc_file.create_entity(
+                "IfcAxis2Placement2D",
+                Location=ifc_file.create_entity(
+                    "IfcCartesianPoint",
+                    Coordinates=(float(end_station), float(end_elevation))
+                )
+            )
+
+            # Create zero-length DISCONTINUOUS final segment
+            final_curve_seg = ifc_file.create_entity(
+                "IfcCurveSegment",
+                Transition="DISCONTINUOUS",  # Must be DISCONTINUOUS per ALS015
+                Placement=placement,
+                SegmentStart=ifc_file.create_entity("IfcLengthMeasure", 0.0),
+                SegmentLength=ifc_file.create_entity("IfcLengthMeasure", 0.0),
+                ParentCurve=parent_line
+            )
+            ifc_curve_segments.append(final_curve_seg)
+
+        if ifc_curve_segments:
+            # CRITICAL: Find BaseCurve BEFORE creating IfcGradientCurve
+            # Per IFC 4.3 schema, BaseCurve is a REQUIRED attribute
+            base_curve = None
             if horizontal_alignment:
                 base_curve = self._find_horizontal_base_curve(
                     ifc_file, horizontal_alignment
                 )
-                if base_curve:
-                    gradient_curve.BaseCurve = base_curve
-                    logger.debug(
-                        f"Linked IfcGradientCurve to horizontal base curve "
-                        f"#{base_curve.id()}"
+
+            if base_curve is None:
+                # BaseCurve is required - try to find any IfcCompositeCurve in the file
+                composite_curves = ifc_file.by_type("IfcCompositeCurve")
+                if composite_curves:
+                    base_curve = composite_curves[0]
+                    logger.warning(
+                        f"No horizontal base curve found, using existing "
+                        f"IfcCompositeCurve #{base_curve.id()}"
                     )
+                else:
+                    logger.error(
+                        "No IfcCompositeCurve found for BaseCurve - "
+                        "IfcGradientCurve will fail schema validation"
+                    )
+
+            gradient_curve = ifc_file.create_entity(
+                "IfcGradientCurve",
+                Segments=ifc_curve_segments,
+                SelfIntersect=False,
+                BaseCurve=base_curve  # Required attribute - set immediately
+            )
+
+            if base_curve:
+                logger.debug(
+                    f"Created IfcGradientCurve with BaseCurve #{base_curve.id()}"
+                )
 
             # Create shape representation
             self._create_geometric_representation(
@@ -904,7 +1022,17 @@ class VerticalAlignment:
             if alignment_entity.Representation:
                 old_rep = alignment_entity.Representation
                 if old_rep.is_a("IfcProductDefinitionShape"):
+                    # CRITICAL FIX (ALS017): Remove old IfcGradientCurve and its segments
+                    # Previously, only ShapeRepresentation was removed, leaving orphaned
+                    # curve segments that caused geometric continuity validation failures
                     for shape_rep_old in old_rep.Representations or []:
+                        if shape_rep_old.is_a("IfcShapeRepresentation"):
+                            for item in shape_rep_old.Items or []:
+                                # Remove IfcGradientCurve and all its curve segments
+                                if item.is_a("IfcGradientCurve"):
+                                    self._remove_gradient_curve(ifc_file, item)
+                                elif item.is_a("IfcCompositeCurve"):
+                                    self._remove_composite_curve(ifc_file, item)
                         ifc_file.remove(shape_rep_old)
                     ifc_file.remove(old_rep)
                 alignment_entity.Representation = None
@@ -1031,6 +1159,196 @@ class VerticalAlignment:
             f"{self.num_pvis} PVIs, {self.num_segments} segments, "
             f"{self.length:.1f}m)"
         )
+
+    # ========================================================================
+    # CLEANUP HELPERS
+    # ========================================================================
+
+    def _remove_gradient_curve(
+        self,
+        ifc_file: ifcopenshell.file,
+        gradient_curve: ifcopenshell.entity_instance
+    ) -> None:
+        """Remove IfcGradientCurve and all its nested curve segments.
+
+        CRITICAL for ALS017: When re-exporting a vertical alignment, old
+        IfcCurveSegments must be removed to prevent geometric continuity
+        validation failures from orphaned segments.
+
+        Args:
+            ifc_file: IFC file instance
+            gradient_curve: IfcGradientCurve entity to remove
+        """
+        if not gradient_curve or not gradient_curve.is_a("IfcGradientCurve"):
+            return
+
+        segments_removed = 0
+
+        # Remove all curve segments in the gradient curve
+        if hasattr(gradient_curve, 'Segments') and gradient_curve.Segments:
+            for curve_seg in list(gradient_curve.Segments):
+                if curve_seg.is_a("IfcCurveSegment"):
+                    self._remove_curve_segment(ifc_file, curve_seg)
+                    segments_removed += 1
+
+        # Remove the gradient curve itself
+        try:
+            ifc_file.remove(gradient_curve)
+            logger.debug(
+                f"Removed old IfcGradientCurve with {segments_removed} segments"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to remove IfcGradientCurve: {e}")
+
+    def _remove_composite_curve(
+        self,
+        ifc_file: ifcopenshell.file,
+        composite_curve: ifcopenshell.entity_instance
+    ) -> None:
+        """Remove IfcCompositeCurve and all its nested curve segments.
+
+        Args:
+            ifc_file: IFC file instance
+            composite_curve: IfcCompositeCurve entity to remove
+        """
+        if not composite_curve or not composite_curve.is_a("IfcCompositeCurve"):
+            return
+
+        segments_removed = 0
+
+        # Remove all curve segments in the composite curve
+        if hasattr(composite_curve, 'Segments') and composite_curve.Segments:
+            for curve_seg in list(composite_curve.Segments):
+                if curve_seg.is_a("IfcCurveSegment"):
+                    self._remove_curve_segment(ifc_file, curve_seg)
+                    segments_removed += 1
+
+        # Remove the composite curve itself
+        try:
+            ifc_file.remove(composite_curve)
+            logger.debug(
+                f"Removed old IfcCompositeCurve with {segments_removed} segments"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to remove IfcCompositeCurve: {e}")
+
+    def _remove_curve_segment(
+        self,
+        ifc_file: ifcopenshell.file,
+        curve_segment: ifcopenshell.entity_instance
+    ) -> None:
+        """Remove IfcCurveSegment and its associated geometry entities.
+
+        Removes the curve segment and its dependent entities:
+        - Placement (IfcAxis2Placement2D)
+        - ParentCurve (IfcLine, IfcPolynomialCurve, etc.)
+        - SegmentStart/SegmentLength (IfcLengthMeasure wrapped values)
+
+        Args:
+            ifc_file: IFC file instance
+            curve_segment: IfcCurveSegment entity to remove
+        """
+        if not curve_segment or not curve_segment.is_a("IfcCurveSegment"):
+            return
+
+        try:
+            # Remove Placement and its Location
+            if hasattr(curve_segment, 'Placement') and curve_segment.Placement:
+                placement = curve_segment.Placement
+                if placement.is_a("IfcAxis2Placement2D"):
+                    if hasattr(placement, 'Location') and placement.Location:
+                        try:
+                            ifc_file.remove(placement.Location)
+                        except Exception:
+                            pass
+                    if hasattr(placement, 'RefDirection') and placement.RefDirection:
+                        try:
+                            ifc_file.remove(placement.RefDirection)
+                        except Exception:
+                            pass
+                    try:
+                        ifc_file.remove(placement)
+                    except Exception:
+                        pass
+
+            # Remove ParentCurve and its nested entities
+            if hasattr(curve_segment, 'ParentCurve') and curve_segment.ParentCurve:
+                parent_curve = curve_segment.ParentCurve
+                self._remove_parent_curve(ifc_file, parent_curve)
+
+            # Remove the curve segment itself
+            ifc_file.remove(curve_segment)
+
+        except Exception as e:
+            logger.debug(f"Error removing curve segment: {e}")
+
+    def _remove_parent_curve(
+        self,
+        ifc_file: ifcopenshell.file,
+        parent_curve: ifcopenshell.entity_instance
+    ) -> None:
+        """Remove ParentCurve entity and its nested geometry.
+
+        Args:
+            ifc_file: IFC file instance
+            parent_curve: IfcLine, IfcPolynomialCurve, or other curve entity
+        """
+        if not parent_curve:
+            return
+
+        try:
+            # Handle IfcLine
+            if parent_curve.is_a("IfcLine"):
+                if hasattr(parent_curve, 'Pnt') and parent_curve.Pnt:
+                    try:
+                        ifc_file.remove(parent_curve.Pnt)
+                    except Exception:
+                        pass
+                if hasattr(parent_curve, 'Dir') and parent_curve.Dir:
+                    vector = parent_curve.Dir
+                    if hasattr(vector, 'Orientation') and vector.Orientation:
+                        try:
+                            ifc_file.remove(vector.Orientation)
+                        except Exception:
+                            pass
+                    try:
+                        ifc_file.remove(vector)
+                    except Exception:
+                        pass
+
+            # Handle IfcPolynomialCurve
+            elif parent_curve.is_a("IfcPolynomialCurve"):
+                if hasattr(parent_curve, 'Position') and parent_curve.Position:
+                    position = parent_curve.Position
+                    if position.is_a("IfcAxis2Placement2D"):
+                        if hasattr(position, 'Location') and position.Location:
+                            try:
+                                ifc_file.remove(position.Location)
+                            except Exception:
+                                pass
+                        if hasattr(position, 'RefDirection') and position.RefDirection:
+                            try:
+                                ifc_file.remove(position.RefDirection)
+                            except Exception:
+                                pass
+                        try:
+                            ifc_file.remove(position)
+                        except Exception:
+                            pass
+
+            # Handle IfcCircle
+            elif parent_curve.is_a("IfcCircle"):
+                if hasattr(parent_curve, 'Position') and parent_curve.Position:
+                    try:
+                        ifc_file.remove(parent_curve.Position)
+                    except Exception:
+                        pass
+
+            # Remove the parent curve itself
+            ifc_file.remove(parent_curve)
+
+        except Exception as e:
+            logger.debug(f"Error removing parent curve: {e}")
 
 
 __all__ = ["VerticalAlignment"]

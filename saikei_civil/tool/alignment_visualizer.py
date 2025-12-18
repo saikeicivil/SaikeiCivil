@@ -158,12 +158,14 @@ class AlignmentVisualizer:
 
         # Link to IFC
         obj["ifc_pi_id"] = pi_data['id']
-        obj["ifc_point_id"] = pi_data['ifc_point'].id()
+        if pi_data.get('ifc_point'):
+            obj["ifc_point_id"] = pi_data['ifc_point'].id()
         # NO RADIUS PROPERTY!
 
         # CRITICAL: Add these for update system!
         obj['bc_pi_id'] = pi_data['id']
-        obj['bc_alignment_id'] = str(id(self.alignment))  # Store as string (Python int too large for C int)
+        # Store IFC GlobalId (persistent across sessions) instead of Python object ID
+        obj['bc_alignment_id'] = self.alignment.alignment.GlobalId
 
         # CRITICAL: Store reference!
         pi_data['blender_object'] = obj
@@ -347,9 +349,13 @@ class AlignmentVisualizer:
             except Exception as e:
                 logger.error("Error creating PI %s: %s", pi_data.get('id', '?'), e)
 
-        # Recreate all segments
+        # Recreate all segments (skip zero-length endpoint segments per BSI ALB015)
         for segment in self.alignment.segments:
             try:
+                # Skip zero-length endpoint segments (they're business logic only, not visual)
+                params = segment.DesignParameters
+                if params and params.SegmentLength == 0:
+                    continue
                 self.create_segment_curve(segment)
             except Exception as e:
                 logger.error("Error creating segment: %s", e)
@@ -364,8 +370,14 @@ class AlignmentVisualizer:
         """
         import math
 
+        # Filter out zero-length endpoint segments (BSI ALB015) - they have no visual
+        visual_segments = [
+            s for s in self.alignment.segments
+            if s.DesignParameters and s.DesignParameters.SegmentLength > 0
+        ]
+
         # Only update existing segments - don't delete/recreate
-        for i, segment in enumerate(self.alignment.segments):
+        for i, segment in enumerate(visual_segments):
             if i >= len(self.segment_objects):
                 # Need more segment objects - create them
                 try:
@@ -521,6 +533,84 @@ class AlignmentVisualizer:
         # Use in-place updates to avoid conflicts with modal operators
         self.update_segments_in_place()
 
+    def update_segment_curves_fast(self, pis):
+        """Fast update: Move existing curve points based on PI positions.
+
+        This is called during PI dragging to provide real-time visual feedback
+        WITHOUT reading from IFC (which hasn't been regenerated yet).
+
+        IMPORTANT: This only works correctly for TANGENT-ONLY alignments.
+        For alignments with curves, tangent segments connect to BC/EC points,
+        not directly to PIs, so fast updates are skipped.
+
+        Args:
+            pis: List of PI data dictionaries with updated positions
+        """
+        # DEBUG: Track fast updates
+        logger.info("=== update_segment_curves_fast() called with %d PIs ===", len(pis))
+        logger.info("  segment_objects count: %d", len(self.segment_objects) if hasattr(self, 'segment_objects') else 0)
+
+        if len(pis) < 2:
+            logger.info("  Skipping - less than 2 PIs")
+            return
+
+        if not hasattr(self, 'segment_objects') or not self.segment_objects:
+            logger.info("  Skipping - no segment_objects")
+            return
+
+        # Check if any PI has a curve defined
+        # If so, fast updates won't work correctly (tangents connect to BC/EC, not PIs)
+        has_curves = any(pi.get('curve') for pi in pis)
+        if has_curves:
+            logger.info("  Skipping fast update - alignment has curves (use debounced full update)")
+            return
+
+        # For tangent-only alignments:
+        # - N PIs produce N-1 tangent segments
+        # - segment[i] connects PI[i] to PI[i+1]
+        updated_count = 0
+
+        for seg_idx, curve_obj in enumerate(self.segment_objects):
+            if seg_idx >= len(pis) - 1:
+                break  # No more PI pairs
+
+            try:
+                # Check object still exists
+                if not curve_obj or curve_obj.name not in bpy.data.objects:
+                    continue
+
+                curve_data = curve_obj.data
+                if not curve_data or not curve_data.splines:
+                    continue
+
+                spline = curve_data.splines[0]
+
+                # Only update LINE segments (2 points)
+                if len(spline.points) == 2:
+                    # Get PI positions for this tangent segment
+                    start_pos = pis[seg_idx]['position']
+                    end_pos = pis[seg_idx + 1]['position']
+
+                    # Update the spline points directly
+                    spline.points[0].co = (start_pos.x, start_pos.y, 0, 1)
+                    spline.points[1].co = (end_pos.x, end_pos.y, 0, 1)
+
+                    # CRITICAL: Tag curve data as modified so Blender redraws it
+                    curve_data.update_tag()
+
+                    updated_count += 1
+
+            except (ReferenceError, KeyError, IndexError, AttributeError) as e:
+                logger.debug("Fast curve update skipped for segment %d: %s", seg_idx, e)
+
+        # Force viewport redraw if we updated anything
+        if updated_count > 0:
+            # Tag the view layer for update - this tells Blender to refresh the viewport
+            if bpy.context.view_layer:
+                bpy.context.view_layer.update()
+
+        logger.info("  Updated %d segment curves", updated_count)
+
     def visualize_all(self):
         """Create complete visualization - Legacy method for compatibility"""
         logger.info("Creating %d PI markers...", len(self.alignment.pis))
@@ -528,8 +618,13 @@ class AlignmentVisualizer:
             self.create_pi_object(pi_data)
             logger.debug("  PI %d: (%.2f, %.2f)", pi_data['id'], pi_data['position'].x, pi_data['position'].y)
 
-        logger.info("Creating %d segment curves...", len(self.alignment.segments))
-        for segment in self.alignment.segments:
+        # Filter out zero-length endpoint segments (BSI ALB015)
+        visual_segments = [
+            s for s in self.alignment.segments
+            if s.DesignParameters and s.DesignParameters.SegmentLength > 0
+        ]
+        logger.info("Creating %d segment curves...", len(visual_segments))
+        for segment in visual_segments:
             self.create_segment_curve(segment)
             params = segment.DesignParameters
             logger.debug("  %s: %s %.2fm", segment.Name, params.PredefinedType, params.SegmentLength)

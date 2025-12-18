@@ -102,6 +102,11 @@ class NativeIfcAlignment:
         from ..complete_update_system import register_alignment
         register_alignment(self)
 
+        # CRITICAL: Also register in alignment_instances registry!
+        # This is needed for GlobalId-based lookup in get_alignment_from_pi()
+        from ..alignment_registry import register_alignment as register_instance
+        register_instance(self)
+
     @property
     def name(self) -> str:
         """Get alignment name from IFC entity."""
@@ -300,7 +305,7 @@ class NativeIfcAlignment:
     # PI MANAGEMENT
     # ========================================================================
 
-    def add_pi(self, x: float, y: float) -> dict:
+    def add_pi(self, x: float, y: float, regenerate: bool = True) -> dict:
         """Add PI to alignment.
 
         PIs are pure intersection points - NO RADIUS!
@@ -308,6 +313,9 @@ class NativeIfcAlignment:
         Args:
             x: X coordinate (Easting)
             y: Y coordinate (Northing)
+            regenerate: Whether to regenerate segments (default True).
+                        Set to False for batch operations to avoid
+                        creating thousands of intermediate entities.
 
         Returns:
             PI data dictionary
@@ -322,7 +330,8 @@ class NativeIfcAlignment:
         }
 
         self.pis.append(pi_data)
-        self.regenerate_segments()
+        if regenerate:
+            self.regenerate_segments()
         return pi_data
 
     def insert_curve_at_pi(
@@ -383,18 +392,33 @@ class NativeIfcAlignment:
         if len(self.pis) < 2:
             return
 
+        # Track exact position for C0 continuity chaining
+        current_exact_pos = None
+
         for i in range(len(self.pis) - 1):
             curr_pi = self.pis[i]
             next_pi = self.pis[i + 1]
 
-            segment, curve_geom = create_tangent_segment(
+            segment, curve_geom, exact_end = create_tangent_segment(
                 self.ifc,
                 curr_pi['position'],
                 next_pi['position'],
-                i
+                i,
+                exact_start=current_exact_pos
             )
             self.segments.append(segment)
             self.curve_segments.append(curve_geom)
+
+            # Chain end position to next segment's start
+            current_exact_pos = exact_end
+
+        # Store final position for zero-length segment
+        self._last_exact_pos = current_exact_pos
+
+        # BSI ALB015: Add zero-length final segment (business logic requirement)
+        # Per IFC 4.3: Each alignment layout must end with a zero-length segment
+        if self.segments and len(self.pis) >= 2:
+            self._add_zero_length_final_segment()
 
         self._update_ifc_nesting()
         build_composite_curve(self.ifc, self.curve_segments, self.alignment)
@@ -417,6 +441,9 @@ class NativeIfcAlignment:
         # Recalculate all curve geometries
         self._recalculate_curves()
 
+        # Track exact position for C0 continuity chaining
+        current_exact_pos = None
+
         # Generate segments
         for i in range(len(self.pis) - 1):
             curr_pi = self.pis[i]
@@ -434,22 +461,38 @@ class NativeIfcAlignment:
             else:
                 end_pos = next_pi['position']
 
-            # Create tangent segment
-            segment, curve_geom = create_tangent_segment(
-                self.ifc, start_pos, end_pos, len(self.segments)
+            # Create tangent segment (use chained position for C0 continuity)
+            segment, curve_geom, exact_end = create_tangent_segment(
+                self.ifc, start_pos, end_pos, len(self.segments),
+                exact_start=current_exact_pos
             )
             self.segments.append(segment)
             self.curve_segments.append(curve_geom)
 
+            # Chain end position to next segment's start
+            current_exact_pos = exact_end
+
             # Add curve at next PI if exists
             if 'curve' in next_pi:
-                curve_seg, curve_geom = create_curve_segment(
+                curve_seg, curve_geom, curve_exact_end = create_curve_segment(
                     self.ifc,
                     next_pi['curve'],
-                    next_pi['id']
+                    next_pi['id'],
+                    exact_start=current_exact_pos
                 )
                 self.segments.append(curve_seg)
                 self.curve_segments.append(curve_geom)
+
+                # Chain curve end to next segment's start
+                current_exact_pos = curve_exact_end
+
+        # Store final position for zero-length segment
+        self._last_exact_pos = current_exact_pos
+
+        # BSI ALB015: Add zero-length final segment (business logic requirement)
+        # Per IFC 4.3: Each alignment layout must end with a zero-length segment
+        if self.segments and len(self.pis) >= 2:
+            self._add_zero_length_final_segment()
 
         self._update_ifc_nesting()
         build_composite_curve(self.ifc, self.curve_segments, self.alignment)
@@ -480,6 +523,131 @@ class NativeIfcAlignment:
             else:
                 del pi['curve']
                 logger.info(f"Removed invalid curve at PI {i}")
+
+    def _add_zero_length_final_segment(self) -> None:
+        """Add zero-length final segment per BSI ALB015.
+
+        Per IFC 4.3 specification, each alignment layout must end with
+        a zero-length segment to mark the endpoint.
+        """
+        if not self.segments:
+            return
+
+        # Get endpoint from last segment
+        last_seg = self.segments[-1]
+        last_params = last_seg.DesignParameters
+
+        if not last_params:
+            return
+
+        # Use chained exact position if available (for C0 continuity)
+        if hasattr(self, '_last_exact_pos') and self._last_exact_pos is not None:
+            end_x, end_y = self._last_exact_pos
+            end_direction = last_params.StartDirection
+            # For curves, adjust direction
+            if last_params.PredefinedType == "CIRCULARARC":
+                radius = abs(last_params.StartRadiusOfCurvature)
+                seg_length = last_params.SegmentLength
+                deflection = seg_length / radius if radius > 0 else 0
+                sign = 1 if last_params.StartRadiusOfCurvature > 0 else -1
+                end_direction = last_params.StartDirection + sign * deflection
+        else:
+            # Fallback: Calculate endpoint based on last segment type
+            start_point = last_params.StartPoint
+            start_dir = last_params.StartDirection
+            seg_length = last_params.SegmentLength
+
+            if last_params.PredefinedType == "LINE":
+                # Linear segment - endpoint is start + direction * length
+                end_x = start_point.Coordinates[0] + seg_length * math.cos(start_dir)
+                end_y = start_point.Coordinates[1] + seg_length * math.sin(start_dir)
+                end_direction = start_dir
+            elif last_params.PredefinedType == "CIRCULARARC":
+                # Circular arc - compute endpoint
+                radius = abs(last_params.StartRadiusOfCurvature)
+                deflection = seg_length / radius if radius > 0 else 0
+                sign = 1 if last_params.StartRadiusOfCurvature > 0 else -1
+                end_direction = start_dir + sign * deflection
+
+                # Arc endpoint calculation
+                center_offset_angle = start_dir + (math.pi / 2 * sign)
+                cx = start_point.Coordinates[0] + radius * math.cos(center_offset_angle)
+                cy = start_point.Coordinates[1] + radius * math.sin(center_offset_angle)
+
+                end_angle_from_center = center_offset_angle + math.pi + (sign * deflection)
+                end_x = cx + radius * math.cos(end_angle_from_center)
+                end_y = cy + radius * math.sin(end_angle_from_center)
+            else:
+                # Default: use last PI position
+                end_pos = self.pis[-1]['position']
+                end_x = end_pos.x
+                end_y = end_pos.y
+                end_direction = start_dir
+
+        # Create zero-length horizontal segment at endpoint
+        end_point = self.ifc.create_entity(
+            "IfcCartesianPoint",
+            Coordinates=[float(end_x), float(end_y)]
+        )
+
+        zero_length_params = self.ifc.create_entity(
+            "IfcAlignmentHorizontalSegment",
+            StartPoint=end_point,
+            StartDirection=float(end_direction),
+            StartRadiusOfCurvature=0.0,
+            EndRadiusOfCurvature=0.0,
+            SegmentLength=0.0,  # Zero length - marks endpoint
+            PredefinedType="LINE"
+        )
+
+        final_segment = self.ifc.create_entity(
+            "IfcAlignmentSegment",
+            GlobalId=ifcopenshell.guid.new(),
+            Name="Endpoint",
+            ObjectType="ENDPOINT",
+            DesignParameters=zero_length_params
+        )
+
+        self.segments.append(final_segment)
+
+        # Also add zero-length curve segment for geometry layer (ALS015)
+        # This will be picked up by build_composite_curve
+        placement = self.ifc.create_entity(
+            "IfcAxis2Placement2D",
+            Location=end_point,
+            RefDirection=self.ifc.create_entity(
+                "IfcDirection",
+                DirectionRatios=[math.cos(end_direction), math.sin(end_direction)]
+            )
+        )
+
+        parent_line = self.ifc.create_entity(
+            "IfcLine",
+            Pnt=self.ifc.create_entity(
+                "IfcCartesianPoint", Coordinates=[0.0, 0.0]
+            ),
+            Dir=self.ifc.create_entity(
+                "IfcVector",
+                Orientation=self.ifc.create_entity(
+                    "IfcDirection", DirectionRatios=[1.0, 0.0]
+                ),
+                Magnitude=1.0
+            )
+        )
+
+        # Create DISCONTINUOUS zero-length final curve segment (ALS015)
+        final_curve_seg = self.ifc.create_entity(
+            "IfcCurveSegment",
+            Transition="DISCONTINUOUS",  # Must be DISCONTINUOUS per ALS015
+            Placement=placement,
+            SegmentStart=self.ifc.create_entity("IfcLengthMeasure", 0.0),
+            SegmentLength=self.ifc.create_entity("IfcLengthMeasure", 0.0),
+            ParentCurve=parent_line
+        )
+
+        self.curve_segments.append(final_curve_seg)
+
+        logger.debug("Added zero-length final segment (ALB015/ALS015)")
 
     def _update_ifc_nesting(self) -> None:
         """Update IFC nesting relationships for segments."""

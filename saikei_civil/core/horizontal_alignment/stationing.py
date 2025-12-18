@@ -458,22 +458,11 @@ class StationingManager:
                 )
             )
 
-        # DistanceAlong
+        # HasIncreasingStation (standard Pset_Stationing property)
         station_props.append(
             self.ifc.create_entity(
                 "IfcPropertySingleValue",
-                Name="DistanceAlong",
-                NominalValue=self.ifc.create_entity(
-                    "IfcLengthMeasure", ref_data['distance_along']
-                )
-            )
-        )
-
-        # IncrementOrder (True = increasing stations)
-        station_props.append(
-            self.ifc.create_entity(
-                "IfcPropertySingleValue",
-                Name="IncrementOrder",
+                Name="HasIncreasingStation",
                 NominalValue=self.ifc.create_entity("IfcBoolean", True)
             )
         )

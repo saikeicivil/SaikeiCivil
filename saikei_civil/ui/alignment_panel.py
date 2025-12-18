@@ -130,17 +130,25 @@ class VIEW3D_PT_native_ifc_alignment(bpy.types.Panel):
         if context.active_object and "ifc_pi_id" in context.active_object:
             pi_box = box.box()
             obj = context.active_object
-            
+
             col = pi_box.column(align=True)
             col.label(text=f"Selected: {obj.name}", icon='DECORATE_KEYFRAME')
-            
+
             if "ifc_point_id" in obj:
                 ifc = NativeIfcManager.get_file()
                 if ifc:
-                    point = ifc.by_id(obj["ifc_point_id"])
-                    coords = point.Coordinates
-                    col.label(text=f"Location: ({coords[0]:.2f}, {coords[1]:.2f})")
-                    col.label(text=f"PI Index: {obj['ifc_pi_id']}")
+                    try:
+                        point = ifc.by_id(obj["ifc_point_id"])
+                        coords = point.Coordinates
+                        col.label(text=f"Location: ({coords[0]:.2f}, {coords[1]:.2f})")
+                        col.label(text=f"PI Index: {obj['ifc_pi_id']}")
+                    except RuntimeError:
+                        # Entity was deleted during segment regeneration
+                        # Show location from Blender object instead
+                        loc = obj.location
+                        col.label(text=f"Location: ({loc.x:.2f}, {loc.y:.2f})")
+                        col.label(text=f"PI Index: {obj['ifc_pi_id']}")
+                        col.label(text="(IFC entity stale)", icon='ERROR')
         
         # ==================== CURVE TOOLS ====================
         box = layout.box()
@@ -174,18 +182,22 @@ class VIEW3D_PT_native_ifc_alignment(bpy.types.Panel):
                 if "ifc_definition_id" in obj:
                     ifc = NativeIfcManager.get_file()
                     if ifc:
-                        entity = ifc.by_id(obj["ifc_definition_id"])
-                        if entity:
-                            params = entity.DesignParameters
-                            if params:
-                                col.label(text=f"Radius: {abs(params.StartRadiusOfCurvature):.2f}m")
-                                col.label(text=f"Length: {params.SegmentLength:.2f}m")
+                        try:
+                            entity = ifc.by_id(obj["ifc_definition_id"])
+                            if entity:
+                                params = entity.DesignParameters
+                                if params:
+                                    col.label(text=f"Radius: {abs(params.StartRadiusOfCurvature):.2f}m")
+                                    col.label(text=f"Length: {params.SegmentLength:.2f}m")
 
-                                # Determine turn direction
-                                if params.StartRadiusOfCurvature > 0:
-                                    col.label(text="Turn: LEFT (CCW)", icon='LOOP_BACK')
-                                else:
-                                    col.label(text="Turn: RIGHT (CW)", icon='LOOP_FORWARDS')
+                                    # Determine turn direction
+                                    if params.StartRadiusOfCurvature > 0:
+                                        col.label(text="Turn: LEFT (CCW)", icon='LOOP_BACK')
+                                    else:
+                                        col.label(text="Turn: RIGHT (CW)", icon='LOOP_FORWARDS')
+                        except RuntimeError:
+                            # Entity was deleted during segment regeneration
+                            col.label(text="(IFC entity stale)", icon='ERROR')
 
         # ==================== STATIONING TOOLS ====================
         box = layout.box()

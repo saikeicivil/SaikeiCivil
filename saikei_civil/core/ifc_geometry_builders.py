@@ -261,31 +261,38 @@ def create_line_parent_curve(ifc_file, start_x: float, start_y: float,
     This is the geometric representation of a straight line segment.
     IfcLine is defined by a point and a direction vector.
 
-    IMPORTANT: The line is created at the ORIGIN (0,0), NOT at world coordinates!
-    The IfcCurveSegment.Placement will position it in world space.
-    Creating the line at world coords AND using Placement would cause double-positioning.
+    CRITICAL FIX (ALS016): IfcLine MUST be positioned at its actual start point
+    in world coordinates. This is because the parametric representation of a line
+    is: Pnt + t * Dir, where t is the parameter. If Pnt is at origin instead of
+    the real start point, the validator computes wrong endpoint positions.
+
+    The validator computes segment endpoints using the parent curve's position.
+    For lines, this means: Pnt + parameter * Dir.
+    If Pnt is at origin instead of the real start, endpoints are wrong by
+    hundreds of meters.
 
     Args:
         ifc_file: IFC file object
-        start_x, start_y: Start point coordinates in meters (used for direction only)
+        start_x, start_y: Start point coordinates in world space (USED!)
         end_x, end_y: End point coordinates in meters
 
     Returns:
         IfcLine entity
 
     Example:
-        >>> # Create line from (0,0) to (100,0)
-        >>> line = create_line_parent_curve(ifc, 0, 0, 100, 0)
+        >>> # Create line from (100,50) to (200,50)
+        >>> line = create_line_parent_curve(ifc, 100, 50, 200, 50)
 
     Note:
-        This creates the GEOMETRIC representation at origin.
-        The IfcCurveSegment.Placement moves it to world position.
+        The IfcCurveSegment.Placement should match this start position
+        to ensure the declared position equals the computed position.
     """
-    # Line is at ORIGIN - Placement will position it in world space
-    # DO NOT use world coordinates here - it causes double-positioning!
-    point = create_cartesian_point_2d(ifc_file, 0.0, 0.0)
+    # CRITICAL: Line at ACTUAL START position, not origin!
+    # The parametric representation (Pnt + t*Dir) uses Pnt as base.
+    # If Pnt is at origin, the validator computes wrong endpoints.
+    point = create_cartesian_point_2d(ifc_file, float(start_x), float(start_y))
 
-    # Direction from start to end (this encodes the line orientation)
+    # Direction from start to end (unit vector)
     dx = end_x - start_x
     dy = end_y - start_y
     direction = create_direction_2d(ifc_file, dx, dy)
@@ -295,7 +302,7 @@ def create_line_parent_curve(ifc_file, start_x: float, start_y: float,
         Orientation=direction,
         Magnitude=1.0)
 
-    # Create line at origin with direction
+    # Create line at actual start position with direction
     return ifc_file.create_entity("IfcLine",
         Pnt=point,
         Dir=vector)
@@ -308,13 +315,19 @@ def create_circle_parent_curve(ifc_file, center_x: float, center_y: float,
     This is the geometric representation of a circular arc.
     IfcCircle is defined by a center placement and radius.
 
-    IMPORTANT: The circle is created at the ORIGIN, NOT at world coordinates!
-    The IfcCurveSegment.Placement will position it in world space.
-    Creating the circle at world coords AND using Placement would cause double-positioning.
+    CRITICAL FIX (ALS016): Unlike IfcLine, IfcCircle MUST be positioned at its
+    actual center in world coordinates. This is because the angular parameterization
+    traces an arc AROUND the center. If the center is at origin, the arc would be
+    traced around (0,0), giving completely wrong endpoint positions.
+
+    The validator computes segment endpoints using the parent curve's position.
+    For circles, this means: center + radius * (cos(theta), sin(theta)).
+    If center is at origin instead of the real center, endpoints are wrong by
+    hundreds of meters.
 
     Args:
         ifc_file: IFC file object
-        center_x, center_y: Circle center coordinates (NOT USED - for API compatibility)
+        center_x, center_y: Circle center coordinates in world space (USED!)
         radius: Circle radius in meters (must be positive)
         start_angle: Starting angle in radians (for RefDirection orientation)
 
@@ -322,21 +335,21 @@ def create_circle_parent_curve(ifc_file, center_x: float, center_y: float,
         IfcCircle entity
 
     Example:
-        >>> # Create circle with 100m radius
-        >>> circle = create_circle_parent_curve(ifc, 50, 0, 100, 0)
+        >>> # Create circle centered at (50, 100) with 100m radius
+        >>> circle = create_circle_parent_curve(ifc, 50, 100, 100, 0)
 
     Note:
-        The circle is at origin. IfcCurveSegment.Placement positions it.
-        Radius must be positive. Turn direction is handled by signed angular extent.
+        Radius must be positive. Turn direction is handled by signed angular extent
+        in the IfcCurveSegment.SegmentLength parameter.
     """
     # Ensure radius is positive (geometric representation)
     abs_radius = abs(radius)
 
-    # Circle at ORIGIN with RefDirection encoding the start angle
-    # DO NOT use world coordinates - Placement will position it!
-    placement = create_axis2placement_2d(ifc_file, 0.0, 0.0, start_angle)
+    # CRITICAL: Circle at ACTUAL CENTER position, not origin!
+    # The angular parameterization (cos/sin) is relative to center.
+    # If center is at origin, the validator computes wrong endpoints.
+    placement = create_axis2placement_2d(ifc_file, center_x, center_y, start_angle)
 
-    # Create circle at origin
     return ifc_file.create_entity("IfcCircle",
         Position=placement,
         Radius=float(abs_radius))
@@ -384,15 +397,17 @@ def create_curve_segment(ifc_file, parent_curve, placement,
         Without this, you only have business logic, not geometry!
     """
     # For IFC4X3, SegmentStart and SegmentLength are IfcCurveMeasureSelect
-    # which requires IfcParameterValue entity instances (not raw floats).
-    segment_start_param = ifc_file.create_entity("IfcParameterValue", float(segment_start))
-    segment_length_param = ifc_file.create_entity("IfcParameterValue", float(segment_length))
+    # which requires wrapped entity instances (not raw floats).
+    # Per BSI ALS012: Use IfcLengthMeasure (meters) for alignment segments,
+    # not IfcParameterValue (parametric values for curves like NURBS).
+    segment_start_val = ifc_file.create_entity("IfcLengthMeasure", float(segment_start))
+    segment_length_val = ifc_file.create_entity("IfcLengthMeasure", float(segment_length))
 
     return ifc_file.create_entity("IfcCurveSegment",
         Transition=transition,
         Placement=placement,
-        SegmentStart=segment_start_param,
-        SegmentLength=segment_length_param,
+        SegmentStart=segment_start_val,
+        SegmentLength=segment_length_val,
         ParentCurve=parent_curve)
 
 
@@ -664,8 +679,9 @@ def validate_curve_segment(curve_segment) -> bool:
     if curve_segment.Placement is None:
         raise ValueError("IfcCurveSegment missing Placement")
     
-    if curve_segment.SegmentLength <= 0:
-        raise ValueError(f"IfcCurveSegment has non-positive length: {curve_segment.SegmentLength}")
+    # Note: Zero-length segments are valid per BSI ALS015 (endpoint markers)
+    if curve_segment.SegmentLength < 0:
+        raise ValueError(f"IfcCurveSegment has negative length: {curve_segment.SegmentLength}")
     
     valid_transitions = ["CONTINUOUS", "CONTSAMEGRADIENT", 
                         "CONTSAMEGRADIENTSAMECURVATURE", "DISCONTINUOUS"]

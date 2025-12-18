@@ -146,6 +146,9 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         self._alignment_obj, was_created = get_or_create_alignment(active_alignment)
         self._visualizer, vis_created = get_or_create_visualizer(self._alignment_obj)
 
+        # CRITICAL: Store visualizer on alignment so update handler can access it!
+        self._alignment_obj.visualizer = self._visualizer
+
         if was_created:
             logger.info("Created new alignment instance")
         if vis_created:
@@ -187,25 +190,28 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         return None
     
     def add_pi_at_location(self, location):
-        """Add PI at location with immediate IFC creation and visualization"""
-        
+        """Add PI at location with immediate visualization but deferred IFC geometry.
+
+        OPTIMIZATION: We defer segment regeneration until the user finishes placing
+        all PIs. This prevents creating thousands of intermediate entities that would
+        be deleted and recreated with each PI placement.
+        """
+
         if not self._alignment_obj or not self._visualizer:
             self.report({'ERROR'}, "Alignment or visualizer not initialized")
             return
-        
-        # Add PI to alignment (creates IFC entity)
-        pi_data = self._alignment_obj.add_pi(location.x, location.y)
-        
-        # Create visual marker immediately
+
+        # Add PI to alignment WITHOUT regenerating segments (deferred to finish())
+        # This avoids creating/deleting thousands of intermediate entities
+        pi_data = self._alignment_obj.add_pi(location.x, location.y, regenerate=False)
+
+        # Create visual marker immediately (just the PI point, not geometry)
         pi_marker = self._visualizer.create_pi_object(pi_data)
-        
-        # Update tangent line visualization if we have 2+ PIs
-        if len(self._alignment_obj.pis) >= 2:
-            # Visualize the last created segment (should be the newest tangent)
-            if self._alignment_obj.segments:
-                last_segment = self._alignment_obj.segments[-1]
-                self._visualizer.create_segment_curve(last_segment)
-        
+
+        # Note: We don't visualize tangent segments during placement anymore
+        # because regenerate_segments() is deferred. The tangents will appear
+        # when the user finishes placement.
+
         pi_count = len(self._alignment_obj.pis)
         self.report({'INFO'}, f"[+] PI {pi_count} at ({location.x:.2f}, {location.y:.2f})")
 
@@ -213,10 +219,18 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         logger.debug("Total segments: %d", len(self._alignment_obj.segments))
     
     def draw_callback_px(self, operator, context):
-        """Draw on-screen instructions and visual feedback"""
-        
+        """Draw on-screen instructions, preview tangent lines, and visual feedback.
+
+        PREVIEW LINES: We draw tangent lines using GPU primitives instead of
+        creating IFC/Blender geometry. This provides real-time visual feedback
+        without creating thousands of intermediate entities.
+        """
+        from bpy_extras import view3d_utils
+
         font_id = 0
-        
+        region = context.region
+        rv3d = context.region_data
+
         # Draw instructions box
         blf.position(font_id, 15, 80, 0)
         blf.size(font_id, 22)
@@ -233,7 +247,7 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
 
         blf.position(font_id, 15, 21, 0)
         blf.draw(font_id, "[X] ESC: Cancel")
-        
+
         # Show point count if any points placed
         if self._alignment_obj and len(self._alignment_obj.pis) > 0:
             pi_count = len(self._alignment_obj.pis)
@@ -241,27 +255,82 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
             blf.size(font_id, 18)
             blf.color(font_id, 0.3, 1.0, 0.4, 1.0)
             blf.draw(font_id, f"PIs Placed: {pi_count}")
-            
+
             # Show last PI coordinates
             last_pi = self._alignment_obj.pis[-1]
             blf.position(font_id, context.region.width - 180, 25, 0)
             blf.size(font_id, 13)
             blf.color(font_id, 0.8, 0.8, 0.8, 1.0)
             blf.draw(font_id, f"Last: ({last_pi['position'].x:.1f}, {last_pi['position'].y:.1f})")
-        
+
+        # ============================================================
+        # PREVIEW TANGENT LINES - GPU drawing, no IFC entities!
+        # ============================================================
+        if self._alignment_obj and len(self._alignment_obj.pis) >= 1:
+            shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+            shader.bind()
+
+            gpu.state.blend_set('ALPHA')
+            gpu.state.line_width_set(2.5)
+
+            # Convert PI 3D positions to 2D screen coordinates
+            pi_screen_coords = []
+            for pi in self._alignment_obj.pis:
+                pos_3d = Vector((pi['position'].x, pi['position'].y, 0.0))
+                pos_2d = view3d_utils.location_3d_to_region_2d(region, rv3d, pos_3d)
+                if pos_2d:
+                    pi_screen_coords.append(pos_2d)
+
+            # Draw tangent lines between consecutive PIs (yellow preview)
+            if len(pi_screen_coords) >= 2:
+                shader.uniform_float("color", (1.0, 0.9, 0.2, 0.8))  # Yellow for tangents
+                line_vertices = []
+                for i in range(len(pi_screen_coords) - 1):
+                    line_vertices.append((pi_screen_coords[i].x, pi_screen_coords[i].y))
+                    line_vertices.append((pi_screen_coords[i + 1].x, pi_screen_coords[i + 1].y))
+
+                batch = batch_for_shader(shader, 'LINES', {"pos": line_vertices})
+                batch.draw(shader)
+
+            # Draw "rubber band" line from last PI to current mouse position
+            if pi_screen_coords and self._last_mouse_pos:
+                shader.uniform_float("color", (1.0, 0.9, 0.2, 0.5))  # Dimmer yellow
+                last_pi_2d = pi_screen_coords[-1]
+                rubber_band = [
+                    (last_pi_2d.x, last_pi_2d.y),
+                    self._last_mouse_pos
+                ]
+                batch = batch_for_shader(shader, 'LINES', {"pos": rubber_band})
+                batch.draw(shader)
+
+            # Draw PI markers (circles at each PI position)
+            shader.uniform_float("color", (0.3, 1.0, 0.4, 0.9))  # Green for PIs
+            for pos_2d in pi_screen_coords:
+                circle_segments = 16
+                circle_radius = 6
+                circle_vertices = []
+                for i in range(circle_segments + 1):
+                    angle = 2 * math.pi * i / circle_segments
+                    circle_vertices.append((
+                        pos_2d.x + circle_radius * math.cos(angle),
+                        pos_2d.y + circle_radius * math.sin(angle)
+                    ))
+                batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": circle_vertices})
+                batch.draw(shader)
+
+            gpu.state.blend_set('NONE')
+
         # Draw crosshair cursor at mouse position
         if self._last_mouse_pos:
             x, y = self._last_mouse_pos
-            
-            # Create shader
+
             shader = gpu.shader.from_builtin('UNIFORM_COLOR')
             shader.bind()
             shader.uniform_float("color", (0.3, 1.0, 0.4, 0.9))  # Green for PIs
-            
-            # Enable line smoothing
+
             gpu.state.blend_set('ALPHA')
             gpu.state.line_width_set(2.0)
-            
+
             # Draw crosshair
             size = 15
             vertices = [
@@ -270,7 +339,7 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
             ]
             batch = batch_for_shader(shader, 'LINES', {"pos": vertices})
             batch.draw(shader)
-            
+
             # Draw circle at cursor
             circle_segments = 24
             circle_vertices = []
@@ -281,29 +350,39 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
                     x + circle_radius * math.cos(angle),
                     y + circle_radius * math.sin(angle)
                 ))
-            
+
             batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": circle_vertices})
             batch.draw(shader)
-            
+
             gpu.state.blend_set('NONE')
     
     def finish(self, context):
-        """Finish interactive mode - PIs and segments already in IFC!"""
+        """Finish interactive mode - regenerate segments ONCE at the end."""
         # Remove drawing handler
         if self._handle:
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-        
+
         if self._alignment_obj:
             pi_count = len(self._alignment_obj.pis)
-            segment_count = len(self._alignment_obj.segments)
 
+            if pi_count >= 2:
+                # NOW regenerate segments - only once for all PIs!
+                # This is the key optimization - instead of regenerating N times
+                # (once per PI), we regenerate once at the end.
+                self._alignment_obj.regenerate_segments()
 
-            if pi_count > 0:
-                self.report({'INFO'}, f"[OK] Placed {pi_count} PIs, created {segment_count} tangent segments")
+                # Update visualization for all segments
+                if self._visualizer:
+                    self._visualizer.update_all()
+
+                segment_count = len(self._alignment_obj.segments)
+                self.report({'INFO'}, f"[OK] Placed {pi_count} PIs, created {segment_count} segments")
                 logger.info("Finished: %d PIs, %d segments in IFC", pi_count, segment_count)
+            elif pi_count == 1:
+                self.report({'INFO'}, f"[OK] Placed 1 PI (need 2+ for segments)")
             else:
                 self.report({'WARNING'}, "No PIs placed")
-        
+
         context.area.tag_redraw()
     
     def cancel(self, context):
@@ -366,10 +445,12 @@ class BC_OT_add_native_pi(bpy.types.Operator):
         # Create visualization
         visualizer.create_pi_object(pi_data)
         
-        # Update tangents if we have 2+ PIs
-        if len(alignment_obj.pis) >= 2 and alignment_obj.segments:
-            last_segment = alignment_obj.segments[-1]
-            visualizer.create_segment_curve(last_segment)
+        # Update tangent visualization if we have 2+ PIs
+        # Note: segments[-1] is the zero-length Endpoint (BSI ALB015),
+        # so get second-to-last for the actual tangent
+        if len(alignment_obj.pis) >= 2 and len(alignment_obj.segments) >= 2:
+            tangent_segment = alignment_obj.segments[-2]
+            visualizer.create_segment_curve(tangent_segment)
         
         self.report({'INFO'}, f"Added PI at ({cursor.x:.2f}, {cursor.y:.2f})")
         return {'FINISHED'}
