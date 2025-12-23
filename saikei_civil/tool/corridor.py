@@ -232,12 +232,25 @@ class Corridor(core_tool.Corridor):
         bm = bmesh.new()
 
         try:
-            # Get profile points from assembly
-            profile_points = cls._get_profile_points(assembly)
+            # Check if we have parametric constraints (variable cross-section)
+            has_constraints = (
+                hasattr(assembly, 'constraint_manager') and
+                assembly.constraint_manager is not None
+            )
+
+            if has_constraints:
+                logger.info("Generating corridor with %d parametric constraints",
+                           len(assembly.constraint_manager.constraints))
 
             # Generate vertices for each station
             all_vertices = []
             for station in stations:
+                # Get profile points for this station (applies constraints if present)
+                profile_points = cls._get_profile_points(
+                    assembly,
+                    station=station.station
+                )
+
                 station_vertices = cls._create_station_vertices(
                     station, profile_points, bm
                 )
@@ -422,31 +435,45 @@ class Corridor(core_tool.Corridor):
             logger.info(f"Created directrix with {len(points)} points")
 
             # Create cross-section profiles for each station
+            # Note: pavement_thickness is calculated from assembly components automatically
             cross_sections = []
             for station_point in stations:
                 profile = create_profile_from_assembly(
                     ifc_file=ifc_file,
                     assembly=assembly,
-                    station=station_point.station,
-                    pavement_thickness=0.3
+                    station=station_point.station
+                    # pavement_thickness auto-calculated from assembly.components
                 )
                 cross_sections.append(profile)
 
             logger.info(f"Created {len(cross_sections)} cross-section profiles")
 
             # Create positions for each cross-section
+            # Per IFC 4.3: IfcAxis2PlacementLinear.Location must be IfcPointByDistanceExpression
+            # (NOT IfcDistanceExpression which doesn't exist in IFC 4.3)
+            #
+            # CRITICAL: DistanceAlong is IfcCurveMeasureSelect which requires a wrapped
+            # entity instance (IfcLengthMeasure), NOT a raw float value.
+            # See ifc_geometry_builders.py for the same pattern with SegmentStart/SegmentLength.
             positions = []
             for station_point in stations:
-                distance_expr = ifc_file.create_entity(
-                    "IfcDistanceExpression",
-                    DistanceAlong=station_point.station,
+                # Wrap distance value as IfcLengthMeasure entity
+                distance_along = ifc_file.create_entity(
+                    "IfcLengthMeasure",
+                    float(station_point.station)
+                )
+
+                point_by_distance = ifc_file.create_entity(
+                    "IfcPointByDistanceExpression",
+                    DistanceAlong=distance_along,
                     OffsetLateral=0.0,
-                    OffsetVertical=0.0
+                    OffsetVertical=0.0,
+                    BasisCurve=directrix  # Required in IFC 4.3
                 )
 
                 placement = ifc_file.create_entity(
                     "IfcAxis2PlacementLinear",
-                    Location=distance_expr,
+                    Location=point_by_distance,
                     Axis=None,
                     RefDirection=None
                 )
@@ -489,66 +516,170 @@ class Corridor(core_tool.Corridor):
     # =========================================================================
 
     @classmethod
-    def _get_profile_points(cls, assembly: "AssemblyWrapper") -> List[Dict[str, Any]]:
+    def _get_profile_points(
+        cls,
+        assembly: "AssemblyWrapper",
+        station: float = 0.0,
+        pavement_thickness: float = None
+    ) -> List[Tuple[float, float]]:
         """
-        Extract cross-section profile points from assembly.
+        Create a CLOSED cross-section profile polygon from assembly components.
+
+        The profile forms a complete closed loop suitable for creating a solid:
+        - Top edge: left to right across all components
+        - Right edge: vertical closure going down
+        - Bottom edge: right to left (offset down by pavement thickness)
+        - Left edge: vertical closure going up to start
+
+        IMPORTANT: If the assembly has a constraint_manager, constraints are
+        applied at the given station to modify component widths and slopes.
 
         Args:
-            assembly: AssemblyWrapper instance
+            assembly: AssemblyWrapper instance (may include constraint_manager)
+            station: Current station along alignment for constraint evaluation
+            pavement_thickness: Thickness of pavement layer. If None, uses the
+                maximum thickness from all assembly components.
 
         Returns:
-            List of component profile data dictionaries
+            List of (offset, elevation) tuples forming a closed polygon
         """
-        profile_points = []
-
-        for component in assembly.components:
-            points = []
-            is_left_side = component.offset < 0
-
-            if is_left_side:
-                start_offset = component.offset + component.width
-                start_elev = component.elevation - component.slope * component.width
-                end_offset = component.offset
-                end_elev = component.elevation
-                points.append((start_offset, start_elev))
-                points.append((end_offset, end_elev))
+        # Calculate actual thickness from assembly components if not provided
+        if pavement_thickness is None:
+            if assembly.components:
+                # Use maximum thickness across all components
+                pavement_thickness = max(
+                    getattr(c, 'thickness', 0.15) for c in assembly.components
+                )
+                logger.debug(f"Using component thickness: {pavement_thickness}m")
             else:
-                start_offset = component.offset
-                start_elev = component.elevation
-                end_offset = component.offset + component.width
-                end_elev = component.elevation - component.slope * component.width
-                points.append((start_offset, start_elev))
-                points.append((end_offset, end_elev))
+                pavement_thickness = 0.15  # Default fallback
 
-            profile_points.append({
-                'name': component.name,
-                'type': component.component_type,
-                'points': points,
-                'material': component.material
-            })
+        # Check if we have constraints to apply
+        has_constraints = (
+            hasattr(assembly, 'constraint_manager') and
+            assembly.constraint_manager is not None
+        )
 
-        return profile_points
+        # Separate left and right components
+        left_components = [c for c in assembly.components if c.offset < 0]
+        right_components = [c for c in assembly.components if c.offset >= 0]
+
+        # Sort: left components by offset descending (furthest left first)
+        # right components by offset ascending (centerline first)
+        left_components.sort(key=lambda c: c.offset)  # Most negative first
+        right_components.sort(key=lambda c: c.offset)  # Least positive first
+
+        # Build TOP edge points (left to right)
+        top_points = []
+
+        # Track cumulative offsets with constraints applied
+        left_cumulative = 0.0
+        left_elev = 0.0
+
+        # Process left side (furthest left to centerline)
+        for component in left_components:
+            # Apply constraints if available
+            if has_constraints:
+                width = assembly.get_component_value(
+                    component.name, "width", station, component.width
+                )
+                slope = assembly.get_component_value(
+                    component.name, "cross_slope", station, component.slope
+                )
+            else:
+                width = component.width
+                slope = component.slope
+
+            # Left components: offset is negative, width extends toward center
+            outer_offset = -(left_cumulative + width)
+            inner_offset = -left_cumulative
+            outer_elev = left_elev - slope * width
+            inner_elev = left_elev
+
+            # Update cumulative for next component
+            left_cumulative += width
+            left_elev = outer_elev
+
+            # Add outer point first (further from center)
+            if not top_points or abs(top_points[-1][0] - outer_offset) > 0.001:
+                top_points.append((outer_offset, outer_elev))
+            # Add inner point (closer to center)
+            if abs(top_points[-1][0] - inner_offset) > 0.001:
+                top_points.append((inner_offset, inner_elev))
+
+        # Track cumulative offsets for right side
+        right_cumulative = 0.0
+        right_elev = 0.0
+
+        # Process right side (centerline to furthest right)
+        for component in right_components:
+            # Apply constraints if available
+            if has_constraints:
+                width = assembly.get_component_value(
+                    component.name, "width", station, component.width
+                )
+                slope = assembly.get_component_value(
+                    component.name, "cross_slope", station, component.slope
+                )
+            else:
+                width = component.width
+                slope = component.slope
+
+            # Right components: offset is positive, width extends away from center
+            inner_offset = right_cumulative
+            outer_offset = right_cumulative + width
+            inner_elev = right_elev
+            outer_elev = right_elev - slope * width
+
+            # Update cumulative for next component
+            right_cumulative += width
+            right_elev = outer_elev
+
+            # Add inner point first (closer to center)
+            if not top_points or abs(top_points[-1][0] - inner_offset) > 0.001:
+                top_points.append((inner_offset, inner_elev))
+            # Add outer point (further from center)
+            if abs(top_points[-1][0] - outer_offset) > 0.001:
+                top_points.append((outer_offset, outer_elev))
+
+        if not top_points:
+            # Fallback: create a simple rectangular profile
+            top_points = [(-3.6, 0.0), (3.6, 0.0)]
+
+        # Build BOTTOM edge points (reverse of top, offset down by thickness)
+        bottom_points = []
+        for offset, elev in reversed(top_points):
+            bottom_points.append((offset, elev - pavement_thickness))
+
+        # Combine into closed polygon:
+        # top points (L→R) + bottom points (R→L) + close back to start
+        closed_profile = top_points + bottom_points
+
+        # Ensure loop is closed (first point == last point conceptually)
+        # The mesh generation will handle connecting last to first via faces
+
+        return closed_profile
 
     @classmethod
     def _create_station_vertices(
         cls,
         station: "StationPoint",
-        profile_points: List[Dict[str, Any]],
+        profile_points: List[Tuple[float, float]],
         bm: bmesh.types.BMesh
     ) -> List[bmesh.types.BMVert]:
         """
-        Create vertices at a specific station.
+        Create vertices at a specific station from closed profile polygon.
 
         Transforms 2D cross-section points to 3D space based on
         station position and bearing.
 
         Args:
             station: StationPoint with position and bearing
-            profile_points: Cross-section profile definition
+            profile_points: List of (offset, elevation) tuples forming closed polygon
             bm: BMesh to add vertices to
 
         Returns:
-            List of created BMesh vertices
+            List of created BMesh vertices (in profile order)
         """
         vertices = []
 
@@ -558,14 +689,16 @@ class Corridor(core_tool.Corridor):
         cos_bearing = math.cos(bearing)
         sin_bearing = math.sin(bearing)
 
-        for component in profile_points:
-            for offset, elevation in component['points']:
-                vert_x = x - offset * sin_bearing
-                vert_y = y + offset * cos_bearing
-                vert_z = z + elevation
+        for offset, elevation in profile_points:
+            # Transform 2D profile point to 3D world coordinates
+            # offset is perpendicular to alignment direction
+            # positive offset = right side, negative = left side
+            vert_x = x - offset * sin_bearing
+            vert_y = y + offset * cos_bearing
+            vert_z = z + elevation
 
-                vert = bm.verts.new((vert_x, vert_y, vert_z))
-                vertices.append(vert)
+            vert = bm.verts.new((vert_x, vert_y, vert_z))
+            vertices.append(vert)
 
         return vertices
 
@@ -576,7 +709,10 @@ class Corridor(core_tool.Corridor):
         all_vertices: List[List[bmesh.types.BMVert]]
     ):
         """
-        Connect adjacent stations with quad faces.
+        Connect adjacent stations with quad faces, forming a closed tube.
+
+        For closed profile polygons, this creates quad strips that wrap around
+        completely, connecting the last profile vertex back to the first.
 
         Args:
             bm: BMesh to add faces to
@@ -585,16 +721,22 @@ class Corridor(core_tool.Corridor):
         for i in range(len(all_vertices) - 1):
             station_verts_1 = all_vertices[i]
             station_verts_2 = all_vertices[i + 1]
+            num_verts = len(station_verts_1)
 
-            for j in range(len(station_verts_1) - 1):
+            # Create quad faces connecting adjacent vertices
+            for j in range(num_verts):
+                # Use modulo to wrap from last vertex back to first
+                j_next = (j + 1) % num_verts
+
                 v1 = station_verts_1[j]
-                v2 = station_verts_1[j + 1]
-                v3 = station_verts_2[j + 1]
+                v2 = station_verts_1[j_next]
+                v3 = station_verts_2[j_next]
                 v4 = station_verts_2[j]
 
                 try:
                     bm.faces.new([v1, v2, v3, v4])
                 except ValueError:
+                    # Face may already exist or be degenerate
                     pass
 
         bm.verts.index_update()

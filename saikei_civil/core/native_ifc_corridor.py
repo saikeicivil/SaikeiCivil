@@ -189,7 +189,7 @@ def create_profile_from_assembly(
     ifc_file: Any,
     assembly: Any,
     station: float,
-    pavement_thickness: float = 0.3
+    pavement_thickness: float = None
 ) -> Any:
     """
     Create a closed, tagged cross-section profile from an assembly wrapper.
@@ -197,16 +197,36 @@ def create_profile_from_assembly(
     This converts the assembly's component data into a closed polygon suitable
     for IfcSectionedSolidHorizontal. Points are tagged for proper interpolation.
 
+    IMPORTANT: If the assembly has a constraint_manager, constraints are
+    applied at the given station to modify component widths and slopes.
+
     Args:
         ifc_file: IFC file object
-        assembly: AssemblyWrapper instance with component data
-        station: Station value for naming
-        pavement_thickness: Total thickness of pavement layers (meters)
+        assembly: AssemblyWrapper instance with component data (may include constraint_manager)
+        station: Station value for naming and constraint evaluation
+        pavement_thickness: Total thickness of pavement layers (meters).
+            If None, uses the maximum thickness from assembly components.
 
     Returns:
         IfcArbitraryClosedProfileDef entity with tagged points
     """
     from .corridor import AssemblyWrapper, ComponentData
+
+    # Calculate actual thickness from assembly components if not provided
+    if pavement_thickness is None:
+        if assembly.components:
+            # Use maximum thickness across all components
+            pavement_thickness = max(
+                getattr(c, 'thickness', 0.15) for c in assembly.components
+            )
+        else:
+            pavement_thickness = 0.3  # Default fallback
+
+    # Check if we have constraints to apply
+    has_constraints = (
+        hasattr(assembly, 'constraint_manager') and
+        assembly.constraint_manager is not None
+    )
 
     # Build the cross-section polygon from components
     # Start from left-most component, go to right-most, then bottom back
@@ -241,41 +261,73 @@ def create_profile_from_assembly(
             return key
         return f"{key}_{count}"
 
+    # Track cumulative offsets for proper positioning with constraints
+    left_cumulative = 0.0
+    left_elev = 0.0
+
     # Build left side points (from left edge toward center)
     for comp in left_components:
+        # Apply constraints if available
+        if has_constraints:
+            width = assembly.get_component_value(comp.name, "width", station, comp.width)
+            slope = assembly.get_component_value(comp.name, "cross_slope", station, comp.slope)
+        else:
+            width = comp.width
+            slope = comp.slope
+
         # Outer edge of component
-        outer_x = comp.offset
-        outer_z = comp.elevation - comp.slope * comp.width
+        outer_x = -(left_cumulative + width)
+        outer_z = left_elev - slope * width
         top_points.append((outer_x, outer_z))
         top_tags.append(get_tag(comp.component_type, "L", "OUT"))
 
         # Inner edge (toward centerline)
-        inner_x = comp.offset + comp.width
-        inner_z = comp.elevation
+        inner_x = -left_cumulative
+        inner_z = left_elev
         top_points.append((inner_x, inner_z))
         top_tags.append(get_tag(comp.component_type, "L", "IN"))
 
+        # Update cumulative
+        left_cumulative += width
+        left_elev = outer_z
+
     # Add centerline point if no components reach it exactly
-    if not left_components or left_components[-1].offset + left_components[-1].width < -0.001:
+    if not left_components or left_cumulative < 0.001:
         top_points.append((0.0, 0.0))
         top_tags.append(PointTags.CENTERLINE)
     elif right_components and right_components[0].offset > 0.001:
         top_points.append((0.0, 0.0))
         top_tags.append(PointTags.CENTERLINE)
 
+    # Track cumulative for right side
+    right_cumulative = 0.0
+    right_elev = 0.0
+
     # Build right side points (from center outward)
     for comp in right_components:
+        # Apply constraints if available
+        if has_constraints:
+            width = assembly.get_component_value(comp.name, "width", station, comp.width)
+            slope = assembly.get_component_value(comp.name, "cross_slope", station, comp.slope)
+        else:
+            width = comp.width
+            slope = comp.slope
+
         # Inner edge (at offset)
-        inner_x = comp.offset
-        inner_z = comp.elevation
+        inner_x = right_cumulative
+        inner_z = right_elev
         top_points.append((inner_x, inner_z))
         top_tags.append(get_tag(comp.component_type, "R", "IN"))
 
         # Outer edge
-        outer_x = comp.offset + comp.width
-        outer_z = comp.elevation - comp.slope * comp.width
+        outer_x = right_cumulative + width
+        outer_z = right_elev - slope * width
         top_points.append((outer_x, outer_z))
         top_tags.append(get_tag(comp.component_type, "R", "OUT"))
+
+        # Update cumulative
+        right_cumulative += width
+        right_elev = outer_z
 
     # Remove duplicate points at centerline if needed
     cleaned_points = []
@@ -853,10 +905,14 @@ class CorridorModeler:
         along the directrix.
 
         Per IFC 4.3 specification for IfcSectionedSolidHorizontal:
-        - Location is IfcDistanceExpression (NOT IfcPointByDistanceExpression)
+        - Location is IfcPointByDistanceExpression (NOT IfcDistanceExpression)
+        - IfcPointByDistanceExpression requires BasisCurve (the directrix)
         - OffsetLongitudinal MUST NOT be used (would create non-manifold geometry)
         - Axis defaults to Z-up if not specified
         - RefDirection defaults to perpendicular to directrix tangent
+
+        Note: IfcDistanceExpression does NOT exist in IFC4X3_ADD2 schema.
+        The correct entity is IfcPointByDistanceExpression.
 
         Args:
             directrix: The directrix curve
@@ -867,22 +923,32 @@ class CorridorModeler:
         positions = []
 
         for station_point in self.stations:
-            # Create distance expression (parametric location on directrix)
+            # Create point by distance expression (parametric location on directrix)
+            # Per IFC 4.3: IfcAxis2PlacementLinear.Location must be IfcPointByDistanceExpression
             # CRITICAL: OffsetLongitudinal must be None per IFC 4.3 spec
-            distance_expr = self.ifc_file.create_entity(
-                "IfcDistanceExpression",
-                DistanceAlong=station_point.station,
+            #
+            # CRITICAL: DistanceAlong is IfcCurveMeasureSelect which requires a wrapped
+            # entity instance (IfcLengthMeasure), NOT a raw float value.
+            distance_along = self.ifc_file.create_entity(
+                "IfcLengthMeasure",
+                float(station_point.station)
+            )
+
+            point_by_distance = self.ifc_file.create_entity(
+                "IfcPointByDistanceExpression",
+                DistanceAlong=distance_along,
                 OffsetLateral=0.0,  # No lateral offset
                 OffsetVertical=0.0,  # No vertical offset
+                BasisCurve=directrix,  # Required in IFC 4.3
                 # OffsetLongitudinal intentionally omitted - MUST NOT be used
             )
 
             # Create axis placement at this distance along directrix
-            # Per IFC 4.3: Location is directly the IfcDistanceExpression
+            # Per IFC 4.3: Location is the IfcPointByDistanceExpression
             # Axis and RefDirection default to appropriate values based on directrix
             placement = self.ifc_file.create_entity(
                 "IfcAxis2PlacementLinear",
-                Location=distance_expr,
+                Location=point_by_distance,
                 Axis=None,  # Default: derived from directrix, typically Z-up
                 RefDirection=None  # Default: perpendicular to directrix tangent
             )

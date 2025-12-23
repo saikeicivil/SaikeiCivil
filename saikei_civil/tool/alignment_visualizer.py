@@ -58,12 +58,16 @@ class AlignmentVisualizer:
         from ..core.native_ifc_manager import NativeIfcManager
 
         name = self.alignment.alignment.Name or "Alignment"
+        logger.info("=== setup_hierarchy() for alignment: %s ===", name)
 
         # Use the project collection for all objects (no separate collection)
         self.collection = NativeIfcManager.get_project_collection()
         if not self.collection:
             # Fallback to scene collection
+            logger.warning("No project collection found, using scene collection")
             self.collection = bpy.context.scene.collection
+        else:
+            logger.info("Using project collection: %s", self.collection.name)
 
         # Create alignment empty and parent to Alignments organizational empty
         alignments_parent = NativeIfcManager.get_alignments_collection()
@@ -73,6 +77,7 @@ class AlignmentVisualizer:
             try:
                 # Test if object is still valid
                 _ = alignments_parent.name
+                logger.info("Found alignments parent: %s", alignments_parent.name)
             except ReferenceError:
                 # Object was deleted, recreate the hierarchy
                 logger.info("Alignments parent was deleted, recreating hierarchy")
@@ -84,12 +89,24 @@ class AlignmentVisualizer:
             alignment_empty_name = f"{name} (IfcAlignment)"
             if alignment_empty_name in bpy.data.objects:
                 existing_empty = bpy.data.objects[alignment_empty_name]
-                # Validate it's still valid
+                # Validate it's still valid AND linked to a collection
                 try:
                     _ = existing_empty.name
-                    self.alignment_empty = existing_empty
+                    # CRITICAL: Check if the existing empty is actually linked to a collection
+                    # An orphaned empty (unlinked during clear) should be replaced
+                    if len(existing_empty.users_collection) > 0:
+                        self.alignment_empty = existing_empty
+                        logger.info("Reusing existing alignment empty: %s (linked to %d collections)",
+                                   alignment_empty_name, len(existing_empty.users_collection))
+                    else:
+                        # Empty exists but is orphaned - delete it and create new one
+                        logger.warning("Found orphaned alignment empty '%s', removing and recreating",
+                                      alignment_empty_name)
+                        bpy.data.objects.remove(existing_empty, do_unlink=True)
+                        self.alignment_empty = None
                 except ReferenceError:
                     # Was deleted, will create new one below
+                    logger.info("Existing alignment empty was deleted, will create new")
                     self.alignment_empty = None
             else:
                 self.alignment_empty = None
@@ -107,9 +124,10 @@ class AlignmentVisualizer:
 
                 # Add to project collection
                 self.collection.objects.link(self.alignment_empty)
-                logger.info("Created alignment empty: %s", alignment_empty_name)
+                logger.info("Created new alignment empty: %s, parented to %s",
+                           alignment_empty_name, alignments_parent.name)
         else:
-            logger.warning("No Alignments parent found")
+            logger.warning("No Alignments parent found - visualizations may not appear correctly!")
 
     def _ensure_valid_collection(self):
         """
@@ -276,6 +294,17 @@ class AlignmentVisualizer:
         # Create object
         obj = bpy.data.objects.new(ifc_segment.Name, curve_data)
 
+        # DEBUG: Log object creation for hierarchy tracking
+        logger.info("=== SEGMENT CURVE CREATION ===")
+        logger.info("  Created: %s (type=%s)", obj.name, type(obj.data).__name__)
+        logger.info("  alignment_empty: %s", self.alignment_empty.name if self.alignment_empty else "None")
+
+        # Check if an object with this name already exists (could cause confusion)
+        existing_count = sum(1 for o in bpy.data.objects if o.name.startswith(ifc_segment.Name.split('.')[0]))
+        if existing_count > 1:
+            logger.warning("  WARNING: %d objects with name prefix '%s' exist!",
+                          existing_count, ifc_segment.Name.split('.')[0])
+
         # Link to IFC
         NativeIfcManager.link_object(obj, ifc_segment)
 
@@ -294,12 +323,24 @@ class AlignmentVisualizer:
             try:
                 _ = self.alignment_empty.name
                 obj.parent = self.alignment_empty
+                logger.info("  Parented to: %s", self.alignment_empty.name)
             except (ReferenceError, AttributeError):
                 # Alignment empty was deleted, skip parenting
+                logger.warning("  Parenting SKIPPED - alignment_empty was deleted!")
                 pass
+        else:
+            logger.warning("  Parenting SKIPPED - no alignment_empty!")
 
         # Link to collection AFTER parenting (already validated by _ensure_valid_collection)
         self.collection.objects.link(obj)
+        logger.info("  Linked to collection: %s", self.collection.name)
+
+        # DEBUG: Verify parent was set correctly
+        if obj.parent:
+            logger.info("  VERIFY: obj.parent = %s (type=%s)",
+                       obj.parent.name, type(obj.parent.data).__name__ if obj.parent.data else "Empty")
+        else:
+            logger.warning("  VERIFY: obj.parent is None!")
 
         self.segment_objects.append(obj)
 
@@ -339,28 +380,50 @@ class AlignmentVisualizer:
 
     def update_visualizations(self):
         """Update all visualizations from current alignment state"""
+        logger.info("=== update_visualizations() for %s ===", self.alignment.name)
+        logger.info("  Input: %d PIs, %d segments in alignment",
+                   len(self.alignment.pis), len(self.alignment.segments))
+
         # Clear existing
         self.clear_visualizations()
 
         # Recreate all PIs
+        pi_created = 0
         for pi_data in self.alignment.pis:
             try:
-                self.create_pi_object(pi_data)
+                obj = self.create_pi_object(pi_data)
+                if obj:
+                    pi_created += 1
+                    logger.debug("  Created PI_%03d at (%.2f, %.2f)",
+                               pi_data.get('id', -1),
+                               pi_data['position'].x, pi_data['position'].y)
             except Exception as e:
                 logger.error("Error creating PI %s: %s", pi_data.get('id', '?'), e)
+                import traceback
+                logger.error(traceback.format_exc())
 
         # Recreate all segments (skip zero-length endpoint segments per BSI ALB015)
+        seg_created = 0
+        seg_skipped = 0
         for segment in self.alignment.segments:
             try:
                 # Skip zero-length endpoint segments (they're business logic only, not visual)
                 params = segment.DesignParameters
                 if params and params.SegmentLength == 0:
+                    seg_skipped += 1
                     continue
-                self.create_segment_curve(segment)
+                obj = self.create_segment_curve(segment)
+                if obj:
+                    seg_created += 1
             except Exception as e:
                 logger.error("Error creating segment: %s", e)
+                import traceback
+                logger.error(traceback.format_exc())
 
-        logger.info("Updated: %d PIs, %d segments", len(self.pi_objects), len(self.segment_objects))
+        logger.info("  Created: %d PI markers, %d segment curves (skipped %d zero-length)",
+                   pi_created, seg_created, seg_skipped)
+        logger.info("  Stored: %d pi_objects, %d segment_objects",
+                   len(self.pi_objects), len(self.segment_objects))
 
     def update_segments_in_place(self):
         """

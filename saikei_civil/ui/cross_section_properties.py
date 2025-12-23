@@ -232,24 +232,44 @@ class BC_ComponentProperties(PropertyGroup):
 
 
 class BC_ConstraintProperties(PropertyGroup):
-    """Properties for a parametric constraint"""
-    
-    station: FloatProperty(
-        name="Station",
-        description="Station where constraint applies (m)",
-        default=0.0,
-        min=0.0,
-        precision=3,
-        unit='LENGTH',
+    """
+    Properties for a parametric constraint.
+
+    Supports both point constraints (single station) and range constraints
+    (interpolated transition between stations).
+
+    NOTE: This is a UI layer class that mirrors core.parametric_constraints.ParametricConstraint.
+    Use constraint_props_to_dataclass() and dataclass_to_constraint_props() for conversion.
+    """
+
+    # Unique identifier for this constraint
+    constraint_id: StringProperty(
+        name="ID",
+        description="Unique constraint identifier",
+        default="",
+        maxlen=64,
     )
-    
+
+    # Constraint type: POINT or RANGE
+    constraint_type: EnumProperty(
+        name="Type",
+        description="Constraint type",
+        items=[
+            ('POINT', "Point", "Single station override"),
+            ('RANGE', "Range", "Station range with interpolation"),
+        ],
+        default='RANGE',
+    )
+
+    # Component to modify
     component_name: StringProperty(
         name="Component",
         description="Name of component to modify",
         default="",
         maxlen=64,
     )
-    
+
+    # Parameter to modify
     parameter: EnumProperty(
         name="Parameter",
         description="Parameter to modify",
@@ -260,13 +280,183 @@ class BC_ConstraintProperties(PropertyGroup):
         ],
         default='width',
     )
-    
-    value: FloatProperty(
-        name="Value",
-        description="Parameter value at this station",
-        default=3.6,
+
+    # Station range (start_station == end_station for POINT constraints)
+    start_station: FloatProperty(
+        name="Start Station",
+        description="Station where constraint begins (m)",
+        default=0.0,
+        min=0.0,
         precision=3,
+        unit='LENGTH',
     )
+
+    end_station: FloatProperty(
+        name="End Station",
+        description="Station where constraint ends (m)",
+        default=100.0,
+        min=0.0,
+        precision=3,
+        unit='LENGTH',
+    )
+
+    # Value range (start_value == end_value for POINT constraints)
+    start_value: FloatProperty(
+        name="Start Value",
+        description="Parameter value at start station",
+        default=3.6,
+        precision=4,
+    )
+
+    end_value: FloatProperty(
+        name="End Value",
+        description="Parameter value at end station",
+        default=3.6,
+        precision=4,
+    )
+
+    # Interpolation method for range constraints
+    interpolation: EnumProperty(
+        name="Interpolation",
+        description="Interpolation method for range constraints",
+        items=[
+            ('LINEAR', "Linear", "Linear interpolation"),
+            ('SMOOTH', "Smooth", "Smooth transition (smoothstep)"),
+            ('STEP', "Step", "Instant change at end station"),
+        ],
+        default='LINEAR',
+    )
+
+    # Enable/disable without deleting
+    enabled: BoolProperty(
+        name="Enabled",
+        description="Enable or disable this constraint",
+        default=True,
+    )
+
+    # User notes
+    description: StringProperty(
+        name="Description",
+        description="Optional description for this constraint",
+        default="",
+        maxlen=256,
+    )
+
+    # Legacy property for backwards compatibility (maps to start_station)
+    @property
+    def station(self) -> float:
+        """Legacy property - use start_station instead."""
+        return self.start_station
+
+    @station.setter
+    def station(self, value: float):
+        """Legacy setter - use start_station instead."""
+        self.start_station = value
+
+    # Legacy property for backwards compatibility (maps to start_value)
+    @property
+    def value(self) -> float:
+        """Legacy property - use start_value instead."""
+        return self.start_value
+
+    @value.setter
+    def value(self, value: float):
+        """Legacy setter - use start_value instead."""
+        self.start_value = value
+
+
+def constraint_props_to_dataclass(props: BC_ConstraintProperties):
+    """
+    Convert Blender PropertyGroup to Core dataclass.
+
+    Args:
+        props: BC_ConstraintProperties instance
+
+    Returns:
+        ParametricConstraint dataclass instance
+    """
+    from ..core.parametric_constraints import (
+        ParametricConstraint, ConstraintType, InterpolationType
+    )
+    import uuid
+
+    # Generate ID if not set
+    constraint_id = props.constraint_id if props.constraint_id else str(uuid.uuid4())
+
+    return ParametricConstraint(
+        id=constraint_id,
+        component_name=props.component_name,
+        parameter_name=props.parameter,
+        constraint_type=ConstraintType(props.constraint_type),
+        start_station=props.start_station,
+        end_station=props.end_station,
+        start_value=props.start_value,
+        end_value=props.end_value,
+        interpolation=InterpolationType(props.interpolation),
+        description=props.description,
+        enabled=props.enabled
+    )
+
+
+def dataclass_to_constraint_props(
+    constraint,
+    props: BC_ConstraintProperties
+) -> None:
+    """
+    Update Blender PropertyGroup from Core dataclass.
+
+    Args:
+        constraint: ParametricConstraint dataclass instance
+        props: BC_ConstraintProperties instance to update
+    """
+    props.constraint_id = constraint.id
+    props.component_name = constraint.component_name
+    props.parameter = constraint.parameter_name
+    props.constraint_type = constraint.constraint_type.value
+    props.start_station = constraint.start_station
+    props.end_station = constraint.end_station
+    props.start_value = constraint.start_value
+    props.end_value = constraint.end_value
+    props.interpolation = constraint.interpolation.value
+    props.description = constraint.description
+    props.enabled = constraint.enabled
+
+
+def assembly_constraints_to_manager(assembly) -> 'ConstraintManager':
+    """
+    Convert assembly's constraint collection to a ConstraintManager.
+
+    Args:
+        assembly: BC_AssemblyProperties instance
+
+    Returns:
+        ConstraintManager with all constraints from the assembly
+    """
+    from ..core.parametric_constraints import ConstraintManager
+
+    manager = ConstraintManager()
+    for props in assembly.constraints:
+        constraint = constraint_props_to_dataclass(props)
+        manager.add_constraint(constraint)
+
+    return manager
+
+
+def manager_to_assembly_constraints(manager, assembly) -> None:
+    """
+    Update assembly's constraint collection from a ConstraintManager.
+
+    Args:
+        manager: ConstraintManager with constraints
+        assembly: BC_AssemblyProperties instance to update
+    """
+    # Clear existing constraints
+    assembly.constraints.clear()
+
+    # Add constraints from manager
+    for constraint in manager.constraints:
+        props = assembly.constraints.add()
+        dataclass_to_constraint_props(constraint, props)
 
 
 class BC_AssemblyProperties(PropertyGroup):

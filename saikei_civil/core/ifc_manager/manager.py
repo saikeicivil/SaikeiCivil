@@ -310,33 +310,48 @@ class NativeIfcManager:
     @classmethod
     def _load_alignments(cls) -> None:
         """Load horizontal alignments from file."""
+        import traceback
         from ..native_ifc_alignment import NativeIfcAlignment
         from ..alignment_visualizer import AlignmentVisualizer
         from ..alignment_registry import register_alignment, register_visualizer
 
         alignments = cls.file.by_type("IfcAlignment")
+        logger.info(f"Found {len(alignments)} IfcAlignment entities to load")
+
         for alignment_entity in alignments:
             try:
+                logger.debug(f"Loading alignment: {alignment_entity.Name}")
+
                 alignment_obj = NativeIfcAlignment(
                     cls.file,
                     alignment_entity=alignment_entity
                 )
                 register_alignment(alignment_obj)
 
+                logger.debug(
+                    f"  Reconstructed: {len(alignment_obj.pis)} PIs, "
+                    f"{len(alignment_obj.segments)} segments"
+                )
+
                 visualizer = AlignmentVisualizer(alignment_obj)
                 register_visualizer(visualizer, alignment_entity.GlobalId)
                 alignment_obj.visualizer = visualizer
+
+                logger.debug(f"  Visualizer created, updating visualizations...")
                 visualizer.update_visualizations()
 
                 logger.info(
                     f"Loaded alignment: {alignment_entity.Name} "
-                    f"({len(alignment_obj.pis)} PIs)"
+                    f"({len(alignment_obj.pis)} PIs, "
+                    f"{len(visualizer.pi_objects)} PI markers, "
+                    f"{len(visualizer.segment_objects)} segment curves)"
                 )
 
             except Exception as e:
-                logger.warning(
+                logger.error(
                     f"Failed to load alignment {alignment_entity.Name}: {e}"
                 )
+                logger.error(traceback.format_exc())
 
         # Set first alignment as active
         if alignments:
@@ -353,6 +368,7 @@ class NativeIfcManager:
     @classmethod
     def _load_vertical_alignments(cls) -> None:
         """Load vertical alignments from file."""
+        import traceback
         from ..native_ifc_vertical_alignment import load_vertical_alignments_from_ifc
 
         try:
@@ -361,9 +377,17 @@ class NativeIfcManager:
                 logger.info(
                     f"Loaded {len(cls.vertical_alignments)} vertical alignment(s)"
                 )
+                for i, va in enumerate(cls.vertical_alignments):
+                    logger.debug(
+                        f"  Vertical alignment {i}: {len(va.pvis)} PVIs, "
+                        f"{len(va.segments) if hasattr(va, 'segments') else '?'} segments"
+                    )
                 cls._integrate_vertical_alignments_with_profile_view()
+            else:
+                logger.info("No vertical alignments found in IFC file")
         except Exception as e:
-            logger.warning(f"Failed to load vertical alignments: {e}")
+            logger.error(f"Failed to load vertical alignments: {e}")
+            logger.error(traceback.format_exc())
             cls.vertical_alignments = []
 
     @classmethod
@@ -385,9 +409,17 @@ class NativeIfcManager:
                     overlay.data.select_vertical_alignment(0)
                 overlay.data.update_view_extents()
 
-                logger.debug("Profile view updated with vertical alignments")
+                logger.info(
+                    f"Profile view updated with {len(cls.vertical_alignments)} "
+                    "vertical alignments"
+                )
+            else:
+                logger.info(
+                    "Profile view not open - vertical alignments stored but not displayed. "
+                    "Open profile view with View > Toggle Profile View."
+                )
         except Exception as e:
-            logger.debug(f"Could not integrate with profile view: {e}")
+            logger.warning(f"Could not integrate with profile view: {e}")
 
     @classmethod
     def save_file(cls, filepath: Optional[str] = None, validate: bool = True) -> None:

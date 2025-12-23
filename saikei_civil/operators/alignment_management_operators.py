@@ -171,11 +171,83 @@ class BC_OT_select_active_alignment_collection(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class BC_OT_rebuild_alignment_visualizations(bpy.types.Operator):
+    """
+    Rebuild all alignment visualizations from IFC data.
+
+    Forces recreation of all PI markers and segment curves for all loaded
+    alignments. Use this if alignment visualizations are missing or corrupted
+    after loading an IFC file.
+
+    This operator:
+    1. Clears existing alignment visualization objects
+    2. Reconstructs PI data from IFC segment geometry
+    3. Creates new PI markers and segment curves
+    4. Updates the profile view with vertical alignments
+    """
+    bl_idname = "bc.rebuild_alignment_visualizations"
+    bl_label = "Rebuild Alignment Visualizations"
+    bl_description = "Force rebuild of all alignment PI markers and segment curves"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        return NativeIfcManager.get_file() is not None
+
+    def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        from ..core.alignment_registry import get_all_alignments, get_visualizer
+
+        alignments = get_all_alignments()
+        if not alignments:
+            self.report({'WARNING'}, "No alignments loaded")
+            return {'CANCELLED'}
+
+        rebuilt_count = 0
+        pi_count = 0
+        segment_count = 0
+
+        for alignment in alignments:
+            try:
+                # Get or create visualizer
+                visualizer = alignment.visualizer
+                if not visualizer:
+                    visualizer = get_visualizer(alignment.alignment.GlobalId)
+
+                if visualizer:
+                    # Clear and rebuild
+                    visualizer.clear_visualizations()
+                    visualizer.setup_hierarchy()
+                    visualizer.update_visualizations()
+
+                    pi_count += len(visualizer.pi_objects)
+                    segment_count += len(visualizer.segment_objects)
+                    rebuilt_count += 1
+                else:
+                    self.report({'WARNING'},
+                        f"No visualizer for {alignment.alignment.Name}")
+
+            except Exception as e:
+                self.report({'ERROR'},
+                    f"Failed to rebuild {alignment.alignment.Name}: {e}")
+
+        # Also refresh vertical alignments in profile view
+        NativeIfcManager._integrate_vertical_alignments_with_profile_view()
+
+        self.report({'INFO'},
+            f"Rebuilt {rebuilt_count} alignments: "
+            f"{pi_count} PI markers, {segment_count} segments")
+
+        return {'FINISHED'}
+
+
 # Registration
 classes = (
     BC_OT_refresh_alignment_list,
     BC_OT_set_active_alignment,
     BC_OT_select_active_alignment_collection,
+    BC_OT_rebuild_alignment_visualizations,
 )
 
 def register():

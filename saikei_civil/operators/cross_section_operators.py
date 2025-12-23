@@ -579,11 +579,14 @@ class BC_OT_AddConstraint(Operator):
     bl_description = "Add a parametric constraint for component variation along alignment"
     bl_options = {'REGISTER', 'UNDO'}
 
-    station: FloatProperty(
-        name="Station",
-        description="Station where constraint applies (m)",
-        default=0.0,
-        min=0.0,
+    constraint_type: EnumProperty(
+        name="Type",
+        description="Constraint type",
+        items=[
+            ('POINT', "Point", "Single station override"),
+            ('RANGE', "Range", "Station range with interpolation"),
+        ],
+        default='RANGE',
     )
 
     component_name: StringProperty(
@@ -603,10 +606,49 @@ class BC_OT_AddConstraint(Operator):
         default='width',
     )
 
-    value: FloatProperty(
-        name="Value",
-        description="Parameter value at this station",
+    start_station: FloatProperty(
+        name="Start Station",
+        description="Station where constraint begins (m)",
+        default=0.0,
+        min=0.0,
+    )
+
+    end_station: FloatProperty(
+        name="End Station",
+        description="Station where constraint ends (m)",
+        default=100.0,
+        min=0.0,
+    )
+
+    start_value: FloatProperty(
+        name="Start Value",
+        description="Parameter value at start station",
         default=3.6,
+        precision=4,
+    )
+
+    end_value: FloatProperty(
+        name="End Value",
+        description="Parameter value at end station",
+        default=4.2,
+        precision=4,
+    )
+
+    interpolation: EnumProperty(
+        name="Interpolation",
+        description="Interpolation method",
+        items=[
+            ('LINEAR', "Linear", "Linear interpolation"),
+            ('SMOOTH', "Smooth", "Smooth transition"),
+            ('STEP', "Step", "Instant change at end"),
+        ],
+        default='LINEAR',
+    )
+
+    description: StringProperty(
+        name="Description",
+        description="Optional notes",
+        default="",
     )
 
     @classmethod
@@ -618,6 +660,8 @@ class BC_OT_AddConstraint(Operator):
         return len(assembly.components) > 0
 
     def execute(self, context):
+        import uuid
+
         cs = context.scene.bc_cross_section
         assembly = cs.assemblies[cs.active_assembly_index]
 
@@ -631,26 +675,77 @@ class BC_OT_AddConstraint(Operator):
             self.report({'ERROR'}, f"Component '{self.component_name}' not found")
             return {'CANCELLED'}
 
-        # Add constraint
+        # For POINT constraints, end equals start
+        if self.constraint_type == 'POINT':
+            end_station = self.start_station
+            end_value = self.start_value
+        else:
+            end_station = self.end_station
+            end_value = self.end_value
+
+        # Add constraint with new properties
         constraint = assembly.constraints.add()
-        constraint.station = self.station
+        constraint.constraint_id = str(uuid.uuid4())
+        constraint.constraint_type = self.constraint_type
         constraint.component_name = self.component_name
         constraint.parameter = self.parameter
-        constraint.value = self.value
+        constraint.start_station = self.start_station
+        constraint.end_station = end_station
+        constraint.start_value = self.start_value
+        constraint.end_value = end_value
+        constraint.interpolation = self.interpolation
+        constraint.description = self.description
+        constraint.enabled = True
 
-        # Sort constraints by station
-        constraints_list = list(assembly.constraints)
-        constraints_list.sort(key=lambda c: c.station)
-        assembly.constraints.clear()
-        for sorted_constraint in constraints_list:
-            new_constraint = assembly.constraints.add()
-            new_constraint.station = sorted_constraint.station
-            new_constraint.component_name = sorted_constraint.component_name
-            new_constraint.parameter = sorted_constraint.parameter
-            new_constraint.value = sorted_constraint.value
+        # Sort constraints by start station
+        self._sort_assembly_constraints(assembly)
 
-        self.report({'INFO'}, f"Added constraint at station {self.station:.2f}m")
+        # Set as active
+        for i, c in enumerate(assembly.constraints):
+            if c.constraint_id == constraint.constraint_id:
+                assembly.active_constraint_index = i
+                break
+
+        if self.constraint_type == 'POINT':
+            self.report({'INFO'},
+                f"Added point constraint: {self.component_name}.{self.parameter}="
+                f"{self.start_value} at sta {self.start_station:.2f}m")
+        else:
+            self.report({'INFO'},
+                f"Added range constraint: {self.component_name}.{self.parameter}="
+                f"{self.start_value}->{end_value} from sta {self.start_station:.2f}m "
+                f"to {end_station:.2f}m")
+
         return {'FINISHED'}
+
+    def _sort_assembly_constraints(self, assembly):
+        """Sort constraints by start station."""
+        # Collect constraint data
+        constraints_data = []
+        for c in assembly.constraints:
+            constraints_data.append({
+                'constraint_id': c.constraint_id,
+                'constraint_type': c.constraint_type,
+                'component_name': c.component_name,
+                'parameter': c.parameter,
+                'start_station': c.start_station,
+                'end_station': c.end_station,
+                'start_value': c.start_value,
+                'end_value': c.end_value,
+                'interpolation': c.interpolation,
+                'description': c.description,
+                'enabled': c.enabled,
+            })
+
+        # Sort by start station
+        constraints_data.sort(key=lambda x: x['start_station'])
+
+        # Clear and re-add
+        assembly.constraints.clear()
+        for data in constraints_data:
+            c = assembly.constraints.add()
+            for key, value in data.items():
+                setattr(c, key, value)
 
     def invoke(self, context, event):
         cs = context.scene.bc_cross_section
@@ -658,9 +753,39 @@ class BC_OT_AddConstraint(Operator):
 
         # Pre-fill component name with active component
         if len(assembly.components) > 0:
-            self.component_name = assembly.components[assembly.active_component_index].name
+            comp = assembly.components[assembly.active_component_index]
+            self.component_name = comp.name
+            # Set default values based on component
+            self.start_value = comp.width
+            self.end_value = comp.width
 
-        return context.window_manager.invoke_props_dialog(self)
+        return context.window_manager.invoke_props_dialog(self, width=350)
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.prop(self, "constraint_type")
+        layout.prop(self, "component_name")
+        layout.prop(self, "parameter")
+
+        layout.separator()
+
+        if self.constraint_type == 'POINT':
+            layout.prop(self, "start_station", text="Station")
+            layout.prop(self, "start_value", text="Value")
+        else:
+            row = layout.row()
+            row.prop(self, "start_station")
+            row.prop(self, "end_station")
+
+            row = layout.row()
+            row.prop(self, "start_value")
+            row.prop(self, "end_value")
+
+            layout.prop(self, "interpolation")
+
+        layout.separator()
+        layout.prop(self, "description")
 
 
 class BC_OT_RemoveConstraint(Operator):
@@ -683,18 +808,222 @@ class BC_OT_RemoveConstraint(Operator):
         assembly = cs.assemblies[cs.active_assembly_index]
 
         if assembly.active_constraint_index < len(assembly.constraints):
-            station = assembly.constraints[assembly.active_constraint_index].station
+            constraint = assembly.constraints[assembly.active_constraint_index]
+            station = constraint.start_station
+            comp_name = constraint.component_name
             assembly.constraints.remove(assembly.active_constraint_index)
 
             # Adjust active index
             if assembly.active_constraint_index >= len(assembly.constraints):
                 assembly.active_constraint_index = max(0, len(assembly.constraints) - 1)
 
-            self.report({'INFO'}, f"Removed constraint at station {station:.2f}m")
+            self.report({'INFO'}, f"Removed constraint for '{comp_name}' at station {station:.2f}m")
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, "No constraint selected")
             return {'CANCELLED'}
+
+
+class BC_OT_ToggleConstraint(Operator):
+    """Toggle enable/disable for the selected constraint."""
+    bl_idname = "bc.toggle_constraint"
+    bl_label = "Toggle Constraint"
+    bl_description = "Enable or disable the selected parametric constraint"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        assembly = cs.assemblies[cs.active_assembly_index]
+        return len(assembly.constraints) > 0
+
+    def execute(self, context):
+        cs = context.scene.bc_cross_section
+        assembly = cs.assemblies[cs.active_assembly_index]
+
+        if assembly.active_constraint_index < len(assembly.constraints):
+            constraint = assembly.constraints[assembly.active_constraint_index]
+            constraint.enabled = not constraint.enabled
+
+            status = "enabled" if constraint.enabled else "disabled"
+            self.report({'INFO'}, f"Constraint {status}")
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, "No constraint selected")
+            return {'CANCELLED'}
+
+
+class BC_OT_ExportConstraintsToIFC(Operator):
+    """Export assembly constraints to IFC property set."""
+    bl_idname = "bc.export_constraints_to_ifc"
+    bl_label = "Export Constraints to IFC"
+    bl_description = "Save parametric constraints to the IFC file"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        assembly = cs.assemblies[cs.active_assembly_index]
+        # Need IFC file and at least one constraint
+        return NativeIfcManager.get_file() is not None and len(assembly.constraints) > 0
+
+    def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        from ..core.constraint_ifc_io import ConstraintIFCHandler
+        from ..ui.cross_section_properties import assembly_constraints_to_manager
+
+        cs = context.scene.bc_cross_section
+        assembly = cs.assemblies[cs.active_assembly_index]
+
+        ifc_file = NativeIfcManager.get_file()
+        if not ifc_file:
+            self.report({'ERROR'}, "No IFC file loaded")
+            return {'CANCELLED'}
+
+        # Get or create the road entity to attach constraints to
+        road = NativeIfcManager.get_road()
+        if not road:
+            self.report({'ERROR'}, "No IfcRoad entity found. Create an alignment first.")
+            return {'CANCELLED'}
+
+        # Convert PropertyGroups to ConstraintManager
+        manager = assembly_constraints_to_manager(assembly)
+
+        # Validate constraints
+        issues = manager.validate()
+        if issues:
+            for issue in issues[:3]:  # Show first 3 issues
+                logger.warning(issue)
+
+        # Export to IFC
+        handler = ConstraintIFCHandler(ifc_file)
+        pset = handler.export_constraints(manager, road)
+
+        if pset:
+            self.report({'INFO'},
+                f"Exported {len(manager.constraints)} constraints to IFC "
+                f"(property set: {handler.PSET_NAME})")
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, "Failed to export constraints to IFC")
+            return {'CANCELLED'}
+
+
+class BC_OT_ImportConstraintsFromIFC(Operator):
+    """Import assembly constraints from IFC property set."""
+    bl_idname = "bc.import_constraints_from_ifc"
+    bl_label = "Import Constraints from IFC"
+    bl_description = "Load parametric constraints from the IFC file"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        return NativeIfcManager.get_file() is not None
+
+    def execute(self, context):
+        from ..core.ifc_manager.manager import NativeIfcManager
+        from ..core.constraint_ifc_io import ConstraintIFCHandler
+        from ..ui.cross_section_properties import manager_to_assembly_constraints
+
+        cs = context.scene.bc_cross_section
+        assembly = cs.assemblies[cs.active_assembly_index]
+
+        ifc_file = NativeIfcManager.get_file()
+        if not ifc_file:
+            self.report({'ERROR'}, "No IFC file loaded")
+            return {'CANCELLED'}
+
+        # Get the road entity
+        road = NativeIfcManager.get_road()
+        if not road:
+            self.report({'ERROR'}, "No IfcRoad entity found")
+            return {'CANCELLED'}
+
+        # Import from IFC
+        handler = ConstraintIFCHandler(ifc_file)
+
+        if not handler.has_constraints(road):
+            self.report({'WARNING'}, "No constraints found in IFC file")
+            return {'CANCELLED'}
+
+        manager = handler.import_constraints(road)
+
+        if not manager:
+            self.report({'ERROR'}, "Failed to parse constraints from IFC")
+            return {'CANCELLED'}
+
+        # Update assembly with imported constraints
+        manager_to_assembly_constraints(manager, assembly)
+
+        self.report({'INFO'},
+            f"Imported {len(manager.constraints)} constraints from IFC")
+        return {'FINISHED'}
+
+
+class BC_OT_PreviewConstraintEffect(Operator):
+    """Preview the effect of constraints at a specific station."""
+    bl_idname = "bc.preview_constraint_effect"
+    bl_label = "Preview at Station"
+    bl_description = "Preview cross-section with constraint effects at specified station"
+    bl_options = {'REGISTER'}
+
+    station: FloatProperty(
+        name="Station",
+        description="Station to preview (m)",
+        default=0.0,
+        min=0.0,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        cs = context.scene.bc_cross_section
+        if cs.active_assembly_index >= len(cs.assemblies):
+            return False
+        assembly = cs.assemblies[cs.active_assembly_index]
+        return len(assembly.components) > 0
+
+    def execute(self, context):
+        from ..ui.cross_section_properties import assembly_constraints_to_manager
+
+        cs = context.scene.bc_cross_section
+        assembly = cs.assemblies[cs.active_assembly_index]
+
+        # Get constraint manager
+        manager = assembly_constraints_to_manager(assembly)
+
+        # Get modified parameters at this station
+        modified = manager.get_modified_parameters(self.station)
+
+        if not modified:
+            self.report({'INFO'},
+                f"No constraint effects at station {self.station:.2f}m")
+        else:
+            # Report modified parameters
+            effects = []
+            for (comp, param), value in modified.items():
+                effects.append(f"{comp}.{param}={value:.4f}")
+
+            self.report({'INFO'},
+                f"Station {self.station:.2f}m: {', '.join(effects)}")
+
+        # Update preview station
+        cs.preview_station = self.station
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        cs = context.scene.bc_cross_section
+        self.station = cs.preview_station
+        return context.window_manager.invoke_props_dialog(self)
 
 
 class BC_OT_ValidateAssembly(Operator):
@@ -824,6 +1153,10 @@ _core_classes = (
     BC_OT_MoveComponentDown,
     BC_OT_AddConstraint,
     BC_OT_RemoveConstraint,
+    BC_OT_ToggleConstraint,
+    BC_OT_ExportConstraintsToIFC,
+    BC_OT_ImportConstraintsFromIFC,
+    BC_OT_PreviewConstraintEffect,
     BC_OT_ValidateAssembly,
     BC_OT_CalculateSection,
 )

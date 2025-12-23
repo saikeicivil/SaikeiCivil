@@ -51,37 +51,40 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
     """Add PIs by clicking in the viewport with real-time visualization.
 
     Modal operator that allows users to place Point of Intersections (PIs) by clicking
-    directly in the 3D viewport. Each click creates an IFC entity and visual marker
-    immediately. Tangent lines are automatically created between consecutive PIs and
-    visualized in real-time.
+    directly in the 3D viewport. PI markers are created immediately for visual feedback,
+    but IFC entities are only created when the command completes. This prevents creating
+    orphaned entities if the user cancels, and avoids excessive entity churn during
+    interactive placement.
 
     Modal States:
         - RUNNING_MODAL: Tracking mouse movement and waiting for user input
         - Mouse move: Updates cursor feedback and crosshair position
         - Left click: Places PI at mouse position on XY plane (Z=0)
-        - Right click/Enter: Finishes placement and exits modal mode
-        - ESC: Cancels operation
+        - Right click/Enter: Finishes placement, creates IFC entities, and exits
+        - ESC: Cancels operation and removes any PIs added during this session
 
     Internal State:
         _handle: Drawing handler for HUD overlay
         _alignment_obj: Active NativeIfcAlignment instance
         _visualizer: AlignmentVisualizer for real-time updates
         _last_mouse_pos: Current mouse position for cursor feedback
+        _starting_pi_count: Number of PIs when modal started (for cleanup on cancel)
 
     Usage:
         Requires an active alignment. Enters modal mode with on-screen instructions.
-        Each PI is immediately added to IFC and visualized. Tangent segments are
-        created between consecutive PIs automatically.
+        Preview tangent lines are drawn using GPU primitives (no IFC entities).
+        IFC entities are created only on finish, not during placement.
     """
     bl_idname = "bc.add_pi_interactive"
     bl_label = "Add PI (Click to Place)"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     # Internal state
     _handle = None
     _alignment_obj = None  # NativeIfcAlignment instance
     _visualizer = None     # AlignmentVisualizer instance
     _last_mouse_pos = None
+    _starting_pi_count = 0  # Track PI count at start for cleanup on cancel
     
     def modal(self, context, event):
         context.area.tag_redraw()
@@ -149,10 +152,14 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         # CRITICAL: Store visualizer on alignment so update handler can access it!
         self._alignment_obj.visualizer = self._visualizer
 
+        # Track starting PI count for cleanup on cancel
+        self._starting_pi_count = len(self._alignment_obj.pis)
+
         if was_created:
             logger.info("Created new alignment instance")
         if vis_created:
             logger.info("Created new visualizer")
+        logger.debug("Starting PI count: %d", self._starting_pi_count)
         
         # Setup drawing handler for HUD
         args = (self, context)
@@ -190,33 +197,40 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
         return None
     
     def add_pi_at_location(self, location):
-        """Add PI at location with immediate visualization but deferred IFC geometry.
+        """Add PI at location with immediate visualization but deferred IFC entities.
 
-        OPTIMIZATION: We defer segment regeneration until the user finishes placing
-        all PIs. This prevents creating thousands of intermediate entities that would
-        be deleted and recreated with each PI placement.
+        OPTIMIZATION: We defer both IFC point creation AND segment regeneration until
+        the user finishes placing all PIs. This prevents:
+        1. Creating orphaned IFC entities if the user cancels
+        2. Creating/deleting thousands of intermediate entities during placement
+
+        Preview tangent lines are drawn using GPU primitives in draw_callback_px(),
+        so the user gets visual feedback without any IFC entity creation.
         """
 
         if not self._alignment_obj or not self._visualizer:
             self.report({'ERROR'}, "Alignment or visualizer not initialized")
             return
 
-        # Add PI to alignment WITHOUT regenerating segments (deferred to finish())
-        # This avoids creating/deleting thousands of intermediate entities
-        pi_data = self._alignment_obj.add_pi(location.x, location.y, regenerate=False)
+        # Add PI to alignment WITHOUT creating IFC point or regenerating segments
+        # Both are deferred to finish() - this is the key to preventing entity explosion
+        pi_data = self._alignment_obj.add_pi(
+            location.x,
+            location.y,
+            regenerate=False,
+            create_ifc_point=False  # Defer IFC entity creation to finish()
+        )
 
-        # Create visual marker immediately (just the PI point, not geometry)
+        # Create visual marker immediately (just the Blender Empty, no IFC entity)
         pi_marker = self._visualizer.create_pi_object(pi_data)
 
-        # Note: We don't visualize tangent segments during placement anymore
-        # because regenerate_segments() is deferred. The tangents will appear
-        # when the user finishes placement.
+        # Note: Preview tangent lines are drawn using GPU primitives in draw_callback_px()
+        # No IFC entities or Blender curve objects are created during placement.
 
         pi_count = len(self._alignment_obj.pis)
         self.report({'INFO'}, f"[+] PI {pi_count} at ({location.x:.2f}, {location.y:.2f})")
 
-        logger.debug("Added PI %d at (%.2f, %.2f)", pi_count, location.x, location.y)
-        logger.debug("Total segments: %d", len(self._alignment_obj.segments))
+        logger.debug("Added PI %d at (%.2f, %.2f) [IFC deferred]", pi_count, location.x, location.y)
     
     def draw_callback_px(self, operator, context):
         """Draw on-screen instructions, preview tangent lines, and visual feedback.
@@ -357,16 +371,27 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
             gpu.state.blend_set('NONE')
     
     def finish(self, context):
-        """Finish interactive mode - regenerate segments ONCE at the end."""
+        """Finish interactive mode - create IFC entities and regenerate segments ONCE at the end.
+
+        This is the key moment where IFC entities are actually created:
+        1. finalize_pis() creates IfcCartesianPoint for each PI
+        2. regenerate_segments() creates IfcAlignmentSegment entities
+        """
         # Remove drawing handler
         if self._handle:
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
 
         if self._alignment_obj:
             pi_count = len(self._alignment_obj.pis)
+            new_pis = pi_count - self._starting_pi_count
 
             if pi_count >= 2:
-                # NOW regenerate segments - only once for all PIs!
+                # NOW create IFC entities - only once for all PIs!
+                # 1. Create IfcCartesianPoint for each PI that was deferred
+                ifc_points_created = self._alignment_obj.finalize_pis()
+                logger.debug("Created %d deferred IFC points", ifc_points_created)
+
+                # 2. Regenerate segments - only once for all PIs!
                 # This is the key optimization - instead of regenerating N times
                 # (once per PI), we regenerate once at the end.
                 self._alignment_obj.regenerate_segments()
@@ -376,23 +401,59 @@ class BC_OT_add_pi_interactive(bpy.types.Operator):
                     self._visualizer.update_all()
 
                 segment_count = len(self._alignment_obj.segments)
-                self.report({'INFO'}, f"[OK] Placed {pi_count} PIs, created {segment_count} segments")
-                logger.info("Finished: %d PIs, %d segments in IFC", pi_count, segment_count)
+                self.report({'INFO'}, f"[OK] Placed {new_pis} new PIs, created {segment_count} segments")
+                logger.info("Finished: %d total PIs, %d segments in IFC", pi_count, segment_count)
             elif pi_count == 1:
+                # Still finalize the single PI's IFC point
+                self._alignment_obj.finalize_pis()
                 self.report({'INFO'}, f"[OK] Placed 1 PI (need 2+ for segments)")
             else:
                 self.report({'WARNING'}, "No PIs placed")
 
         context.area.tag_redraw()
-    
+
     def cancel(self, context):
-        """Cancel interactive mode"""
+        """Cancel interactive mode - clean up any PIs added during this session.
+
+        Removes PIs added during this placement session along with their:
+        - Blender visualization objects (PI markers)
+        - IFC entities (IfcCartesianPoint) if any were created
+
+        Since we defer IFC entity creation, cancelling should be clean with no
+        orphaned IFC entities left behind.
+        """
         if self._handle:
             bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-        
-        # TODO: Could implement undo here - remove PIs added during this session
-        
-        self.report({'INFO'}, "PI placement cancelled")
+
+        pis_removed = 0
+        blender_objects_removed = 0
+
+        if self._alignment_obj:
+            # Calculate how many PIs were added during this session
+            current_count = len(self._alignment_obj.pis)
+            pis_to_remove = current_count - self._starting_pi_count
+
+            if pis_to_remove > 0:
+                # Remove Blender visualization objects for the PIs we're removing
+                for pi_data in self._alignment_obj.pis[self._starting_pi_count:]:
+                    blender_obj = pi_data.get('blender_object')
+                    if blender_obj and blender_obj.name in bpy.data.objects:
+                        try:
+                            bpy.data.objects.remove(blender_obj, do_unlink=True)
+                            blender_objects_removed += 1
+                        except (ReferenceError, RuntimeError):
+                            pass  # Object already removed
+
+                # Remove PIs from alignment (this also removes any IFC points)
+                pis_removed = self._alignment_obj.remove_pis_from_index(self._starting_pi_count)
+
+        if pis_removed > 0:
+            self.report({'INFO'}, f"PI placement cancelled - removed {pis_removed} PI(s)")
+            logger.info("Cancelled: removed %d PIs and %d Blender objects",
+                       pis_removed, blender_objects_removed)
+        else:
+            self.report({'INFO'}, "PI placement cancelled")
+
         context.area.tag_redraw()
 
 

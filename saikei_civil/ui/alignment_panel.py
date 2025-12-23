@@ -74,9 +74,10 @@ class VIEW3D_PT_native_ifc_alignment(bpy.types.Panel):
             # Active alignment indicator
             row = col.row()
             row.label(text=f"Active: {props.active_alignment_name}", icon='RADIOBUT_ON')
-            
-            # Refresh button
+
+            # Refresh and rebuild buttons
             row.operator("bc.refresh_alignment_list", text="", icon='FILE_REFRESH')
+            row.operator("bc.rebuild_alignment_visualizations", text="", icon='OUTLINER_OB_CURVE')
             
             # Show alignment stats if available
             active_item = None

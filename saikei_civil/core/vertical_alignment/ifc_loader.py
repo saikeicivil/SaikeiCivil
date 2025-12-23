@@ -29,14 +29,14 @@ Note: This module uses the tool layer for Blender-specific operations
 (creating empties) while keeping pure IFC loading logic here.
 """
 
-import logging
 from typing import List, Optional
 
 import ifcopenshell
 
 from .manager import VerticalAlignment
+from ..logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _create_blender_empty(

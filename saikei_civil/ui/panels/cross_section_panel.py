@@ -91,18 +91,43 @@ class BC_UL_ComponentList(UIList):
 
 
 class BC_UL_ConstraintList(UIList):
-    """UI List for displaying constraints"""
-    
+    """UI List for displaying constraints with type and range info."""
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         constraint = item
-        
+
         if self.layout_type in {'DEFAULT', 'COMPACT'}:
             row = layout.row(align=True)
-            row.label(text=f"{constraint.station:.1f}m")
-            row.label(text=constraint.component_name)
+
+            # Enable/disable indicator
+            if not constraint.enabled:
+                row.alert = True
+                row.label(text="", icon='CHECKBOX_DEHLT')
+            else:
+                row.label(text="", icon='CHECKBOX_HLT')
+
+            # Type icon (POINT or RANGE)
+            if constraint.constraint_type == 'POINT':
+                row.label(text="", icon='DOT')
+            else:
+                row.label(text="", icon='IPO_LINEAR')
+
+            # Station range
+            if constraint.constraint_type == 'POINT':
+                row.label(text=f"{constraint.start_station:.0f}m")
+            else:
+                row.label(text=f"{constraint.start_station:.0f}-{constraint.end_station:.0f}m")
+
+            # Component and parameter
+            row.label(text=constraint.component_name[:12])
             row.label(text=constraint.parameter)
-            row.label(text=f"{constraint.value:.2f}")
-        
+
+            # Value(s)
+            if constraint.constraint_type == 'POINT':
+                row.label(text=f"{constraint.start_value:.2f}")
+            else:
+                row.label(text=f"{constraint.start_value:.2f}->{constraint.end_value:.2f}")
+
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
             layout.label(text="", icon='DRIVER')
@@ -346,7 +371,7 @@ class BC_PT_CrossSection_Materials(Panel):
 
 
 class BC_PT_CrossSection_Constraints(Panel):
-    """Parametric constraints panel"""
+    """Parametric constraints panel - OpenRoads-style station-based parameter variation."""
     bl_label = "Parametric Constraints"
     bl_idname = "BC_PT_cross_section_constraints"
     bl_space_type = 'VIEW_3D'
@@ -354,7 +379,7 @@ class BC_PT_CrossSection_Constraints(Panel):
     bl_category = "Saikei Civil"
     bl_parent_id = "BC_PT_cross_section_main"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
         cs = context.scene.bc_cross_section
@@ -362,41 +387,87 @@ class BC_PT_CrossSection_Constraints(Panel):
             return False
         assembly = cs.assemblies[cs.active_assembly_index]
         return len(assembly.components) > 0
-    
+
     def draw(self, context):
         layout = self.layout
         cs = context.scene.bc_cross_section
         assembly = cs.assemblies[cs.active_assembly_index]
-        
-        # Info box
-        box = layout.box()
-        box.label(text="Parametric Variation", icon='DRIVER')
-        col = box.column()
-        col.label(text="Constraints allow components to vary")
-        col.label(text="along the alignment (widening, etc.)")
-        
-        # Constraint list
+
+        # Constraint list with enhanced display
         row = layout.row()
         row.template_list(
             "BC_UL_ConstraintList", "",
             assembly, "constraints",
             assembly, "active_constraint_index",
-            rows=3
+            rows=4
         )
-        
+
         # Constraint operations
         col = row.column(align=True)
         col.operator("bc.add_constraint", text="", icon='ADD')
         col.operator("bc.remove_constraint", text="", icon='REMOVE')
-        
-        # Examples
+        col.separator()
+        col.operator("bc.toggle_constraint", text="", icon='CHECKBOX_HLT')
+
+        # Active constraint properties
+        if len(assembly.constraints) > 0 and assembly.active_constraint_index < len(assembly.constraints):
+            constraint = assembly.constraints[assembly.active_constraint_index]
+
+            box = layout.box()
+            row = box.row()
+            row.label(text="Constraint Properties", icon='PROPERTIES')
+
+            # Enabled toggle
+            row.prop(constraint, "enabled", text="", icon='CHECKBOX_HLT' if constraint.enabled else 'CHECKBOX_DEHLT')
+
+            col = box.column(align=True)
+            col.prop(constraint, "constraint_type")
+            col.prop(constraint, "component_name")
+            col.prop(constraint, "parameter")
+
+            col.separator()
+
+            # Station and value properties based on type
+            if constraint.constraint_type == 'POINT':
+                col.prop(constraint, "start_station", text="Station")
+                col.prop(constraint, "start_value", text="Value")
+            else:
+                row = col.row(align=True)
+                row.prop(constraint, "start_station")
+                row.prop(constraint, "end_station")
+
+                row = col.row(align=True)
+                row.prop(constraint, "start_value")
+                row.prop(constraint, "end_value")
+
+                col.prop(constraint, "interpolation")
+
+            col.separator()
+            col.prop(constraint, "description")
+
+        # IFC operations
+        box = layout.box()
+        box.label(text="IFC Storage", icon='FILE_3D')
+        row = box.row(align=True)
+        row.operator("bc.export_constraints_to_ifc", text="Export", icon='EXPORT')
+        row.operator("bc.import_constraints_from_ifc", text="Import", icon='IMPORT')
+
+        # Preview at station
+        box = layout.box()
+        box.label(text="Preview", icon='VIEWZOOM')
+        row = box.row(align=True)
+        row.prop(cs, "preview_station")
+        row.operator("bc.preview_constraint_effect", text="", icon='PLAY')
+
+        # Examples/help when no constraints
         if len(assembly.constraints) == 0:
             box = layout.box()
             box.label(text="Examples:", icon='INFO')
             col = box.column(align=True)
-            col.label(text="• Lane widening")
-            col.label(text="• Superelevation transition")
-            col.label(text="• Shoulder width changes")
+            col.scale_y = 0.85
+            col.label(text="RANGE: Lane widening 3.6m -> 4.2m")
+            col.label(text="RANGE: Superelevation -2% -> +4%")
+            col.label(text="POINT: Shoulder width = 3.0m @ sta 500")
 
 
 class BC_PT_CrossSection_Query(Panel):

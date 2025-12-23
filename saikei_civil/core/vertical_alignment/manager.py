@@ -26,7 +26,6 @@ Provides the VerticalAlignment class for managing complete vertical alignments
 with PVI-based design, segment generation, and IFC export.
 """
 
-import logging
 from typing import List, Optional, Tuple, Union
 
 import ifcopenshell
@@ -34,8 +33,9 @@ import ifcopenshell
 from .constants import DESIGN_STANDARDS, MIN_K_CREST_80KPH, MIN_K_SAG_80KPH
 from .pvi import PVI
 from .segments import ParabolicSegment, TangentSegment, VerticalSegment
+from ..logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class VerticalAlignment:
@@ -152,16 +152,39 @@ class VerticalAlignment:
         Args:
             ifc_segments: List of IfcAlignmentVerticalSegment entities (sorted)
         """
+        # Filter out zero-length segments (BSI ALB015 endpoint markers)
+        valid_segments = [
+            seg for seg in ifc_segments
+            if seg.HorizontalLength > 0
+        ]
+
+        if not valid_segments:
+            logger.warning("No valid (non-zero-length) vertical segments found")
+            return
+
+        logger.debug(f"Processing {len(valid_segments)} valid segments "
+                    f"(filtered from {len(ifc_segments)} total)")
+
+        # Helper to safely add PVI without duplicates
+        def safe_add_pvi(station: float, elevation: float, curve_length: float = 0.0):
+            """Add PVI only if no existing PVI at this station."""
+            for existing in self.pvis:
+                if abs(existing.station - station) < 1e-6:
+                    logger.debug(f"Skipping duplicate PVI at station {station:.3f}m")
+                    return False
+            self.add_pvi(station=station, elevation=elevation, curve_length=curve_length)
+            return True
+
         # Add first PVI at start of first segment
-        first_seg = ifc_segments[0]
-        self.add_pvi(
+        first_seg = valid_segments[0]
+        safe_add_pvi(
             station=first_seg.StartDistAlong,
             elevation=first_seg.StartHeight,
             curve_length=0.0
         )
 
         # Process each segment to create PVIs
-        for i, seg in enumerate(ifc_segments):
+        for i, seg in enumerate(valid_segments):
             seg_type = seg.PredefinedType
             start_station = seg.StartDistAlong
             horizontal_length = seg.HorizontalLength
@@ -170,8 +193,8 @@ class VerticalAlignment:
             if seg_type == "CONSTANTGRADIENT":
                 end_elevation = seg.StartHeight + seg.StartGradient * horizontal_length
 
-                if i < len(ifc_segments) - 1:
-                    self.add_pvi(
+                if i < len(valid_segments) - 1:
+                    safe_add_pvi(
                         station=end_station,
                         elevation=end_elevation,
                         curve_length=0.0
@@ -194,15 +217,15 @@ class VerticalAlignment:
                     A * ((horizontal_length / 2.0) ** 2)
                 )
 
-                if i < len(ifc_segments) - 1:
-                    self.add_pvi(
+                if i < len(valid_segments) - 1:
+                    safe_add_pvi(
                         station=pvi_station,
                         elevation=pvi_elevation,
                         curve_length=horizontal_length
                     )
 
         # Add final PVI at end of last segment
-        last_seg = ifc_segments[-1]
+        last_seg = valid_segments[-1]
         last_start = last_seg.StartDistAlong
         last_length = last_seg.HorizontalLength
         last_end_station = last_start + last_length
@@ -221,7 +244,7 @@ class VerticalAlignment:
         else:
             last_end_elev = last_seg.StartHeight
 
-        self.add_pvi(
+        safe_add_pvi(
             station=last_end_station,
             elevation=last_end_elev,
             curve_length=0.0
@@ -229,7 +252,7 @@ class VerticalAlignment:
 
         logger.info(
             f"Reconstructed {len(self.pvis)} PVIs from "
-            f"{len(ifc_segments)} IFC segments"
+            f"{len(valid_segments)} IFC segments"
         )
 
     # ========================================================================

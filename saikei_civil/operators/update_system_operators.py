@@ -23,8 +23,8 @@ Saikei Civil - Alignment Update System Operators
 
 This module provides real-time update capabilities for alignments:
 1. Detects when a PI moves
-2. Regenerates the alignment geometry
-3. Updates the visualization
+2. Updates the visualization immediately (fast Blender-only update)
+3. Debounces IFC regeneration until movement stops
 
 Operators:
     SAIKEI_OT_update_alignment: Manually update alignment from PI positions
@@ -32,14 +32,15 @@ Operators:
 
 Also includes:
     - saikei_update_handler: Blender depsgraph handler for real-time updates
-    - AlignmentVisualizer: Creates and updates Blender objects for alignments
+    - _debounced_ifc_regeneration: Timer for deferred IFC entity creation
+
+Note: AlignmentVisualizer is in tool/alignment_visualizer.py (Layer 2).
+The update handler accesses it via alignment.visualizer attribute.
 """
 
 import bpy
 from bpy.app.handlers import persistent
-from mathutils import Vector
 import time
-import math
 
 from ..core.logging_config import get_logger
 
@@ -511,207 +512,7 @@ class SAIKEI_OT_toggle_auto_update(bpy.types.Operator):
 
 
 # =============================================================================
-# PART 4: ENHANCED VISUALIZER
-# =============================================================================
-
-class AlignmentVisualizer:
-    """
-    Creates and updates Blender objects for alignment visualization.
-    
-    CRITICAL: This sets the properties that the update handler needs!
-    """
-    
-    def __init__(self, alignment):
-        self.alignment = alignment
-        self.collection = None
-        self.pi_objects = []
-        self.segment_curves = []
-        
-        # Create collection
-        self._create_collection()
-    
-    def _create_collection(self):
-        """Create or get the collection for this alignment."""
-        coll_name = f"Alignment_{self.alignment.name}"
-        
-        if coll_name in bpy.data.collections:
-            self.collection = bpy.data.collections[coll_name]
-        else:
-            self.collection = bpy.data.collections.new(coll_name)
-            bpy.context.scene.collection.children.link(self.collection)
-    
-    def create_pi_object(self, pi_data):
-        """
-        Create PI marker with CRITICAL properties.
-        
-        The update handler needs these properties:
-        - bc_pi_id: Index of the PI
-        - bc_alignment_id: ID of the alignment
-        """
-        pi_id = pi_data['id']
-        obj = bpy.data.objects.new(f"PI_{pi_id:03d}", None)
-        obj.empty_display_type = 'SPHERE'
-        obj.empty_display_size = 3.0
-        
-        pos = pi_data['position']
-        obj.location = Vector((pos.x, pos.y, 0))
-        
-        # CRITICAL: Set these custom properties!
-        obj['bc_pi_id'] = pi_id
-        obj['bc_alignment_id'] = id(self.alignment)
-        
-        # Color
-        obj.color = (0.0, 1.0, 0.0, 1.0)
-        
-        # Link to collection
-        self.collection.objects.link(obj)
-        self.pi_objects.append(obj)
-        
-        # CRITICAL: Store reference in PI data!
-        pi_data['blender_object'] = obj
-        
-        return obj
-    
-    def create_all_pi_objects(self):
-        """Create markers for all PIs."""
-        for pi in self.alignment.pis:
-            if pi.get('blender_object') is None:
-                self.create_pi_object(pi)
-    
-    def update_all(self):
-        """Update entire visualization."""
-        self.update_segment_curves()
-        self.update_pi_markers()
-    
-    def update_segment_curves(self):
-        """Recreate all segment curves."""
-        # Remove old curves
-        for curve_obj in self.segment_curves:
-            if curve_obj.name in bpy.data.objects:
-                bpy.data.objects.remove(curve_obj, do_unlink=True)
-        self.segment_curves = []
-        
-        # Create new curves
-        for segment in self.alignment.segments:
-            curve_obj = self._create_segment_curve(segment)
-            if curve_obj:
-                self.segment_curves.append(curve_obj)
-    
-    def _create_segment_curve(self, segment):
-        """Create Blender curve for a segment."""
-        curve_data = bpy.data.curves.new(f"Seg_{segment['id']:03d}", 'CURVE')
-        curve_data.dimensions = '3D'
-        
-        if segment['type'] == 'LINE':
-            # Tangent line
-            spline = curve_data.splines.new('POLY')
-            spline.points.add(1)
-            
-            start = segment['start']
-            end = segment['end']
-            
-            spline.points[0].co = (start.x, start.y, 0, 1)
-            spline.points[1].co = (end.x, end.y, 0, 1)
-            
-            color = (0.0, 0.5, 1.0, 1.0)  # Blue
-            
-        elif segment['type'] == 'CIRCULARARC':
-            # Circular curve
-            center = segment['center']
-            radius = segment['radius']
-            bc = segment['start']
-            ec = segment['end']
-            
-            # Calculate angles
-            start_angle = math.atan2(bc.y - center.y, bc.x - center.x)
-            end_angle = math.atan2(ec.y - center.y, ec.x - center.x)
-            
-            # Determine arc direction
-            angle_diff = end_angle - start_angle
-            if angle_diff > math.pi:
-                angle_diff -= 2 * math.pi
-            elif angle_diff < -math.pi:
-                angle_diff += 2 * math.pi
-            
-            # Create points along arc
-            num_points = max(8, int(abs(angle_diff) * radius / 5))  # Point every 5m
-            
-            spline = curve_data.splines.new('POLY')
-            spline.points.add(num_points - 1)
-            
-            for i in range(num_points):
-                t = i / (num_points - 1)
-                angle = start_angle + t * angle_diff
-                x = center.x + radius * math.cos(angle)
-                y = center.y + radius * math.sin(angle)
-                spline.points[i].co = (x, y, 0, 1)
-            
-            color = (1.0, 0.0, 0.0, 1.0)  # Red
-        
-        else:
-            return None
-        
-        # Create object
-        obj = bpy.data.objects.new(f"Seg_{segment['id']:03d}", curve_data)
-        obj.color = color
-        self.collection.objects.link(obj)
-        
-        return obj
-    
-    def update_pi_markers(self):
-        """Update PI marker positions."""
-        for pi_data in self.alignment.pis:
-            if pi_data.get('blender_object'):
-                obj = pi_data['blender_object']
-                pos = pi_data['position']
-                obj.location = (pos.x, pos.y, 0)
-
-    def update_segment_curves_fast(self, pis):
-        """Fast update: Move existing curve points without recreating objects.
-
-        This is called during PI dragging to provide real-time visual feedback
-        without touching IFC entities. Only the Blender curve points are updated.
-
-        Args:
-            pis: List of PI data dictionaries with updated positions
-        """
-        if len(pis) < 2:
-            return
-
-        # For each tangent segment curve, update its endpoint positions
-        # Tangent segments connect PI[i] to PI[i+1]
-        for i, curve_obj in enumerate(self.segment_curves):
-            if i >= len(pis) - 1:
-                break  # No more PI pairs
-
-            try:
-                # Check object still exists
-                if curve_obj.name not in bpy.data.objects:
-                    continue
-
-                curve_data = curve_obj.data
-                if not curve_data or not curve_data.splines:
-                    continue
-
-                spline = curve_data.splines[0]
-
-                # For LINE segments (tangents), update start/end points
-                if len(spline.points) == 2:
-                    start_pos = pis[i]['position']
-                    end_pos = pis[i + 1]['position']
-
-                    spline.points[0].co = (start_pos.x, start_pos.y, 0, 1)
-                    spline.points[1].co = (end_pos.x, end_pos.y, 0, 1)
-
-                # For CIRCULARARC segments, we'd need to recalculate the arc
-                # For now, just leave them - they'll be fully updated after debounce
-
-            except (ReferenceError, KeyError, IndexError) as e:
-                logger.debug("Fast curve update skipped for segment %d: %s", i, e)
-
-
-# =============================================================================
-# PART 5: REGISTRATION
+# PART 4: REGISTRATION
 # =============================================================================
 
 classes = (

@@ -26,7 +26,6 @@ Main alignment class for PI-driven horizontal alignment design.
 PIs are pure intersection points (no radius property).
 """
 
-import logging
 import math
 from typing import List, Optional
 
@@ -42,8 +41,9 @@ from .segment_builder import (
     cleanup_old_geometry,
 )
 from .stationing import StationingManager
+from ..logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class NativeIfcAlignment:
@@ -158,29 +158,67 @@ class NativeIfcAlignment:
     def _load_from_ifc(self, alignment_entity: ifcopenshell.entity_instance) -> None:
         """Load alignment from existing IFC entity."""
         self.alignment = alignment_entity
+        logger.info("=== _load_from_ifc() for alignment: %s (GlobalId: %s) ===",
+                   alignment_entity.Name, alignment_entity.GlobalId)
 
-        # Find horizontal alignment
-        for rel in alignment_entity.IsNestedBy or []:
-            for obj in rel.RelatedObjects:
+        # Find horizontal alignment via IsNestedBy inverse relationship
+        is_nested_by = alignment_entity.IsNestedBy or []
+        logger.info("  alignment.IsNestedBy: %d relationships", len(is_nested_by))
+
+        for rel_idx, rel in enumerate(is_nested_by):
+            logger.debug("    Rel[%d]: %s, %d related objects",
+                        rel_idx, rel.is_a(), len(rel.RelatedObjects) if rel.RelatedObjects else 0)
+            for obj in rel.RelatedObjects or []:
+                logger.debug("      - %s: %s", obj.is_a(), getattr(obj, 'Name', 'unnamed'))
                 if obj.is_a("IfcAlignmentHorizontal"):
                     self.horizontal = obj
+                    logger.info("  Found IfcAlignmentHorizontal: %s (id: %d)",
+                               getattr(obj, 'Name', 'unnamed'), obj.id())
                     break
+            if self.horizontal:
+                break
 
         if not self.horizontal:
             logger.warning(
                 f"No horizontal alignment found for {alignment_entity.Name}"
             )
+            logger.warning("  This alignment has no visualizable horizontal geometry!")
             return
 
-        # Load segments
+        # Load segments from horizontal alignment via IsNestedBy
+        horizontal_nested_by = self.horizontal.IsNestedBy or []
+        logger.info("  horizontal.IsNestedBy: %d relationships", len(horizontal_nested_by))
+
         segments = []
-        for rel in self.horizontal.IsNestedBy or []:
-            for obj in rel.RelatedObjects:
+        for rel_idx, rel in enumerate(horizontal_nested_by):
+            logger.debug("    Rel[%d]: %s, %d related objects",
+                        rel_idx, rel.is_a(), len(rel.RelatedObjects) if rel.RelatedObjects else 0)
+            for obj in rel.RelatedObjects or []:
                 if obj.is_a("IfcAlignmentSegment"):
                     segments.append(obj)
+                    params = obj.DesignParameters
+                    if params:
+                        logger.debug("      - Segment: %s, type=%s, length=%.2f",
+                                    obj.Name, params.PredefinedType, params.SegmentLength)
+                    else:
+                        logger.debug("      - Segment: %s (no DesignParameters!)", obj.Name)
 
         self.segments = segments
+        logger.info("  Loaded %d segments from IFC", len(self.segments))
+
+        if not self.segments:
+            logger.warning("  WARNING: No segments found! PI reconstruction will fail.")
+            logger.warning("  Check if IfcRelNests relationships exist for horizontal alignment.")
+
         self._reconstruct_pis_from_segments()
+        logger.info("  Reconstructed %d PIs from segments", len(self.pis))
+
+        # Log PI positions for verification
+        for i, pi in enumerate(self.pis):
+            pos = pi['position']
+            has_curve = 'curve' in pi
+            logger.debug("    PI[%d]: (%.2f, %.2f) %s", i, pos.x, pos.y,
+                        "[CURVE]" if has_curve else "")
 
         # Initialize stationing manager and load referents
         self.stationing = StationingManager(self.ifc, self.alignment)
@@ -204,6 +242,12 @@ class NativeIfcAlignment:
             design_params = segment.DesignParameters
 
             if not design_params:
+                i += 1
+                continue
+
+            # Skip zero-length endpoint segments (BSI ALB015) - they don't define new PIs
+            if design_params.SegmentLength == 0:
+                logger.debug(f"Skipping zero-length segment at index {i}")
                 i += 1
                 continue
 
@@ -305,7 +349,13 @@ class NativeIfcAlignment:
     # PI MANAGEMENT
     # ========================================================================
 
-    def add_pi(self, x: float, y: float, regenerate: bool = True) -> dict:
+    def add_pi(
+        self,
+        x: float,
+        y: float,
+        regenerate: bool = True,
+        create_ifc_point: bool = True
+    ) -> dict:
         """Add PI to alignment.
 
         PIs are pure intersection points - NO RADIUS!
@@ -316,23 +366,83 @@ class NativeIfcAlignment:
             regenerate: Whether to regenerate segments (default True).
                         Set to False for batch operations to avoid
                         creating thousands of intermediate entities.
+            create_ifc_point: Whether to create IFC entity immediately (default True).
+                        Set to False during interactive placement to defer
+                        IFC entity creation until the command completes.
 
         Returns:
             PI data dictionary
         """
-        pi_data = {
-            'id': len(self.pis),
-            'position': SimpleVector(x, y),
-            'ifc_point': self.ifc.create_entity(
+        ifc_point = None
+        if create_ifc_point:
+            ifc_point = self.ifc.create_entity(
                 "IfcCartesianPoint",
                 Coordinates=[float(x), float(y)]
             )
+
+        pi_data = {
+            'id': len(self.pis),
+            'position': SimpleVector(x, y),
+            'ifc_point': ifc_point
         }
 
         self.pis.append(pi_data)
         if regenerate:
             self.regenerate_segments()
         return pi_data
+
+    def finalize_pis(self) -> int:
+        """Create IFC entities for any PIs that don't have them.
+
+        Called after interactive placement to create all IFC entities at once.
+        This prevents creating/deleting intermediate entities during placement.
+
+        Returns:
+            Number of IFC points created
+        """
+        created_count = 0
+        for pi_data in self.pis:
+            if pi_data.get('ifc_point') is None:
+                pi_data['ifc_point'] = self.ifc.create_entity(
+                    "IfcCartesianPoint",
+                    Coordinates=[float(pi_data['position'].x), float(pi_data['position'].y)]
+                )
+                created_count += 1
+
+        if created_count > 0:
+            logger.debug(f"Created {created_count} deferred IFC points")
+
+        return created_count
+
+    def remove_pis_from_index(self, start_index: int) -> int:
+        """Remove PIs from start_index to end of list.
+
+        Used when cancelling interactive placement to clean up
+        any PIs that were added during the session.
+
+        Args:
+            start_index: Index from which to remove PIs
+
+        Returns:
+            Number of PIs removed
+        """
+        if start_index >= len(self.pis):
+            return 0
+
+        removed_count = 0
+        # Remove in reverse order to avoid index shifting issues
+        while len(self.pis) > start_index:
+            pi_data = self.pis.pop()
+            # Clean up IFC point if it was created
+            if pi_data.get('ifc_point'):
+                try:
+                    self.ifc.remove(pi_data['ifc_point'])
+                except RuntimeError:
+                    pass  # Already removed
+            removed_count += 1
+
+        logger.debug(f"Removed {removed_count} PIs from index {start_index}")
+        return removed_count
 
     def insert_curve_at_pi(
         self,

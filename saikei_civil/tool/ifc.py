@@ -58,14 +58,15 @@ class Ifc(core_tool.Ifc):
         if not HAS_IFCOPENSHELL:
             return None
 
-        # Try Bonsai's IfcStore first if available (for compatibility)
-        try:
-            from bonsai.bim.ifc import IfcStore
-            bonsai_file = IfcStore.get_file()
-            if bonsai_file is not None:
-                return bonsai_file
-        except ImportError:
-            pass
+        # TEMPORARILY DISABLED - Testing hierarchy issue without Bonsai integration
+        # Bonsai may be creating duplicate empties for IFC entities
+        # try:
+        #     from bonsai.bim.ifc import IfcStore
+        #     bonsai_file = IfcStore.get_file()
+        #     if bonsai_file is not None:
+        #         return bonsai_file
+        # except ImportError:
+        #     pass
 
         # Fall back to Saikei's own manager
         from ..core.ifc_manager import NativeIfcManager

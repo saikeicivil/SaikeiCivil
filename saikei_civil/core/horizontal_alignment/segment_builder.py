@@ -95,12 +95,21 @@ def create_tangent_segment(
         float(end_pos.x), float(end_pos.y)
     )
 
-    # Placement at segment start (use exact position)
+    # Placement at segment start with correct direction
+    # ALS016 FIX: RefDirection MUST be specified to define segment orientation.
+    # Without it, the placement defaults to (1,0) and the validator interprets
+    # all segments as pointing east, causing massive positional discontinuities.
+    direction_x = math.cos(angle)
+    direction_y = math.sin(angle)
     placement = ifc_file.create_entity(
         "IfcAxis2Placement2D",
         Location=ifc_file.create_entity(
             "IfcCartesianPoint",
             Coordinates=[start_x, start_y]
+        ),
+        RefDirection=ifc_file.create_entity(
+            "IfcDirection",
+            DirectionRatios=[direction_x, direction_y]
         )
     )
 
@@ -209,16 +218,23 @@ def create_curve_segment(
         circle_ref_dir
     )
 
-    # ALS016 FIX: Placement must be at BC point!
+    # ALS016 FIX: Placement must be at BC point with correct tangent direction!
     # Per IFC spec: "IfcCurveSegment.Placement.Location corresponds to the first
     # parameter value of the parent curve."
     # For a circle at actual center with refdir pointing to BC, θ=0 gives BC point.
     # The placement confirms/declares where this point is in world coordinates.
+    # RefDirection MUST be specified to define the tangent direction at BC.
+    tangent_dir_x = math.cos(start_direction)
+    tangent_dir_y = math.sin(start_direction)
     placement = ifc_file.create_entity(
         "IfcAxis2Placement2D",
         Location=ifc_file.create_entity(
             "IfcCartesianPoint",
             Coordinates=[bc_x, bc_y]  # Placement at BC - matches circle's θ=0 point
+        ),
+        RefDirection=ifc_file.create_entity(
+            "IfcDirection",
+            DirectionRatios=[tangent_dir_x, tangent_dir_y]
         )
     )
 

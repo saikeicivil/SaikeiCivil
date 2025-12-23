@@ -616,6 +616,7 @@ class ComponentData:
     offset: float
     elevation: float
     material: str = "Asphalt"
+    thickness: float = 0.15  # Surface thickness in meters
 
 
 @dataclass
@@ -623,6 +624,36 @@ class AssemblyWrapper:
     """Wrapper for cross-section assembly data."""
     name: str
     components: List[ComponentData]
+    constraint_manager: Optional[Any] = None  # ConstraintManager from parametric_constraints
+
+    def get_component_value(
+        self,
+        component_name: str,
+        parameter: str,
+        station: float,
+        default_value: float
+    ) -> float:
+        """
+        Get effective parameter value at a station, applying constraints.
+
+        Args:
+            component_name: Name of component (e.g., "Right Travel Lane")
+            parameter: Parameter name (e.g., "width", "cross_slope", "offset")
+            station: Station along alignment (meters)
+            default_value: Value to use if no constraint applies
+
+        Returns:
+            Effective parameter value at this station
+        """
+        if self.constraint_manager is None:
+            return default_value
+
+        return self.constraint_manager.get_effective_value(
+            component_name=component_name,
+            parameter_name=parameter,
+            station=station,
+            default_value=default_value
+        )
 
 
 def create_assembly_wrapper(assembly_props: Any) -> AssemblyWrapper:
@@ -636,8 +667,11 @@ def create_assembly_wrapper(assembly_props: Any) -> AssemblyWrapper:
         assembly_props: BC_AssemblyProperties instance
 
     Returns:
-        AssemblyWrapper instance
+        AssemblyWrapper instance with components and optional constraint_manager
     """
+    from .logging_config import get_logger
+    logger = get_logger(__name__)
+
     components = []
 
     # Track cumulative offset for each side
@@ -662,6 +696,12 @@ def create_assembly_wrapper(assembly_props: Any) -> AssemblyWrapper:
             right_offset += width
             right_elev = right_elev - (width * slope)
 
+        # Get thickness: use surface_thickness for most components, depth for ditches
+        if comp.component_type == 'DITCH':
+            thickness = getattr(comp, 'depth', 0.45)
+        else:
+            thickness = getattr(comp, 'surface_thickness', 0.15)
+
         components.append(ComponentData(
             name=comp.name,
             component_type=comp.component_type,
@@ -669,12 +709,57 @@ def create_assembly_wrapper(assembly_props: Any) -> AssemblyWrapper:
             slope=slope,
             offset=comp_offset,
             elevation=comp_elev,
-            material=getattr(comp, 'surface_material', 'Asphalt')
+            material=getattr(comp, 'surface_material', 'Asphalt'),
+            thickness=thickness
         ))
+
+    # Convert UI constraints to ConstraintManager (if any)
+    constraint_manager = None
+    if hasattr(assembly_props, 'constraints') and len(assembly_props.constraints) > 0:
+        try:
+            # Import here to avoid circular dependencies
+            from .parametric_constraints import ConstraintManager, ParametricConstraint, ConstraintType, InterpolationType
+            import uuid
+
+            constraint_manager = ConstraintManager()
+            enabled_count = 0
+
+            for props in assembly_props.constraints:
+                if not props.enabled:
+                    continue
+
+                # Generate ID if not set
+                constraint_id = props.constraint_id if props.constraint_id else str(uuid.uuid4())
+
+                constraint = ParametricConstraint(
+                    id=constraint_id,
+                    component_name=props.component_name,
+                    parameter_name=props.parameter,
+                    constraint_type=ConstraintType(props.constraint_type),
+                    start_station=props.start_station,
+                    end_station=props.end_station,
+                    start_value=props.start_value,
+                    end_value=props.end_value,
+                    interpolation=InterpolationType(props.interpolation),
+                    description=props.description,
+                    enabled=props.enabled
+                )
+                constraint_manager.add_constraint(constraint)
+                enabled_count += 1
+
+            if enabled_count > 0:
+                logger.info(f"Loaded {enabled_count} parametric constraints for assembly '{assembly_props.name}'")
+            else:
+                constraint_manager = None  # No enabled constraints
+
+        except Exception as e:
+            logger.warning(f"Failed to load constraints: {e}")
+            constraint_manager = None
 
     return AssemblyWrapper(
         name=assembly_props.name,
-        components=components
+        components=components,
+        constraint_manager=constraint_manager
     )
 
 
