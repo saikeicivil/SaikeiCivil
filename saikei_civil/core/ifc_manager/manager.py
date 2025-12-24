@@ -55,6 +55,7 @@ from .ifc_entities import (
     find_geometric_context,
     find_axis_subcontext,
 )
+from .transaction import TransactionManager
 from .. import ifc_api
 from ..logging_config import get_logger
 from .blender_hierarchy import (
@@ -146,6 +147,10 @@ class NativeIfcManager:
 
         # Create IFC file and core entities (units/context need manual handling)
         cls.file = ifcopenshell.file(schema=schema)
+
+        # Register file with transaction manager
+        TransactionManager.set_file(cls.file)
+
         cls.unit_assignment = create_units(cls.file)
         cls.geometric_context, cls.axis_subcontext = create_geometric_context(cls.file)
 
@@ -213,6 +218,9 @@ class NativeIfcManager:
         cls.clear()
         cls.file = ifcopenshell.open(filepath)
         cls.filepath = filepath
+
+        # Register file with transaction manager
+        TransactionManager.set_file(cls.file)
 
         # Find key entities
         cls._load_entities_from_file()
@@ -548,6 +556,9 @@ class NativeIfcManager:
         blender = _get_blender_tool()
         blender.set_scene_property("ifc_filepath", cls.filepath)
 
+        # Clear the dirty flag after successful save
+        TransactionManager.clear_edited()
+
         logger.info(f"Saved IFC file: {cls.filepath}")
 
     @classmethod
@@ -692,13 +703,17 @@ class NativeIfcManager:
     ) -> None:
         """Link Blender object to IFC entity.
 
+        This method:
+        1. Stores IFC reference on the Blender object
+        2. Registers the link in TransactionManager for fast lookup
+        3. Records the operation for undo/redo if in a transaction
+
         Args:
             blender_obj: Blender object (bpy.types.Object)
             ifc_entity: IFC entity to link
         """
-        blender_obj["ifc_definition_id"] = ifc_entity.id()
-        blender_obj["ifc_class"] = ifc_entity.is_a()
-        blender_obj["GlobalId"] = ifc_entity.GlobalId
+        # Use TransactionManager for linking (handles maps and undo/redo)
+        TransactionManager.link_element(ifc_entity, blender_obj)
 
     @classmethod
     def get_entity(
@@ -720,6 +735,88 @@ class NativeIfcManager:
                 # Entity was deleted (stale reference from segment regeneration)
                 return None
         return None
+
+    @classmethod
+    def get_object(cls, entity_id: int) -> Optional[Any]:
+        """Get Blender object linked to IFC entity ID.
+
+        Uses TransactionManager's fast lookup map.
+
+        Args:
+            entity_id: IFC entity step ID
+
+        Returns:
+            Blender object or None
+        """
+        return TransactionManager.get_object(entity_id)
+
+    @classmethod
+    def get_object_by_guid(cls, guid: str) -> Optional[Any]:
+        """Get Blender object linked to IFC GlobalId.
+
+        Uses TransactionManager's fast lookup map.
+
+        Args:
+            guid: IFC GlobalId string
+
+        Returns:
+            Blender object or None
+        """
+        return TransactionManager.get_object_by_guid(guid)
+
+    # =========================================================================
+    # Transaction Management (delegated to TransactionManager)
+    # =========================================================================
+
+    @classmethod
+    def begin_transaction(cls, key: str = "") -> str:
+        """Begin an IFC transaction. See TransactionManager for details."""
+        return TransactionManager.begin_transaction(key)
+
+    @classmethod
+    def end_transaction(cls) -> None:
+        """End an IFC transaction. See TransactionManager for details."""
+        TransactionManager.end_transaction()
+
+    @classmethod
+    def add_transaction_operation(
+        cls,
+        rollback,
+        commit,
+        data=None
+    ) -> None:
+        """Add an operation to the current transaction."""
+        TransactionManager.add_operation(rollback, commit, data)
+
+    @classmethod
+    def undo(cls) -> bool:
+        """Undo the last IFC transaction."""
+        return TransactionManager.undo()
+
+    @classmethod
+    def redo(cls) -> bool:
+        """Redo the last undone IFC transaction."""
+        return TransactionManager.redo()
+
+    @classmethod
+    def can_undo(cls) -> bool:
+        """Check if undo is available."""
+        return TransactionManager.can_undo()
+
+    @classmethod
+    def can_redo(cls) -> bool:
+        """Check if redo is available."""
+        return TransactionManager.can_redo()
+
+    @classmethod
+    def is_dirty(cls) -> bool:
+        """Check if file has unsaved changes."""
+        return TransactionManager.is_dirty
+
+    @classmethod
+    def get_transaction_info(cls) -> dict:
+        """Get transaction history information."""
+        return TransactionManager.get_history_info()
 
     # =========================================================================
     # IfcRoadPart Management (IFC 4.3 Spatial Hierarchy)
@@ -1572,6 +1669,9 @@ class NativeIfcManager:
         """Clear all IFC data and Blender collections."""
         # Delete road part empties and component empties BEFORE clearing references
         cls._clear_road_part_objects()
+
+        # Clear transaction manager
+        TransactionManager.set_file(None)
 
         cls.file = None
         cls.filepath = None

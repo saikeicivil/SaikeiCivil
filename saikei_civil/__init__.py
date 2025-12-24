@@ -39,6 +39,7 @@ def _reload_modules():
         "tool",  # Tool layer (Blender implementations of core interfaces)
         "operators",
         "ui",
+        "handlers",  # Undo/redo and edit tracking handlers
     ]
 
     # Reload each module if it's already loaded
@@ -57,6 +58,7 @@ from . import core
 from . import tool  # Tool layer (Blender implementations of core interfaces)
 from . import operators
 from . import ui
+from . import handlers  # Undo/redo and edit tracking handlers
 
 # Import logging utilities
 from .core.logging_config import (
@@ -88,6 +90,9 @@ def register():
     from .core import complete_update_system
     complete_update_system.register()
 
+    # Register undo/redo handlers
+    handlers.register()
+
     log_startup_complete()
 
 
@@ -96,7 +101,10 @@ def unregister():
     logger = get_logger(__name__)
     logger.info("Saikei Civil Extension - Unregistering...")
 
-    # Unregister update system first
+    # Unregister handlers first
+    handlers.unregister()
+
+    # Unregister update system
     from .core import complete_update_system
     complete_update_system.unregister()
 

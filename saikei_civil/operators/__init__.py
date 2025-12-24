@@ -39,6 +39,7 @@ if core.has_ifc_support():
     from ..core.native_ifc_manager import NativeIfcManager
     from ..core.native_ifc_alignment import NativeIfcAlignment
     from ..core.alignment_visualizer import AlignmentVisualizer
+    from ..core.ifc_manager.transaction import TransactionManager
 
     # Make them available to operator modules
     import sys
@@ -46,8 +47,10 @@ if core.has_ifc_support():
     current_module.NativeIfcManager = NativeIfcManager
     current_module.NativeIfcAlignment = NativeIfcAlignment
     current_module.AlignmentVisualizer = AlignmentVisualizer
+    current_module.TransactionManager = TransactionManager
 
     # Import operator modules
+    from . import base_operator  # Must be first - provides base class
     from . import alignment_management_operators
     from . import alignment_operators
     from . import file_operators
@@ -67,6 +70,7 @@ if core.has_ifc_support():
     from . import alignment_operators_v2  # New three-layer architecture
 
     _operator_modules = [
+        base_operator,  # Register first - provides undo/redo operators
         alignment_management_operators,
         alignment_operators,
         file_operators,

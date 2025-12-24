@@ -76,14 +76,32 @@ def get_alignment(alignment_global_id) -> Optional['NativeIfcAlignment']:
 
 def get_visualizer(alignment_global_id) -> Optional['AlignmentVisualizer']:
     """Get AlignmentVisualizer instance by alignment GlobalId.
-    
+
     Args:
         alignment_global_id: IFC GlobalId of the alignment
-        
+
     Returns:
         AlignmentVisualizer instance or None
     """
     return _visualizer_instances.get(alignment_global_id)
+
+
+def get_all_alignments() -> list:
+    """Get all registered NativeIfcAlignment instances.
+
+    Returns:
+        List of all registered alignment instances
+    """
+    return list(_alignment_instances.values())
+
+
+def get_all_visualizers() -> list:
+    """Get all registered AlignmentVisualizer instances.
+
+    Returns:
+        List of all registered visualizer instances
+    """
+    return list(_visualizer_instances.values())
 
 
 def get_or_create_alignment(ifc_entity) -> Tuple['NativeIfcAlignment', bool]:

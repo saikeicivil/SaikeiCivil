@@ -62,6 +62,13 @@ from .validation import (
     validate_and_report,
 )
 
+# Transaction system
+from .transaction import (
+    TransactionManager,
+    Operation,
+    TransactionStep,
+)
+
 __version__ = "1.0.0"
 __author__ = "Michael Yoder"
 
@@ -82,4 +89,8 @@ __all__ = [
     # Validation
     "validate_for_external_viewers",
     "validate_and_report",
+    # Transaction system
+    "TransactionManager",
+    "Operation",
+    "TransactionStep",
 ]
