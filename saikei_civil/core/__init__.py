@@ -85,6 +85,7 @@ try:
     from . import profile_view_data
     from . import profile_view_renderer
     from . import profile_view_overlay
+    from . import alignment_rebuilder  # Rebuilds alignments from IFC after undo/redo
 
     _ifc_modules = [
         ifc_manager,
@@ -116,13 +117,25 @@ def register():
 
     if _ifc_modules_loaded:
         logger.info("IFC features enabled")
+
+        # Register the alignment rebuilder for undo/redo support
+        try:
+            from .alignment_rebuilder import register_alignment_rebuilder
+            register_alignment_rebuilder()
+        except Exception as e:
+            logger.warning("Failed to register alignment rebuilder: %s", e)
     else:
         logger.warning("IFC features disabled (ifcopenshell not found)")
 
 
 def unregister():
     """Unregister core module"""
-    pass
+    if _ifc_modules_loaded:
+        try:
+            from .alignment_rebuilder import unregister_alignment_rebuilder
+            unregister_alignment_rebuilder()
+        except Exception:
+            pass
 
 
 def has_ifc_support():

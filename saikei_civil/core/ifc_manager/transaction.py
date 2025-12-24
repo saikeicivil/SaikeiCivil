@@ -314,8 +314,8 @@ class TransactionManager:
         # Update state
         cls.last_transaction = transaction["key"]
 
-        # Refresh visualizations after IFC state changes
-        cls._refresh_all_visualizations()
+        # Rebuild all Python/Blender state from the (now-reverted) IFC file
+        cls._rebuild_from_ifc()
 
         logger.debug(f"Undo complete (history: {len(cls.history)}, future: {len(cls.future)})")
         return True
@@ -353,82 +353,48 @@ class TransactionManager:
         # Update state
         cls.last_transaction = transaction["key"]
 
-        # Refresh visualizations after IFC state changes
-        cls._refresh_all_visualizations()
+        # Rebuild all Python/Blender state from the IFC file
+        cls._rebuild_from_ifc()
 
         logger.debug(f"Redo complete (history: {len(cls.history)}, future: {len(cls.future)})")
         return True
 
     @classmethod
-    def _refresh_all_visualizations(cls) -> None:
+    def _rebuild_from_ifc(cls) -> None:
         """
-        Refresh all alignment visualizations after undo/redo.
+        Rebuild all Python/Blender state from the IFC file after undo/redo.
 
-        This is critical because IFC undo/redo changes the underlying data,
-        but Blender objects may become stale or disconnected. This method
-        rebuilds all visualizations from the current IFC state.
+        This is the core of the "IFC as single source of truth" pattern:
+        - IFC file is reverted by undo/redo
+        - All Python objects and Blender visualizations are rebuilt from IFC
+        - This ensures state is always consistent with the IFC file
+
+        Uses the IfcRebuilderRegistry to call domain-specific rebuilders
+        (alignments, corridors, cross-sections, etc.).
         """
+        if cls._ifc_file is None:
+            logger.debug("No IFC file - skipping rebuild")
+            return
+
         try:
-            from ..alignment_registry import get_all_alignments, get_all_visualizers
+            from .rebuilder_registry import IfcRebuilderRegistry
 
-            # Get all registered visualizers
-            visualizers = get_all_visualizers()
-            refresh_count = 0
+            logger.info("Rebuilding all state from IFC after undo/redo...")
+            results = IfcRebuilderRegistry.rebuild_all(cls._ifc_file)
 
-            for visualizer in visualizers:
-                try:
-                    # Regenerate segments from current PIs (they're still in memory)
-                    if hasattr(visualizer, 'alignment') and visualizer.alignment:
-                        alignment = visualizer.alignment
-                        # Regenerate IFC segments from current PI positions
-                        if hasattr(alignment, 'regenerate_segments'):
-                            alignment.regenerate_segments()
+            if results:
+                success_count = sum(1 for v in results.values() if v)
+                logger.info(
+                    "Rebuild complete: %d/%d rebuilders succeeded",
+                    success_count, len(results)
+                )
+            else:
+                logger.debug("No rebuilders registered")
 
-                    # Update visualization to match current IFC state
-                    # Try update_visualizations first (creates full visualization)
-                    if hasattr(visualizer, 'update_visualizations'):
-                        visualizer.update_visualizations()
-                        refresh_count += 1
-                    elif hasattr(visualizer, 'update_all'):
-                        visualizer.update_all()
-                        refresh_count += 1
-
-                    logger.debug(f"Refreshed visualizer for alignment")
-                except Exception as e:
-                    logger.warning(f"Failed to refresh visualizer: {e}")
-                    import traceback
-                    logger.debug(traceback.format_exc())
-
-            # Also check alignments that might not have visualizers in the list
-            alignments = get_all_alignments()
-            for alignment in alignments:
-                try:
-                    # Check if this alignment's visualizer was already handled
-                    if hasattr(alignment, 'visualizer') and alignment.visualizer:
-                        if alignment.visualizer in visualizers:
-                            continue  # Already handled
-
-                        # Regenerate segments
-                        if hasattr(alignment, 'regenerate_segments'):
-                            alignment.regenerate_segments()
-
-                        # Update visualization
-                        if hasattr(alignment.visualizer, 'update_visualizations'):
-                            alignment.visualizer.update_visualizations()
-                            refresh_count += 1
-                        elif hasattr(alignment.visualizer, 'update_all'):
-                            alignment.visualizer.update_all()
-                            refresh_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to refresh alignment: {e}")
-
-            if refresh_count > 0:
-                logger.info(f"Refreshed {refresh_count} alignment visualizations after undo/redo")
-
-        except ImportError:
-            logger.debug("Alignment registry not available - skipping visualization refresh")
+        except ImportError as e:
+            logger.warning("Rebuilder registry not available: %s", e)
         except Exception as e:
-            logger.warning(f"Error refreshing visualizations after undo/redo: {e}")
+            logger.error("Error rebuilding from IFC: %s", e)
             import traceback
             logger.debug(traceback.format_exc())
 

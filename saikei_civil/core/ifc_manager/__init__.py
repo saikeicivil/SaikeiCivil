@@ -69,6 +69,12 @@ from .transaction import (
     TransactionStep,
 )
 
+# Rebuilder registry (for undo/redo IFC-first pattern)
+from .rebuilder_registry import (
+    IfcRebuilderRegistry,
+    RebuilderInfo,
+)
+
 __version__ = "1.0.0"
 __author__ = "Michael Yoder"
 
@@ -93,4 +99,7 @@ __all__ = [
     "TransactionManager",
     "Operation",
     "TransactionStep",
+    # Rebuilder registry
+    "IfcRebuilderRegistry",
+    "RebuilderInfo",
 ]

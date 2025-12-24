@@ -69,6 +69,23 @@ def unregister_alignment(alignment):
         logger.info("Unregistered alignment: %s", alignment.alignment.Name)
 
 
+def clear_alignments():
+    """Clear all registered alignments.
+
+    Called by the alignment rebuilder before reconstructing alignments from IFC.
+    This ensures we don't have stale Python object references after undo/redo.
+    """
+    global _alignment_registry, _pending_ifc_regeneration, _last_update, _last_regeneration_time
+
+    count = len(_alignment_registry)
+    _alignment_registry.clear()
+    _pending_ifc_regeneration.clear()
+    _last_update.clear()
+    _last_regeneration_time.clear()
+
+    logger.info("Cleared %d alignments from update system registry", count)
+
+
 def get_alignment_from_pi(pi_object):
     """Get alignment from PI object.
 

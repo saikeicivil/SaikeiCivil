@@ -45,6 +45,7 @@ import warnings
 __all__ = [
     "register_alignment",
     "unregister_alignment",
+    "clear_alignments",
     "get_alignment_from_pi",
     "saikei_update_handler",
     "register_handler",
