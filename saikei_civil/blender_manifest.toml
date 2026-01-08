@@ -10,7 +10,7 @@ maintainer = "Desert Springs CE, Michael Yoder"
 license = ["SPDX:GPL-3.0-or-later"]
 
 blender_version_min = "4.5.0"
-blender_version_max = "4.6.0"
+blender_version_max = "5.1.0"
 
 [permissions]
 files = "Import/export files"
