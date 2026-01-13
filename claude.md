@@ -3,7 +3,7 @@
 ## Project Identity
 
 **Name:** Saikei Civil (formerly BlenderCivil)  
-**Pronunciation:** "SIGH-kay" (栽景 - Japanese for "planted landscape")  
+**Pronunciation:** "SIGH-kay" (盆景 - Japanese for "planted landscape")  
 **Tagline:** "The landscape around the buildings"  
 **Repository:** `C:\GitHub\Saikei-Civil\saikei_civil`  
 **Symlink:** `%APPDATA%\Blender Foundation\Blender\4.5\extensions\user_default\saikei_civil`
@@ -35,6 +35,196 @@ Unlike traditional CAD software that exports to IFC, Saikei Civil works **IN** I
 
 ---
 
+## Bonsai Integration Strategy
+
+### Primary Principle: Detect and Defer
+
+**When Bonsai is installed and has an active IFC file, Saikei defers to Bonsai for:**
+1. **IFC File Management** - Use Bonsai's `IfcStore` instead of `NativeIfcManager`
+2. **Transaction/Undo System** - Use Bonsai's `execute_ifc_operator` wrapper
+3. **Element Linking** - Use Bonsai's `id_map` and `guid_map`
+4. **Georeferencing** - Use Bonsai's georeferencing UI and implementation (see below)
+
+**When Bonsai is NOT installed, Saikei operates standalone** using its own `NativeIfcManager`.
+
+### Georeferencing: Always Defer to Bonsai
+
+Bonsai has mature, well-tested georeferencing features. **Saikei should NOT duplicate this functionality.**
+
+```python
+# Georeferencing strategy
+def get_georeferencing_handler():
+    """Get the appropriate georeferencing handler."""
+    if is_bonsai_available():
+        # Use Bonsai's georeferencing - it's more mature
+        return BonsaiGeorefBridge()
+    else:
+        # Fallback to Saikei's implementation only if Bonsai unavailable
+        return SaikeiGeorefHandler()
+
+class BonsaiGeorefBridge:
+    """Bridge to Bonsai's georeferencing features."""
+    
+    def get_map_conversion(self):
+        """Get IfcMapConversion from Bonsai."""
+        from bonsai.bim.ifc import IfcStore
+        ifc = IfcStore.get_file()
+        if ifc:
+            conversions = ifc.by_type("IfcMapConversion")
+            return conversions[0] if conversions else None
+        return None
+    
+    def get_projected_crs(self):
+        """Get IfcProjectedCRS from Bonsai."""
+        from bonsai.bim.ifc import IfcStore
+        ifc = IfcStore.get_file()
+        if ifc:
+            crs_list = ifc.by_type("IfcProjectedCRS")
+            return crs_list[0] if crs_list else None
+        return None
+    
+    def transform_to_local(self, easting, northing, elevation=0):
+        """Transform global coords to local using Bonsai's conversion."""
+        # Use Bonsai's existing transformation logic
+        pass
+    
+    def transform_to_global(self, x, y, z=0):
+        """Transform local coords to global using Bonsai's conversion."""
+        pass
+```
+
+**UI Approach for Georeferencing:**
+- When Bonsai is installed: Hide Saikei's georef panel, show message "Use Bonsai's Georeferencing panel"
+- When standalone: Show Saikei's georef panel as fallback
+
+### Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      SAIKEI CIVIL                                   │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    civil/ifc_operator.py                     │   │
+│  │                   (Integration Bridge)                       │   │
+│  └──────────────────────────┬──────────────────────────────────┘   │
+│                             │                                       │
+│              ┌──────────────┴──────────────┐                       │
+│              │                             │                        │
+│              ▼                             ▼                        │
+│  ┌─────────────────────┐       ┌─────────────────────┐             │
+│  │   Bonsai Mode       │       │   Standalone Mode   │             │
+│  │                     │       │                     │             │
+│  │ • IfcStore          │       │ • NativeIfcManager  │             │
+│  │ • Bonsai Georef     │       │ • Saikei Georef     │             │
+│  │ • Bonsai Undo       │       │ • Saikei Undo       │             │
+│  └─────────────────────┘       └─────────────────────┘             │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Critical Code Patterns
+
+### 1. IFC File Access (ALWAYS use this pattern)
+
+```python
+from saikei_civil.tool.ifc import Ifc
+
+# Get IFC file (automatically uses Bonsai or standalone)
+ifc_file = Ifc.get()
+
+# Check if file exists
+if Ifc.has_file():
+    ...
+
+# Check mode
+if Ifc.is_bonsai_mode():
+    print("Using Bonsai's IFC file")
+```
+
+**NEVER do this:**
+```python
+# WRONG - bypasses integration
+from saikei_civil.core.ifc_manager.manager import NativeIfcManager
+ifc = NativeIfcManager.get_file()  # Don't access directly!
+```
+
+### 2. Operator Pattern (ALWAYS use for IFC operations)
+
+```python
+from saikei_civil.civil.ifc_operator import execute_civil_operator
+
+class CIVIL_OT_my_operation(bpy.types.Operator):
+    bl_idname = "civil.my_operation"
+    bl_label = "My Operation"
+    bl_options = {"REGISTER", "UNDO"}  # ← Required for undo
+    
+    def execute(self, context):
+        return execute_civil_operator(self, context)  # ← Wrapper handles Bonsai/standalone
+    
+    def _execute(self, context):  # ← Actual implementation
+        from saikei_civil.tool.ifc import Ifc
+        ifc_file = Ifc.get()
+        # ... do work ...
+        return {"FINISHED"}
+```
+
+### 3. Element Linking
+
+```python
+from saikei_civil.civil.ifc_operator import link_element, unlink_element
+
+# After creating IFC entity and Blender object
+link_element(ifc_entity, blender_object)
+
+# Before removing
+unlink_element(ifc_entity=entity)
+```
+
+### 4. Georeferencing Access
+
+```python
+from saikei_civil.tool.ifc import Ifc
+
+# Check if georeferencing is available
+def has_georeferencing():
+    ifc = Ifc.get()
+    if not ifc:
+        return False
+    return len(ifc.by_type("IfcMapConversion")) > 0
+
+# Get CRS info (works with Bonsai or standalone)
+def get_crs_name():
+    ifc = Ifc.get()
+    if not ifc:
+        return None
+    crs_list = ifc.by_type("IfcProjectedCRS")
+    if crs_list:
+        return crs_list[0].Name
+    return None
+```
+
+### 5. Data Caching (for UI performance)
+
+```python
+class AlignmentData:
+    data = {}
+    is_loaded = False
+    
+    @classmethod
+    def refresh(cls):
+        cls.is_loaded = False
+    
+    @classmethod
+    def ensure_loaded(cls):
+        if not cls.is_loaded:
+            cls.load()
+```
+
+---
+
 ## Technical Architecture
 
 ### Data Flow Pattern
@@ -50,6 +240,14 @@ IFC File (Source of Truth)
 No conversion needed!
 ```
 
+### Three Data Stores (Must Stay in Sync)
+
+| Store | Contents | Undo Mechanism |
+|-------|----------|----------------|
+| **IFC File** | Actual data (IfcAlignment, etc.) | `ifc_file.undo()` |
+| **Element Maps** | `id_map`, `guid_map` | Custom `rollback()` / `commit()` |
+| **Blender Objects** | Visual representation | `bl_options = {"UNDO"}` |
+
 ### Key Architectural Principles
 
 1. **IFC-First Design**
@@ -64,81 +262,73 @@ No conversion needed!
      - `GlobalId` - IFC standard identifier
    - Everything else comes from IFC
 
-3. **Golden Pattern**
-   ```python
-   # 1. GET IFC FILE
-   ifc = NativeIfcManager.get_file()
-   
-   # 2. CREATE/MODIFY IFC ENTITY
-   entity = ifc.create_entity("IfcAlignment", ...)
-   
-   # 3. CREATE BLENDER VISUALIZATION
-   obj = create_blender_object(...)
-   
-   # 4. LINK THEM
-   NativeIfcManager.link_object(obj, entity)
-   ```
+3. **Bonsai Deference**
+   - When Bonsai is available, USE IT
+   - Don't duplicate what Bonsai already does well
+   - Especially: file management, undo/redo, georeferencing
 
-### Directory Structure
+---
+
+## Target Directory Structure
+
 ```
 saikei_civil/
 ├── __init__.py                    # Extension entry point
 ├── blender_manifest.toml          # Blender extension manifest
+├── preferences.py
 │
-├── core/                          # Business logic (IFC operations)
-│   ├── __init__.py
-│   ├── native_ifc_manager.py      # IFC file lifecycle management
-│   ├── native_ifc_alignment.py    # Horizontal alignment (PI-driven)
-│   ├── native_ifc_vertical_alignment.py  # Vertical alignment (PVI-driven)
-│   ├── native_ifc_georeferencing.py      # Coordinate transformations
-│   ├── native_ifc_cross_section.py       # Cross-section assemblies
-│   ├── crs_searcher.py            # CRS database search
-│   ├── alignment_visualizer.py    # 3D visualization
-│   ├── dependency_manager.py      # Alignment connectivity
-│   └── components/                # Cross-section components
-│       ├── __init__.py
-│       ├── base_component.py
-│       ├── lane_component.py
-│       ├── shoulder_component.py
-│       ├── curb_component.py
-│       └── ditch_component.py
+├── core/                          # Layer 1: Pure Python (NO bpy imports)
+│   ├── ifc_manager/
+│   │   ├── manager.py             # NativeIfcManager (standalone fallback)
+│   │   ├── transaction.py         # TransactionManager
+│   │   └── ...
+│   ├── horizontal_alignment/
+│   ├── vertical_alignment/
+│   └── components/
 │
-├── operators/                     # Blender operators (user actions)
-│   ├── __init__.py
-│   ├── file_operators.py          # Save/Load IFC
-│   ├── alignment_operators.py     # Horizontal alignment ops
-│   ├── pi_operators.py            # PI management
-│   ├── vertical_operators.py      # Vertical alignment ops
-│   ├── georef_operators.py        # Georeferencing ops
-│   ├── cross_section_operators.py # Cross-section ops
-│   └── validation_operators.py    # Design validation
+├── tool/                          # Layer 2: Blender implementations
+│   ├── ifc.py                     # ← KEY: Unified IFC access (Bonsai bridge)
+│   ├── blender.py
+│   ├── alignment.py
+│   └── georeference.py            # ← Defers to Bonsai when available
 │
-├── ui/                            # User interface
-│   ├── __init__.py
-│   ├── alignment_panel.py         # Main alignment panel
-│   ├── georef_properties.py       # Georeferencing properties
-│   ├── vertical_properties.py     # Vertical alignment properties
-│   ├── cross_section_properties.py # Cross-section properties
-│   ├── dependency_panel.py
-│   ├── validation_panel.py
-│   └── panels/
-│       ├── __init__.py
-│       ├── georeferencing_panel.py
-│       ├── vertical_alignment_panel.py
-│       └── cross_section_panel.py
+├── civil/                         # Layer 3: UI (mirrors Bonsai's bim/)
+│   ├── __init__.py                # Registration hub
+│   ├── prop.py                    # Global CivilProperties
+│   ├── handler.py                 # Event handlers
+│   ├── ifc_operator.py            # ← KEY: Bonsai integration bridge
+│   │
+│   └── module/                    # Feature modules
+│       ├── project/
+│       │   ├── prop.py            # CivilObjectProperties
+│       │   └── ...
+│       ├── alignment/
+│       │   ├── prop.py            # CivilAlignmentProperties
+│       │   ├── data.py            # AlignmentData cache
+│       │   ├── ui.py              # Panels (N-panel + Properties Editor)
+│       │   └── operator.py
+│       ├── corridor/
+│       ├── georef/                # ← Minimal: mostly defers to Bonsai
+│       └── cross_section/
 │
-├── templates/                     # AASHTO standard templates
-│   ├── __init__.py
-│   ├── aashto_templates.py
-│   └── custom_templates.json
-│
-└── tests/                         # Test suite
-    ├── __init__.py
-    ├── test_alignment.py
-    ├── test_vertical_alignment.py
-    ├── test_georeferencing.py
-    └── test_cross_section.py
+└── tools/                         # Toolbar tools (optional)
+    ├── pi_tool.py
+    └── pvi_tool.py
 ```
+
+---
+
+## Property Naming Conventions
+
+| Type | Prefix | Example |
+|------|--------|---------|
+| Scene PropertyGroup | `Civil*Properties` | `CivilAlignmentProperties` |
+| Object PropertyGroup | `CivilObjectProperties` | - |
+| Panel class | `CIVIL_PT_*` | `CIVIL_PT_alignments` |
+| Operator class | `CIVIL_OT_*` | `CIVIL_OT_add_alignment` |
+| UIList class | `CIVIL_UL_*` | `CIVIL_UL_alignments` |
+
+**Note:** Use `Civil*` prefix, NOT `BIM*` or `BC_*` to avoid conflicts with Bonsai.
 
 ---
 
@@ -149,7 +339,7 @@ saikei_civil/
 |--------|-------|--------|
 | Sprint 0 | Native IFC Foundation | ✅ Complete |
 | Sprint 1 | Horizontal Alignments (PI-driven) | ✅ Complete |
-| Sprint 2 | Georeferencing | ✅ Complete |
+| Sprint 2 | Georeferencing | ✅ Complete (deferring to Bonsai) |
 | Sprint 3 | Vertical Alignments (PVI-driven) | ✅ Complete |
 
 ### Phase 2: Corridor Modeling (IN PROGRESS)
@@ -158,135 +348,14 @@ saikei_civil/
 | Sprint 4 | Cross-Sections | ✅ Complete |
 | Sprint 5 | Corridor Generation | 🚧 In Progress |
 | Sprint 6 | Advanced Geometry | 📋 Planned |
-| Sprint 7 | Materials & Quantities | 📋 Planned |
-| Sprint 8 | Polish & Testing | 📋 Planned |
 
-### Phase 3 & 4: Industry Integration & Market Leadership
-Sprints 9-16 planned for import/export, collaboration, visualization, and advanced features.
-
----
-
-## Key Technical Implementations
-
-### Horizontal Alignments (Sprint 1)
-- **PI-Driven Design**: Control points (Points of Intersection) drive geometry
-- **Automatic Segment Generation**: Tangents and curves generated from PIs
-- **Curve Types**: LINE, CIRCULARARC (CLOTHOID planned)
-- **IFC Entities**: IfcAlignment, IfcAlignmentHorizontal, IfcAlignmentSegment
-
-### Vertical Alignments (Sprint 3)
-- **PVI-Driven Design**: Points of Vertical Intersection control grades
-- **Parabolic Curves**: Standard vertical curves with K-value design
-- **AASHTO Compliance**: Design speed, sight distance calculations
-- **IFC Entities**: IfcAlignmentVertical, IfcAlignmentVerticalSegment
-
-### Georeferencing (Sprint 2)
-- **6,000+ CRS Support**: Via PyProj integration
-- **Sub-millimeter Precision**: At 20km from false origin
-- **IFC Entities**: IfcMapConversion, IfcProjectedCRS
-- **Digital Twin Ready**: Cesium, QGIS compatibility
-
-### Cross-Sections (Sprint 4)
-- **Component-Based Assembly**: Modular design system
-- **AASHTO Templates**: Standard road sections
-- **Parametric Constraints**: Station-based variations
-- **IFC Entities**: IfcOpenCrossProfileDef, IfcCompositeProfileDef
-
-### Corridor Modeling (Sprint 5)
-- **IfcSectionedSolidHorizontal**: 3D corridor geometry
-- **Multi-LOD Performance**: Optimized mesh generation
-- **Integration**: Combines H+V alignments with cross-sections
-
----
-
-## Code Style & Patterns
-
-### Naming Conventions
-- **Classes**: PascalCase (`NativeIfcManager`, `CrossSectionAssembly`)
-- **Functions/Methods**: snake_case (`create_alignment`, `add_pi`)
-- **Properties**: snake_case (`ifc_definition_id`)
-- **Operators**: `BC_OT_*` pattern (`BC_OT_create_alignment`)
-- **Panels**: `VIEW3D_PT_*` pattern (`VIEW3D_PT_bc_alignment`)
-
-### Blender Extension Patterns
-Follow Bonsai/BlenderBIM patterns:
-- Operators in `operators/` directory
-- UI panels in `ui/panels/` directory
-- Properties in `ui/*_properties.py`
-- Core logic in `core/` directory
-
-### IFC Operations Pattern
-```python
-# Always get file first
-ifc = NativeIfcManager.get_file()
-if not ifc:
-    return {'CANCELLED'}
-
-# Create IFC entity
-entity = ifc.create_entity("IfcSomeEntity",
-    GlobalId=ifcopenshell.guid.new(),
-    Name="My Entity"
-)
-
-# Create Blender visualization
-obj = bpy.data.objects.new("My Object", mesh)
-
-# Link them
-NativeIfcManager.link_object(obj, entity)
-```
-
-### Registration Pattern
-```python
-classes = (
-    MyOperator,
-    MyPanel,
-    MyPropertyGroup,
-)
-
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    # Register properties
-    bpy.types.Scene.my_props = bpy.props.PointerProperty(type=MyPropertyGroup)
-
-def unregister():
-    del bpy.types.Scene.my_props
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-```
-
----
-
-## Dependencies
-
-### Required
-- **Blender 4.5+**: Extension system
-- **IfcOpenShell**: IFC file operations
-- **NumPy**: Mathematical calculations
-
-### Optional
-- **PyProj**: Coordinate transformations (georeferencing)
-
-### Python Packages Location
-Dependencies are managed via `blender_manifest.toml` wheels or pip with `--break-system-packages`.
-
----
-
-## Testing
-
-### Test Structure
-- Unit tests in `tests/` directory
-- Integration tests for complete workflows
-- 100% pass rate target
-
-### Running Tests
-```python
-# In Blender Python console
-import sys
-sys.path.insert(0, "C:/GitHub/Saikei-Civil/saikei_civil")
-from tests import test_alignment
-test_alignment.run_tests()
-```
+### Current Refactoring: Bonsai Integration
+- [ ] Create `civil/` module structure
+- [ ] Implement `ifc_operator.py` bridge
+- [ ] Update `tool/ifc.py` with Bonsai detection
+- [ ] Migrate operators to use `execute_civil_operator`
+- [ ] Add georeferencing deferral to Bonsai
+- [ ] Create multi-location UI panels
 
 ---
 
@@ -296,10 +365,9 @@ test_alignment.run_tests()
 - IfcProject, IfcSite, IfcRoad
 - IfcAlignment, IfcAlignmentHorizontal, IfcAlignmentVertical
 - IfcAlignmentSegment, IfcAlignmentHorizontalSegment, IfcAlignmentVerticalSegment
-- IfcMapConversion, IfcProjectedCRS
+- IfcMapConversion, IfcProjectedCRS (via Bonsai when available)
 - IfcOpenCrossProfileDef, IfcCompositeProfileDef
 - IfcSectionedSolidHorizontal (corridor)
-- IfcRelNests, IfcRelAggregates
 
 ### Spatial Hierarchy
 ```
@@ -315,64 +383,37 @@ IfcProject
 
 ---
 
-## Common Tasks
-
-### Adding a New Operator
-1. Create operator class in `operators/` (follow `BC_OT_` naming)
-2. Add to `operators/__init__.py` imports and registration
-3. Add button in appropriate panel
-
-### Adding a New Panel
-1. Create panel class in `ui/panels/` (follow `VIEW3D_PT_bc_` naming)
-2. Set `bl_category = "Saikei Civil"` for sidebar tab
-3. Add to `ui/panels/__init__.py` registration
-
-### Adding New IFC Entity Support
-1. Add creation logic in appropriate `core/` module
-2. Create Blender visualization
-3. Link using `NativeIfcManager.link_object()`
-4. Add UI for user interaction
-
----
-
-## Important Files to Know
-
-| File | Purpose |
-|------|---------|
-| `__init__.py` | Extension entry, bl_info, registration |
-| `blender_manifest.toml` | Blender 4.5+ extension manifest |
-| `core/native_ifc_manager.py` | Central IFC file management |
-| `core/native_ifc_alignment.py` | Horizontal alignment engine |
-| `core/native_ifc_vertical_alignment.py` | Vertical alignment engine |
-| `ui/panels/*.py` | All UI panels |
-| `operators/*.py` | All user operations |
-
----
-
-## Quick Reference: IFC Entity Retrieval
+## Testing Commands
 
 ```python
-# Get IFC file
-ifc = NativeIfcManager.get_file()
+# In Blender Python console:
 
-# Get entity from Blender object
-entity = NativeIfcManager.get_entity(blender_obj)
+# Test 1: Check Bonsai detection
+from saikei_civil.tool.ifc import Ifc
+print(f"Bonsai mode: {Ifc.is_bonsai_mode()}")
+print(f"Has file: {Ifc.has_file()}")
 
-# Get all alignments
-alignments = ifc.by_type("IfcAlignment")
+# Test 2: Check properties registered
+import bpy
+print(hasattr(bpy.types.Scene, 'CivilProperties'))
+print(hasattr(bpy.types.Scene, 'CivilAlignmentProperties'))
+print(hasattr(bpy.types.Object, 'CivilObjectProperties'))
 
-# Get entity by ID
-entity = ifc.by_id(entity_id)
+# Test 3: Check georeferencing
+ifc = Ifc.get()
+if ifc:
+    print(f"Has georef: {len(ifc.by_type('IfcMapConversion')) > 0}")
 ```
 
 ---
 
 ## Debugging Tips
 
-1. **Check IFC file exists**: `NativeIfcManager.get_file() is not None`
-2. **Verify linking**: `obj.get("ifc_definition_id")` should return entity ID
-3. **Console logging**: Use `print()` statements, check Blender System Console
-4. **IFC validation**: Open saved IFC in external viewer (Solibri, FreeCAD)
+1. **Check IFC file exists**: `Ifc.has_file()`
+2. **Check mode**: `Ifc.is_bonsai_mode()` 
+3. **Verify linking**: `obj.BIMObjectProperties.ifc_definition_id` or `obj.CivilObjectProperties.ifc_definition_id`
+4. **Console logging**: Check Blender System Console (Window > Toggle System Console on Windows)
+5. **IFC validation**: Open saved IFC in external viewer (Solibri, FreeCAD, BIMcollab)
 
 ---
 
@@ -381,6 +422,7 @@ entity = ifc.by_id(entity_id)
 ### Documentation
 - IFC 4.3 Spec: https://ifc43-docs.standards.buildingsmart.org/
 - IfcOpenShell: https://docs.ifcopenshell.org/
+- Bonsai Docs: https://docs.bonsaibim.org/
 - Bonsai Wiki: https://wiki.osarch.org/
 - AASHTO Green Book (design standards)
 
@@ -392,11 +434,11 @@ entity = ifc.by_id(entity_id)
 
 ## Contact & Ownership
 
-**Developer:** Michael (Desert Springs Civil Engineering PLLC)  
+**Developer:** Michael Holtz (Desert Springs Civil Engineering PLLC)  
 **Project:** Open-source, community-driven  
-**License:** [Specify license]
+**License:** GPL v3 (for Bonsai ecosystem compatibility)
 
 ---
 
-*Last Updated: December 2025*  
+*Last Updated: January 2026*  
 *Saikei Civil - Native IFC for Horizontal Construction*
