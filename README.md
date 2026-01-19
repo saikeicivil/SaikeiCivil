@@ -1,8 +1,8 @@
 # Saikei Civil - IFC-Native Civil Engineering for Blender
 
-**A modern Blender extension for civil engineering design using IFC 4.3 (IFC4X3) standards.**
+**A modern Blender extension for civil engineering design using IFC 4.3 (IFC4X3_ADD2) standards.**
 
-Saikei Civil brings professional-grade civil engineering tools directly into Blender, leveraging the power of IFC (Industry Foundation Classes) for data-driven infrastructure design.
+Saikei Civil brings professional-grade civil engineering tools directly into Blender, leveraging the power of IFC (Industry Foundation Classes) for data-driven infrastructure design. While [Bonsai](https://bonsaibim.org/) crafts the buildings, Saikei shapes the world around them.
 
 ---
 
@@ -26,20 +26,35 @@ Saikei Civil brings professional-grade civil engineering tools directly into Ble
 - Depsgraph-based update system detects PI movement
 - All segments (tangents and curves) regenerate in real-time
 - No manual refresh needed - move a PI, see the entire alignment update instantly
-- Compatible with BlenderBIM's transform tools
+- Compatible with Bonsai's transform tools
+
+### 📐 Vertical Alignment Design
+
+- PVI-based (Point of Vertical Intersection) design workflow
+- Grade and vertical curve definitions
+- Profile view visualization overlay
+- IFC-native vertical alignment entities
+
+### 🛤️ Corridor Generation
+
+- Native IFC corridor creation using `IfcSectionedSolidHorizontal`
+- Cross-section profiles stored as `IfcArbitraryOpenProfileDef`
+- Component-based cross-section assembly system
+- Full integration with IFC spatial hierarchy
 
 ### 🏗️ IFC Spatial Hierarchy
 
-**Full IFC4X3 Compliance**
+**Full IFC 4.3 Compliance**
 - Proper spatial structure: `IfcProject → IfcSite → IfcRoad → IfcAlignment`
 - All geometric elements are native IFC entities (`IfcAlignmentSegment`, etc.)
 - Organizational empties for Alignments and Geomodels
 - Blender Outliner hierarchy mirrors IFC structure via parenting
+- Approximately 95% compliant with buildingSMART validation
 
-**BlenderBIM Integration**
-- Fully compatible with BlenderBIM extension
-- No conflicts with BlenderBIM's modal operators or transform systems
-- Works alongside BlenderBIM for complete BIM workflows
+**Bonsai Integration**
+- Fully compatible with the Bonsai (formerly BlenderBIM) extension
+- No conflicts with Bonsai's modal operators or transform systems
+- Works alongside Bonsai for complete BIM workflows
 - IFC entities properly linked and managed
 
 ### 🗺️ Georeferencing
@@ -47,21 +62,23 @@ Saikei Civil brings professional-grade civil engineering tools directly into Ble
 - CRS (Coordinate Reference System) search and selection
 - Project georeferencing with Map Conversion support
 - IFC-native georeferencing entities (`IfcMapConversion`, `IfcProjectedCRS`)
-- Integration with spatial reference systems
+- Defers to Bonsai's georeferencing when available
 
-### 📐 Additional Tools
+### 📐 Cross Sections
 
-**Vertical Alignments**
-- Vertical geometry management
-- Grade and curve definitions
-- IFC vertical alignment entities
-
-**Cross Sections**
-- Cross-section definition and management
+- Interactive cross-section editor with overlay visualization
+- Component-based assembly system
 - Import/export capabilities
 - Template-based workflows
 
-**File Management**
+### 🔄 Transaction System
+
+- Undo/redo infrastructure for IFC operations
+- `IfcRebuilderRegistry` for IFC-as-source-of-truth workflows
+- Parametric constraints for maintaining element relationships
+
+### 📁 File Management
+
 - Create new IFC files with proper hierarchy
 - Open existing IFC files
 - Save IFC to disk
@@ -76,14 +93,14 @@ Saikei Civil brings professional-grade civil engineering tools directly into Ble
 Run this command in **Command Prompt (Administrator)**:
 
 ```cmd
-mklink /D "C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\saikei_civil" "C:\Path\To\Saikei Civil\Saikei Civil_ext"
+mklink /D "C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\saikei_civil" "C:\Path\To\SaikeiCivil\saikei_civil"
 ```
 
-Replace `[YourUsername]` and `C:\Path\To\Saikei Civil` with your actual paths.
+Replace `[YourUsername]` and `C:\Path\To\SaikeiCivil` with your actual paths.
 
 ### Method 2: Direct Copy
 
-Copy the entire `Saikei Civil_ext` folder to:
+Copy the entire `saikei_civil` folder to:
 ```
 C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extensions\user_default\
 ```
@@ -139,32 +156,46 @@ C:\Users\[YourUsername]\AppData\Roaming\Blender Foundation\Blender\4.5\extension
 
 ## 🏗️ Architecture
 
+Saikei Civil uses a **three-layer architecture** that separates pure Python logic from Blender-specific code:
+
 ```
-Saikei Civil_ext/
-├── blender_manifest.toml    # Extension metadata
+saikei_civil/
+├── blender_manifest.toml     # Extension metadata
 ├── __init__.py               # Main registration
-├── core/                     # Core systems
-│   ├── native_ifc_manager.py         # IFC file lifecycle, spatial hierarchy
-│   ├── native_ifc_alignment.py       # Alignment data model (PI-based)
-│   ├── alignment_visualizer.py       # Blender visualization
-│   ├── alignment_registry.py         # Instance management
-│   ├── complete_update_system.py     # Real-time update handler
-│   ├── ifc_relationship_manager.py   # IFC relationship utilities
+│
+├── core/                     # Layer 1: Pure Python (NO bpy imports)
+│   ├── ifc_manager/          # IFC file lifecycle
+│   │   ├── manager.py        # NativeIfcManager
+│   │   ├── transaction.py    # TransactionManager
+│   │   └── rebuilder_registry.py  # IFC-as-source-of-truth undo/redo
+│   ├── horizontal_alignment/ # PI-based alignment design
+│   ├── vertical_alignment/   # PVI-based vertical design
+│   └── components/           # Cross-section assembly system
+│
+├── tool/                     # Layer 2: Blender implementations
+│   ├── ifc.py                # Unified IFC access (Bonsai bridge)
+│   ├── blender.py            # Blender utilities
+│   ├── alignment.py          # Alignment tools
+│   └── georeference.py       # Georeferencing tools
+│
+├── operators/                # Layer 3: Blender operators
+│   ├── pi_operators.py       # PI placement (interactive + manual)
+│   ├── curve_operators.py    # Curve insertion tool
+│   ├── alignment_operators.py
+│   ├── corridor_operators.py
 │   └── ...
-├── operators/                # Interactive tools
-│   ├── pi_operators.py               # PI placement (interactive + manual)
-│   ├── curve_operators.py            # Curve insertion tool
-│   ├── alignment_operators.py        # Alignment creation/management
-│   ├── ifc_hierarchy_operators.py    # IFC file operations
-│   └── ...
-└── ui/                       # User interface
-    ├── alignment_panel.py            # Main alignment UI
-    ├── file_management_panel.py      # IFC file management UI
-    ├── alignment_properties.py       # Property definitions
-    └── panels/                       # Additional panels
-        ├── georeferencing_panel.py
-        ├── vertical_alignment_panel.py
-        └── cross_section_panel.py
+│
+├── ui/                       # Layer 3: User interface
+│   ├── alignment_panel.py
+│   ├── file_management_panel.py
+│   └── panels/
+│       ├── georeferencing_panel.py
+│       ├── vertical_alignment_panel.py
+│       ├── cross_section_panel.py
+│       └── corridor_panel.py
+│
+└── handlers/                 # Blender event handlers
+    └── depsgraph_handler.py  # Real-time update system
 ```
 
 ---
@@ -196,21 +227,22 @@ Open Blender's System Console: `Window > Toggle System Console`
 
 ## 📋 Requirements
 
-- **Blender 4.5+** (uses modern extension system)
+- **Blender 4.5 - 5.1** (uses modern extension system)
 - **ifcopenshell** (bundled with Blender 4.5+)
-- **BlenderBIM** (optional, but fully compatible)
+- **Bonsai** (optional, but fully compatible)
 
 ---
 
 ## 🎯 Roadmap
 
+- [x] ~~3D corridor modeling~~ ✅ v0.7.0
+- [x] ~~Profile view visualization~~ ✅ v0.6.0
+- [x] ~~Station markers~~ ✅ v0.6.0
 - [ ] Spiral curve transitions (clothoids)
 - [ ] Superelevation design
-- [ ] 3D corridor modeling
 - [ ] Earthwork quantities
-- [ ] Profile view visualization
-- [ ] Station/offset labeling
 - [ ] Alignment reports and exports
+- [ ] IfcOpenShell alignment API integration
 
 ---
 
@@ -218,13 +250,7 @@ Open Blender's System Console: `Window > Toggle System Console`
 
 Saikei Civil is open-source and welcomes contributions! Whether it's bug reports, feature requests, or code contributions, we appreciate your help.
 
-**Repository:** [https://github.com/DesertSpringsCivil/Saikei Civil](https://github.com/DesertSpringsCivil/Saikei Civil)
-
----
-
-## 📜 License
-
-See LICENSE file for details.
+**Repository:** [https://github.com/saikeicivil/SaikeiCivil](https://github.com/saikeicivil/SaikeiCivil)
 
 ---
 
@@ -233,7 +259,7 @@ See LICENSE file for details.
 Built with:
 - **Blender** - 3D creation suite
 - **ifcopenshell** - IFC file processing
-- **BlenderBIM** - IFC integration for Blender
+- **Bonsai** - IFC integration for Blender
 
 Generated with assistance from **Claude Code** (Anthropic)
 
@@ -241,17 +267,21 @@ Generated with assistance from **Claude Code** (Anthropic)
 
 ## 📝 Version History
 
-### Current (Main Branch)
-- ✅ Real-time PI updates with depsgraph handler
-- ✅ Integrated curve insertion with automatic geometry updates
-- ✅ BlenderBIM compatibility (no modal operator conflicts)
-- ✅ IFC spatial hierarchy visualization
-- ✅ File management (New/Open/Save IFC)
-- ✅ Georeferencing panel
-- ✅ Cross section tools
-- ✅ Vertical alignment support
+### v0.7.0 (January 2026)
+- Native IFC corridor generation with `IfcSectionedSolidHorizontal`
+- Three-layer architecture refactoring
+- Transaction system with undo/redo infrastructure
+- Parametric constraints system
+- ~95% buildingSMART IFC 4.3 validation compliance
+- License changed to GPL v3
 
-### v0.5.0 (Previous)
+### v0.6.0 (December 2025)
+- Rebrand from BlenderCivil to Saikei Civil
+- Profile view visualization overlay
+- Visual station markers for alignments
+- Cross-section overlay system
+
+### v0.5.0
 - Initial extension system migration
 - Basic alignment creation
 
@@ -259,7 +289,7 @@ Generated with assistance from **Claude Code** (Anthropic)
 
 ## 📄 License
 
-**Copyright © 2025 Michael Yoder / Desert Springs Civil Engineering PLLC**
+**Copyright © 2025-2026 Michael Yoder / Desert Springs Civil Engineering PLLC**
 
 Saikei Civil is licensed under the **GNU General Public License v3 (GPL-3.0)**.
 
